@@ -339,7 +339,7 @@ Button Handler에서 Panel을 임의로 열고 닫으며 상태를 우회하지 
 - 동일 State를 다시 적용해도 결과가 달라지지 않게 멱등적으로 작성한다.
 - Panel별 내부 Animation은 Panel 책임으로 둘 수 있지만 표시 가능 여부는 GameState 정책을 따른다.
 - Reset 시 모든 Coroutine, Tween, Delayed Callback, Selection, Modal 상태를 취소한다.
-- 이전 `RoundId`의 UI Event를 무시한다.
+- 이전 `Tick`의 UI Event를 무시한다.
 - 숨김 상태에서 Raycast Target과 입력 Action이 남지 않게 한다.
 
 ## 19. 필수 UI 테스트

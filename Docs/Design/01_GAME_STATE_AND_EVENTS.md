@@ -10,7 +10,7 @@
 
 ### 책임
 
-- `CurrentState`, `PreviousState`, 현재 `RoundId` 관리
+- `CurrentState`, `PreviousState`, 현재 `Tick` 관리. Tick은 프레임 수가 아니라 Reset 때 증가하는 라운드 세대 토큰이다.
 - Request와 현재 상태 조합 검증
 - 이전 상태 이탈, 상태 값 변경, 새 상태 진입의 원자적 처리
 - 전환 성공 직후 `GameStateChangedEvent` 즉시 Broadcast
@@ -159,7 +159,7 @@ Reset은 공개 GameState가 아니라 `RoundResetCoordinator` 또는 동등 시
 - 같은 상태로의 중복 전이는 기본적으로 무시한다.
 - 외부 시스템에 범용 `ChangeState(GameState)`를 공개하지 않는다.
 
-거부된 요청은 개발 빌드에서 `Frame`, `RoundId`, `CurrentState`, `Request`, `RejectReason`을 진단 가능하게 기록한다.
+거부된 요청은 개발 빌드에서 `Frame`, `Tick`, `CurrentState`, `Request`, `RejectReason`을 진단 가능하게 기록한다.
 
 ## 6. 전환 원자성
 
@@ -194,7 +194,7 @@ Reset은 공개 GameState가 아니라 `RoundResetCoordinator` 또는 동등 시
 - 하나의 FIFO Queue에서 순서를 보장한다.
 - 발행된 다음 프레임의 `Update` 초반에 처리한다. 현재 프레임에 발행된 Request는 다음 drain용 버퍼에 보관한다.
 - 각 Request는 처리 시점의 최신 `CurrentState`로 다시 검증한다.
-- Round 종속 Request에는 `RoundId` 또는 동등한 Generation Token을 포함한다.
+- Round 종속 Request에는 `Tick`을 포함한다.
 
 대표 Request:
 
@@ -305,7 +305,7 @@ Script Execution Order의 우연한 순서에 의존하지 않는다. 초기화 
 - Angular Velocity
 - Simulation/Kinematic 관련 Flag
 - Body ID
-- RoundId
+- Tick
 
 ### 상태별 처리
 
@@ -357,7 +357,7 @@ Scene Reload를 사용하지 않는다. Reset은 여러 번 호출돼도 같은 
 ### 순서
 
 1. Input, AI, Spawn, Timer 및 전투 Event Producer 정지
-2. `GameStateManager`가 수락한 Reset 요청에서 `RoundId` 증가, Coordinator가 새 `RoundId`를 기준으로 이전 Queue/Coroutine/Task/Animation Event 무효화
+2. `GameStateManager`가 수락한 Reset 요청에서 `Tick` 증가, Coordinator가 새 `Tick`을 기준으로 이전 Queue/Coroutine/Task/Animation Event 무효화
 3. Enemy, Projectile, Effect Pool 반환
 4. Player 위치, 회전, Action State, Gauge, 임시 효과 초기화
 5. Score, Combo, Kill, Hit, Special Use, Timer 초기화
@@ -390,7 +390,7 @@ Reset 도중 추가 Reset 요청은 무시한다.
 - 상태별 Request Whitelist
 - 중복 전이 거부
 - Finishing 모든 이탈 경로의 TimeScale 복구
-- Body ID와 RoundId 기반 Snapshot Guard
+- Body ID와 Tick 기반 Snapshot Guard
 - Battle/Finishing의 유효 Round에서만 Score Event 수락
 - Reset 완료 전 Ready/Start UI 금지
 - Event 구독 등록/해제 대칭
@@ -411,7 +411,7 @@ Reset 도중 추가 Reset 요청은 무시한다.
 11. Pause Quit가 확인 없이 Reset 후 Ready로 이동하고 앱을 종료하지 않음
 12. Result Retry가 확인 없이 Reset 후 Ready로 이동
 13. Retry 후 IntroDialogue 재출력과 Skip
-14. 이전 RoundId Event와 Physics Snapshot 거부
+14. 이전 Tick Event와 Physics Snapshot 거부
 15. Reset 연속 호출의 멱등성
 
 ## 18. 관련 문서

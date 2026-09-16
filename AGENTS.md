@@ -125,7 +125,7 @@ Skip 버튼은 별도 우회 전이를 만들지 않고 현재 Dialogue를 완�
 - Keyboard와 UI 입력은 Adapter에서 동일한 요청 타입으로 정규화한다. 예: ESC와 Pause 버튼은 모두 `PauseRequest`다.
 - 동일 프레임 중복 요청은 순서대로 검증한다. 첫 요청으로 상태가 바뀌면 뒤 요청은 바뀐 상태를 기준으로 다시 검증한다.
 - 요청 처리 중 발생한 요청도 다음 프레임의 drain으로 넘겨 무한 재진입을 막는다.
-- 이전 라운드의 지연 이벤트가 새 라운드에 적용되지 않도록 모든 라운드 종속 요청/전투 이벤트에 `RoundId`를 포함하거나 동등한 세대 토큰을 사용한다.
+- 이전 라운드의 지연 이벤트가 새 라운드에 적용되지 않도록 모든 라운드 종속 요청/전투 이벤트에 `Tick`을 포함한다. 여기서 Tick은 프레임 수가 아니라 Reset 때 증가하는 라운드 세대 토큰이다.
 - Reset 시작 시 Producer를 먼저 막고, 오래된 Queue 항목과 비동기 콜백을 무효화한다.
 - Event 구독은 `OnEnable`/`OnDisable` 또는 명확한 생명주기에서 대칭적으로 등록/해제한다.
 
@@ -143,7 +143,7 @@ Skip 버튼은 별도 우회 전이를 만들지 않고 현재 Dialogue를 완�
 - 활성 Rigidbody를 Registry로 관리한다. 매 Pause마다 전역 검색하지 않는다.
 - Pool에서 대여/활성화할 때 등록하고 반환/비활성화할 때 해제한다.
 - Pause, Ready, IntroDialogue, Countdown, OutroDialogue, Result 진입 시 속도, 각속도, 시뮬레이션/kinematic 관련 복원 정보를 스냅샷하고 정지한다.
-- Battle 복귀 시 같은 `RoundId`의 유효한 스냅샷만 복원한다.
+- Battle 복귀 시 같은 `Tick`의 유효한 스냅샷만 복원한다.
 - Finishing에서는 물리를 계속 시뮬레이션한다.
 - 정지 중 새로 등록된 Body는 즉시 정지 상태로 편입한다.
 - 파괴되거나 Pool로 반환된 Body의 스냅샷은 폐기한다.
@@ -230,7 +230,7 @@ Reset은 Scene Reload 없이 현재 라운드를 완전히 초기화하는 멱�
 `RoundResetCoordinator`가 아래 순서와 완료 Barrier를 담당한다. `GameStateManager`는 Reset 요청을 검증하고 완료 보고 이후에만 `Ready`로 전환한다.
 
 1. Player Input, AI, Spawn, Combat Event Producer를 차단한다.
-2. `GameStateManager`가 수락한 Reset 요청에서 `RoundId`를 증가시키고, Coordinator가 새 `RoundId`를 기준으로 이전 라운드 Queue, Coroutine, Task, Animation Event를 무효화한다.
+2. `GameStateManager`가 수락한 Reset 요청에서 `Tick`을 증가시키고, Coordinator가 새 `Tick`을 기준으로 이전 라운드 Queue, Coroutine, Task, Animation Event를 무효화한다.
 3. 활성 Enemy, Projectile, Hit Effect를 Pool로 반환한다.
 4. Player 위치, 회전, Action State, Special Gauge와 잔여 물리 상태를 초기화한다.
 5. Score, Combo, Kill, Hit, Special Use 통계와 Timer를 초기화한다.
@@ -308,7 +308,7 @@ Assets/Tests/PlayMode
 - StateChanged 알림은 성공한 전환에만 정확히 한 번 발행된다.
 - `Battle` 외 Pause 요청, `Paused` 외 Resume 요청이 상태를 바꾸지 않는다.
 - Player 피격 시 현재 Score의 10% 감소 정책과 반올림이 일관된다.
-- `RoundId`가 다른 지연 이벤트는 무시된다.
+- `Tick`이 다른 지연 이벤트는 무시된다.
 - Reset을 연속 호출해도 결과가 동일하다.
 
 ### Play Mode 테스트
