@@ -1,0 +1,14 @@
+{
+  "name": "GameDemo.Systems",
+  "rootNamespace": "",
+  "references": ["GameDemo.Core"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

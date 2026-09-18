@@ -608,7 +608,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 20db8777bb7345b69d8287151a25f3f1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: GameDemo.Core::CoreBootstrap
+  m_EditorClassIdentifier: GameDemo.Systems::CoreBootstrap
   eventManager: {fileID: 270781557}
   gameStateManager: {fileID: 34651319}
   initializationCoordinator: {fileID: 1315145441}

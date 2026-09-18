@@ -116,9 +116,10 @@ try {
     DrawRoute ([float[]]@(1780, 610, 1850, 610, 1850, 1085, 1900, 1085)) '#2775D1'
     DrawRoute ([float[]]@(940, 1170, 940, 1205, 365, 1205, 365, 1300)) '#2775D1'
     DrawRoute ([float[]]@(900, 1350, 580, 1350)) '#845ED6' $true
-    DrawRoute ([float[]]@(1115, 1400, 1115, 1485)) '#0FA3A5'
+    DrawRoute ([float[]]@(1920, 1350, 2010, 1350)) '#845ED6' $true
+    DrawRoute ([float[]]@(1685, 1400, 1685, 1485)) '#0FA3A5'
 
-    DrawBox 1000 220 600 130 'CoreBootstrap' 'Scene의 서비스 참조 연결 · 첫 초기화 시작' '#2775D1'
+    DrawBox 1000 220 600 130 'CoreBootstrap' "Unity Update → 요청 Drain → 4계층 순차 호출`nFixedUpdate → Physics 계층" '#2775D1'
     DrawBox 110 490 480 160 'InitializationCoordinator' "IRoundInitializable 순차 실행`n완료 요청을 이벤트 버스에 등록" '#2775D1'
     DrawBox 700 490 480 160 'EventManager' "IGameEventBus 구현`n요청 FIFO · 상태 알림 즉시 전달" '#845ED6'
     DrawBox 1300 490 480 160 'GameStateManager' "GameState와 Tick 소유`n요청 검증 · Reset 승인 · 전환 알림" '#2775D1'
@@ -136,26 +137,29 @@ try {
     DrawText '요청 클래스 계층' $sectionFont '#0E9397' 110 1225 850 45
     DrawBox 150 1300 430 100 'IGameRequest' 'Tick 제공 계약' '#845ED6'
     DrawBox 900 1300 430 100 'GameRequest' '공통 Tick 보관 · 추상 클래스' '#0FA3A5'
+    DrawText '일반 C# 계층 계약' $sectionFont '#0E9397' 1450 1225 850 45
+    DrawBox 1450 1300 470 100 'StateAwareNode' '상태 알림 전달 · 실행 필터 캐시' '#0FA3A5'
+    DrawBox 2010 1300 470 100 'IGameLoopNode' 'OnGameStateChanged · Update 계약' '#845ED6'
 
     $panel = RoundRect 100 1485 2400 305 24
     $panelFill = [System.Drawing.SolidBrush]::new((Color '#EAF3FB'))
     $panelBorder = [System.Drawing.Pen]::new((Color '#C9DCEC'), 2)
     $graphics.FillPath($panelFill, $panel); $graphics.DrawPath($panelBorder, $panel)
     $panelFill.Dispose(); $panelBorder.Dispose(); $panel.Dispose()
-    DrawText 'GameRequest를 상속하는 구체 요청 클래스 10개' $sectionFont '#315B7D' 142 1500 1200 42
+    DrawText 'CoreBootstrap → 계층 → 하위 요소' $sectionFont '#315B7D' 142 1500 1200 42
     $names = @(
-        'InitializationCompletedRequest', 'StartRequest', 'DialogueCompleteRequest', 'CountdownCompleteRequest', 'PauseRequest',
-        'ResumeRequest', 'TimerReachedZeroRequest', 'FinishingCompleteRequest', 'RestartRequest', 'QuitToStartRequest'
+        'PlayerLayer', 'EnemyLayer', 'UiLayer', 'PhysicsLayer',
+        'PlayerInput / Action', 'EnemyDecision / Action', 'BattleHud / Dialogue', 'PhysicsState / Body'
     )
     for ($i = 0; $i -lt $names.Count; $i++) {
-        $col = $i % 5; $row = [Math]::Floor($i / 5)
-        DrawPill (142 + $col * 470) (1560 + $row * 100) 430 $names[$i]
+        $col = $i % 4; $row = [Math]::Floor($i / 4)
+        DrawPill (142 + $col * 590) (1560 + $row * 100) 540 $names[$i]
     }
 
     DrawText '실선 화살표: 참조·호출·전달' $smallFont '#2775D1' 130 1820 520 40
     DrawText '점선 화살표: 인터페이스 구현' $smallFont '#845ED6' 720 1820 560 40
     DrawText '청록 화살표: 클래스 상속' $smallFont '#0E9397' 1380 1820 560 40
-    DrawText '※ Player · Enemy · UI · Physics는 현재 폴더만 있으므로 표시하지 않음' $smallFont '#60758D' 130 1860 1700 28
+    DrawText '※ PhysicsLayer.FixedUpdate는 상태 요소와 Body 요소를 순서대로 호출' $smallFont '#60758D' 130 1860 1700 28
 
     $canvas.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
     Write-Output $outputPath

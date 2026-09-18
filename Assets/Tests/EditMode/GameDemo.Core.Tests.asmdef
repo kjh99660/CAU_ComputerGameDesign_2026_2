@@ -1,7 +1,7 @@
 {
   "name": "GameDemo.Core.Tests",
   "rootNamespace": "",
-  "references": ["GameDemo.Core"],
+  "references": ["GameDemo.Core", "GameDemo.Systems"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

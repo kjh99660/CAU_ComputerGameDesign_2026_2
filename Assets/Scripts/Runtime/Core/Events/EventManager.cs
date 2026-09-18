@@ -1,8 +1,7 @@
 using System;
 using UnityEngine;
 
-// 요청 큐를 매 프레임 비우고 상태 변경 알림을 즉시 전달한다.
-[DefaultExecutionOrder(-1000)]
+// CoreBootstrap이 요청 큐를 비울 수 있게 하고 상태 변경 알림을 즉시 전달한다.
 public sealed class EventManager : MonoBehaviour, IGameEventBus
 {
     private readonly FrameRequestQueue _requests = new FrameRequestQueue();
@@ -23,7 +22,7 @@ public sealed class EventManager : MonoBehaviour, IGameEventBus
     }
 
     // 이전 프레임까지 쌓인 요청을 처리한다.
-    private void Update()
+    public void DrainPreviousFrames()
     {
         _requests.DrainPreviousFrames(Time.frameCount, DeliverRequest);
     }
