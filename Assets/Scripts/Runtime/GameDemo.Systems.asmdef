@@ -1,7 +1,7 @@
 {
   "name": "GameDemo.Systems",
   "rootNamespace": "",
-  "references": ["GameDemo.Core"],
+  "references": ["GameDemo.Core", "Unity.ugui", "Unity.TextMeshPro"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // 필수 시스템의 초기화를 순서대로 기다린 뒤 완료 요청을 발행한다.
@@ -13,6 +14,25 @@ public sealed class InitializationCoordinator : MonoBehaviour
     public void Configure(IGameEventBus events)
     {
         _events = events;
+    }
+
+    // 런타임에 발견한 필수 시스템을 초기화 Barrier에 중복 없이 등록한다.
+    public void RegisterParticipant(MonoBehaviour participant)
+    {
+        if (participant == null || !(participant is IRoundInitializable))
+        {
+            Debug.LogError("Initialization participant must implement IRoundInitializable.", participant);
+            return;
+        }
+
+        var registered = participants != null
+            ? new List<MonoBehaviour>(participants)
+            : new List<MonoBehaviour>();
+        if (registered.Contains(participant))
+            return;
+
+        registered.Add(participant);
+        participants = registered.ToArray();
     }
 
     // 참여 시스템을 확인하고 지정된 Tick의 초기화를 시작한다.

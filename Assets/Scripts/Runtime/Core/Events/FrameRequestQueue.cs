@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 // 요청을 발행 프레임과 함께 보관하고 다음 프레임부터 FIFO로 전달한다.
 public sealed class FrameRequestQueue
@@ -51,6 +52,7 @@ public sealed class FrameRequestQueue
         {
             Request = request;
             Frame = frame;
+            Debug.Log($"Enqueued request {request.GetType().Name} at frame {frame}");
         }
     }
 }

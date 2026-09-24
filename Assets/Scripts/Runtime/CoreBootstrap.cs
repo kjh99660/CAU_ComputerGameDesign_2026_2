@@ -8,6 +8,7 @@ public sealed class CoreBootstrap : MonoBehaviour
     [SerializeField] private GameStateManager gameStateManager;
     [SerializeField] private InitializationCoordinator initializationCoordinator;
     [SerializeField] private RoundResetCoordinator roundResetCoordinator;
+    [SerializeField] private UIRoot uiRoot;
 
     private bool _configured;
     private PlayerLayer _player;
@@ -18,22 +19,44 @@ public sealed class CoreBootstrap : MonoBehaviour
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
     {
+        ResolveUiRoot();
         if (eventManager == null || gameStateManager == null ||
-            initializationCoordinator == null || roundResetCoordinator == null)
+            initializationCoordinator == null || roundResetCoordinator == null || uiRoot == null)
         {
-            Debug.LogError("CoreBootstrap requires all four Core service references.", this);
+            Debug.LogError("CoreBootstrap requires all Core service references and UIRoot.", this);
             return;
         }
 
         gameStateManager.Configure(eventManager, roundResetCoordinator);
         initializationCoordinator.Configure(eventManager);
+        initializationCoordinator.RegisterParticipant(uiRoot);
+        roundResetCoordinator.RegisterParticipant(uiRoot);
         _player = new PlayerLayer();
         _enemy = new EnemyLayer();
-        _ui = new UiLayer();
+        _ui = uiRoot.Configure(eventManager, gameStateManager);
+        if (_ui == null)
+        {
+            Debug.LogError("CoreBootstrap could not configure the UI layer.", this);
+            return;
+        }
         _physics = new PhysicsLayer();
         eventManager.StateChanged += OnGameStateChanged;
         OnGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
         _configured = true;
+    }
+
+    private void ResolveUiRoot()
+    {
+        if (uiRoot != null)
+            return;
+
+        GameObject canvasObject = GameObject.Find("UICanvas");
+        if (canvasObject == null)
+            return;
+
+        uiRoot = canvasObject.GetComponent<UIRoot>();
+        if (uiRoot == null)
+            uiRoot = canvasObject.AddComponent<UIRoot>();
     }
 
     // 연결이 끝났다면 초기화 Coordinator를 실행한다.
@@ -79,5 +102,6 @@ public sealed class CoreBootstrap : MonoBehaviour
     {
         if (eventManager != null)
             eventManager.StateChanged -= OnGameStateChanged;
+        _ui?.Dispose();
     }
 }

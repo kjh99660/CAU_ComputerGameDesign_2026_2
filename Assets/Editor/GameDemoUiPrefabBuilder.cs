@@ -88,6 +88,7 @@ public static class GameDemoUiPrefabBuilder
             group.ignoreParentGroups = false;
 
             build(root.transform);
+            AttachAndBindView(name, root);
             PrefabUtility.SaveAsPrefabAsset(root, path);
         }
         finally
@@ -136,10 +137,8 @@ public static class GameDemoUiPrefabBuilder
 
         CreateButton(root, "SkipButton", "Dialogue/Dialogue_SkipButton.png", "SKIP", TopRight,
             new Vector2(-46, -42), new Vector2(230, 78), 24, Muted);
-        CreateImage(root, "ContinuePrompt", "Dialogue/Dialogue_ContinuePrompt.png", BottomRight,
-            new Vector2(-96, 47), new Vector2(330, 82));
-        CreateText(root, "ContinueText", "SPACE   CONTINUE", BottomRight,
-            new Vector2(-118, 67), new Vector2(280, 40), 19, White, FontStyles.Bold);
+        CreateButton(root, "ContinuePrompt", "Dialogue/Dialogue_ContinuePrompt.png", "SPACE   CONTINUE", BottomRight,
+            new Vector2(-96, 47), new Vector2(330, 82), 19, White);
     }
 
     private static void BuildCountdown(Transform root)
@@ -329,8 +328,63 @@ public static class GameDemoUiPrefabBuilder
             child.gameObject.SetActive(ordered[i] == "Start");
         }
 
+        UIRoot uiRoot = canvasObject.GetComponent<UIRoot>();
+        if (uiRoot == null)
+            uiRoot = canvasObject.AddComponent<UIRoot>();
+        uiRoot.AutoBind();
+        ConnectUiRootToCore(uiRoot);
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
+    }
+
+    private static void AttachAndBindView(string name, GameObject root)
+    {
+        UIScreenView view = name switch
+        {
+            "Start" => GetOrAdd<StartView>(root),
+            "Dialogue" => GetOrAdd<DialogueView>(root),
+            "Countdown" => GetOrAdd<CountdownView>(root),
+            "Battle" => GetOrAdd<BattleView>(root),
+            "Pause" => GetOrAdd<PauseView>(root),
+            "RetryConfirmation" => GetOrAdd<RetryConfirmationView>(root),
+            "Finishing" => GetOrAdd<FinishingView>(root),
+            "Result" => GetOrAdd<ResultView>(root),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
+        };
+        view.AutoBind();
+    }
+
+    private static T GetOrAdd<T>(GameObject gameObject) where T : Component
+    {
+        T component = gameObject.GetComponent<T>();
+        return component != null ? component : gameObject.AddComponent<T>();
+    }
+
+    private static void ConnectUiRootToCore(UIRoot uiRoot)
+    {
+        CoreBootstrap bootstrap = UnityEngine.Object.FindFirstObjectByType<CoreBootstrap>(FindObjectsInactive.Include);
+        if (bootstrap != null)
+        {
+            var serializedBootstrap = new SerializedObject(bootstrap);
+            serializedBootstrap.FindProperty("uiRoot").objectReferenceValue = uiRoot;
+            serializedBootstrap.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        RoundResetCoordinator reset = UnityEngine.Object.FindFirstObjectByType<RoundResetCoordinator>(FindObjectsInactive.Include);
+        if (reset == null)
+            return;
+
+        var serializedReset = new SerializedObject(reset);
+        SerializedProperty participants = serializedReset.FindProperty("participants");
+        for (int i = 0; i < participants.arraySize; i++)
+            if (participants.GetArrayElementAtIndex(i).objectReferenceValue == uiRoot)
+                return;
+
+        int index = participants.arraySize;
+        participants.InsertArrayElementAtIndex(index);
+        participants.GetArrayElementAtIndex(index).objectReferenceValue = uiRoot;
+        serializedReset.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static Image CreateOverlay(Transform parent, float alpha)
@@ -397,7 +451,7 @@ public static class GameDemoUiPrefabBuilder
         text.fontStyle = style;
         text.color = color;
         text.alignment = alignment;
-        text.enableWordWrapping = true;
+        text.textWrappingMode = TextWrappingModes.Normal;
         text.overflowMode = TextOverflowModes.Ellipsis;
         text.raycastTarget = false;
         return text;

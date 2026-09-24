@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // 참여 시스템의 생산을 멈추고 Reset 완료까지 순서를 관리한다.
@@ -9,6 +10,24 @@ public sealed class RoundResetCoordinator : MonoBehaviour
 
     private bool _running;
     private bool _producersStopped;
+
+    public void RegisterParticipant(MonoBehaviour participant)
+    {
+        if (participant == null || !(participant is IRoundResettable))
+        {
+            Debug.LogError("A reset participant must implement IRoundResettable.", this);
+            return;
+        }
+
+        if (participants == null)
+            participants = new MonoBehaviour[0];
+        foreach (MonoBehaviour registered in participants)
+            if (registered == participant)
+                return;
+
+        var expanded = new List<MonoBehaviour>(participants) { participant };
+        participants = expanded.ToArray();
+    }
 
     // Reset 전에 모든 참여 시스템의 새 이벤트 생산을 차단한다.
     public bool StopProducers()
