@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 public enum UiRequestType
 {
@@ -27,8 +28,10 @@ public sealed class UiRequestDispatcher : IUiRequestDispatcher
 
     public bool IsInputEnabled { get; private set; } = true;
 
-    public UiRequestDispatcher(IGameEventBus events, GameStateManager stateManager)
-        : this(events, () => stateManager != null ? stateManager.Tick : 0) { }
+    public UiRequestDispatcher(IGameEventBus events, GameStateManager stateManager) : this(events, () => stateManager != null ? stateManager.Tick : 0)
+    { 
+        Debug.Log("Init UiRequestDispatcher");
+    }
 
     public UiRequestDispatcher(IGameEventBus events, Func<int> tickProvider)
     {
@@ -56,6 +59,7 @@ public sealed class UiRequestDispatcher : IUiRequestDispatcher
             UiRequestType.FinishingComplete => new FinishingCompleteRequest(tick),
             _ => throw new ArgumentOutOfRangeException(nameof(requestType), requestType, null)
         };
+        Debug.Log($"Enqueueing UI request: {requestType} at tick {tick}");
         _events.EnqueueRequest(request);
     }
 }

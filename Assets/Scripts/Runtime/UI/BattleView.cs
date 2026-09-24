@@ -8,7 +8,6 @@ public sealed class BattleView : UIScreenView
     [SerializeField] private Button pauseButton;
     [SerializeField] private TMP_Text scoreValue;
     [SerializeField] private TMP_Text timerValue;
-    [SerializeField] private Image specialGaugeFill;
 
     public event Action PauseClicked;
 
@@ -18,7 +17,6 @@ public sealed class BattleView : UIScreenView
         if (pauseButton == null) pauseButton = FindNamed<Button>("PauseButton");
         if (scoreValue == null) scoreValue = FindNamed<TMP_Text>("ScoreValue");
         if (timerValue == null) timerValue = FindNamed<TMP_Text>("TimerValue");
-        if (specialGaugeFill == null) specialGaugeFill = FindNamed<Image>("SpecialGaugeFill");
     }
 
     private void OnEnable()
@@ -36,7 +34,6 @@ public sealed class BattleView : UIScreenView
     {
         SetText(scoreValue, model.Score.ToString("D6"));
         SetText(timerValue, FormatTime(model.RemainingSeconds));
-        if (specialGaugeFill != null) specialGaugeFill.fillAmount = model.GaugeNormalized;
     }
 
     public void SetPauseInteractable(bool interactable) => SetButtonInteractable(pauseButton, interactable);
@@ -48,7 +45,7 @@ public sealed class BattleView : UIScreenView
         //TOOD : Score 증감량 Pool과 Scale/Color 연출을 연결한다.
     }
 
-    private static string FormatTime(float seconds)
+    private string FormatTime(float seconds)
     {
         int value = Mathf.Max(0, Mathf.CeilToInt(seconds));
         return $"{value / 60:00}:{value % 60:00}";
