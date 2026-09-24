@@ -4,7 +4,7 @@ public sealed class PausePresenter : UiPresenter<PauseView>
 {
     public event Action RetryConfirmationRequested;
 
-    public PausePresenter(PauseView view, IUiRequestDispatcher requests) : base(view, requests)
+    public PausePresenter(PauseView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         View.ResumeClicked += OnResumeClicked;
         View.RetryClicked += OnRetryClicked;
@@ -12,9 +12,9 @@ public sealed class PausePresenter : UiPresenter<PauseView>
     }
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Paused;
-    private void OnResumeClicked() => Requests.Enqueue(UiRequestType.Resume);
+    private void OnResumeClicked() => Requests.Enqueue(UIRequestType.Resume);
     private void OnRetryClicked() => RetryConfirmationRequested?.Invoke();
-    private void OnQuitClicked() => Requests.Enqueue(UiRequestType.QuitToStart);
+    private void OnQuitClicked() => Requests.Enqueue(UIRequestType.QuitToStart);
 
     public override void Dispose()
     {

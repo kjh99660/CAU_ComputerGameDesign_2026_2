@@ -3,7 +3,7 @@ public sealed class FinishingPresenter : UiPresenter<FinishingView>
     private float _remaining;
     private bool _completionRequested;
 
-    public FinishingPresenter(FinishingView view, IUiRequestDispatcher requests) : base(view, requests)
+    public FinishingPresenter(FinishingView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         SubscribeToFinishingScore();
     }
@@ -28,7 +28,7 @@ public sealed class FinishingPresenter : UiPresenter<FinishingView>
         if (_remaining > 0f)
             return;
         _completionRequested = true;
-        Requests.Enqueue(UiRequestType.FinishingComplete);
+        Requests.Enqueue(UIRequestType.FinishingComplete);
     }
 
     public void Present(FinishingUiModel model) => View.Render(model);

@@ -1,9 +1,12 @@
+using UnityEngine;
+
 public sealed class BattlePresenter : UiPresenter<BattleView>
 {
-    public BattlePresenter(BattleView view, IUiRequestDispatcher requests) : base(view, requests)
+    public BattlePresenter(BattleView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         View.PauseClicked += OnPauseClicked;
         SubscribeToBattleData();
+        View.ResetView();
     }
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Battle || state == GameState.Paused;
@@ -14,7 +17,7 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
 
     public void Present(BattleUiModel model) => View.Render(model);
     public void PresentScoreChange(int delta) => View.PlayScoreFeedback(delta);
-    private void OnPauseClicked() => Requests.Enqueue(UiRequestType.Pause);
+    private void OnPauseClicked() => Requests.Enqueue(UIRequestType.Pause);
 
     private void SubscribeToBattleData()
     {
@@ -25,6 +28,21 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
     {
         View.PauseClicked -= OnPauseClicked;
         UnsubscribeFromBattleData();
+    }
+
+    public override void Update(float deltaTime, float unscaledDeltaTime)
+    {
+        if (IsVisibleIn(CurrentState) == false || CurrentState != GameState.Battle)
+        {
+            return;
+        }
+        float time = Mathf.Max(0f, View.GetRemainingSeconds());
+        time -= deltaTime;
+        View.RenderTimer(time);
+        if(time < 0.01f)
+        {
+            Requests.Enqueue(UIRequestType.BattleComplete);
+        }
     }
 
     private void UnsubscribeFromBattleData()

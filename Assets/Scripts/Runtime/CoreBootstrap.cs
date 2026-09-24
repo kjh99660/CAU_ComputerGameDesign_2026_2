@@ -2,7 +2,7 @@ using UnityEngine;
 
 // Unity 갱신을 받아 Core 서비스와 네 계층에 순차적으로 전달한다.
 [DefaultExecutionOrder(-1000)]
-public sealed class CoreBootstrap : MonoBehaviour
+public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
 {
     [SerializeField] private EventManager eventManager;
     [SerializeField] private GameStateManager gameStateManager;
@@ -15,6 +15,7 @@ public sealed class CoreBootstrap : MonoBehaviour
     private EnemyLayer _enemy;
     private UiLayer _ui;
     private PhysicsLayer _physics;
+    private GameRequestProcessor _requestProcessor;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -27,7 +28,7 @@ public sealed class CoreBootstrap : MonoBehaviour
             return;
         }
 
-        gameStateManager.Configure(eventManager, roundResetCoordinator);
+        gameStateManager.Configure(roundResetCoordinator, this);
         initializationCoordinator.Configure(eventManager);
         initializationCoordinator.RegisterParticipant(uiRoot);
         roundResetCoordinator.RegisterParticipant(uiRoot);
@@ -40,8 +41,8 @@ public sealed class CoreBootstrap : MonoBehaviour
             return;
         }
         _physics = new PhysicsLayer();
-        eventManager.StateChanged += OnGameStateChanged;
-        OnGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
+        _requestProcessor = new GameRequestProcessor(gameStateManager);
+        HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
         _configured = true;
     }
 
@@ -72,7 +73,7 @@ public sealed class CoreBootstrap : MonoBehaviour
         if (!_configured)
             return;
 
-        eventManager.DrainPreviousFrames();
+        eventManager.DrainPreviousFrames(_requestProcessor);
         float deltaTime = Time.deltaTime;
         float unscaledDeltaTime = Time.unscaledDeltaTime;
         _player.Update(deltaTime, unscaledDeltaTime);
@@ -89,7 +90,7 @@ public sealed class CoreBootstrap : MonoBehaviour
     }
 
     // 성공한 상태 변경을 네 계층과 그 하위 요소에 전달한다.
-    private void OnGameStateChanged(GameStateChangedEvent notification)
+    public void HandleGameStateChanged(GameStateChangedEvent notification)
     {
         _player.OnGameStateChanged(notification);
         _enemy.OnGameStateChanged(notification);
@@ -97,11 +98,9 @@ public sealed class CoreBootstrap : MonoBehaviour
         _physics.OnGameStateChanged(notification);
     }
 
-    // Bootstrap이 사라질 때 단일 상태 알림 구독을 해제한다.
+    // Bootstrap이 사라질 때 UI Presenter의 구독을 정리한다.
     private void OnDestroy()
     {
-        if (eventManager != null)
-            eventManager.StateChanged -= OnGameStateChanged;
         _ui?.Dispose();
     }
 }

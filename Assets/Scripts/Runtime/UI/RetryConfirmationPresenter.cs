@@ -2,7 +2,7 @@ public sealed class RetryConfirmationPresenter : UiPresenter<RetryConfirmationVi
 {
     private bool _isOpen;
 
-    public RetryConfirmationPresenter(RetryConfirmationView view, IUiRequestDispatcher requests) : base(view, requests)
+    public RetryConfirmationPresenter(RetryConfirmationView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         View.ConfirmClicked += OnConfirmClicked;
         View.CancelClicked += OnCancelClicked;
@@ -36,7 +36,7 @@ public sealed class RetryConfirmationPresenter : UiPresenter<RetryConfirmationVi
     {
         if (!_isOpen) return;
         Hide();
-        Requests.Enqueue(UiRequestType.Restart);
+        Requests.Enqueue(UIRequestType.Restart);
     }
 
     private void OnCancelClicked() => Hide();

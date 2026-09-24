@@ -7,13 +7,13 @@ public sealed class InitializationCoordinator : MonoBehaviour
 {
     [SerializeField] private MonoBehaviour[] participants = new MonoBehaviour[0];
 
-    private IGameEventBus _events;
+    private IGameRequestQueue _requests;
     private bool _started;
 
     // 초기화 완료 요청을 보낼 이벤트 버스를 연결한다.
-    public void Configure(IGameEventBus events)
+    public void Configure(IGameRequestQueue requests)
     {
-        _events = events;
+        _requests = requests;
     }
 
     // 런타임에 발견한 필수 시스템을 초기화 Barrier에 중복 없이 등록한다.
@@ -38,7 +38,7 @@ public sealed class InitializationCoordinator : MonoBehaviour
     // 참여 시스템을 확인하고 지정된 Tick의 초기화를 시작한다.
     public bool BeginInitialization(int tick)
     {
-        if (_started || _events == null || !ValidateParticipants())
+        if (_started || _requests == null || !ValidateParticipants())
             return false;
 
         _started = true;
@@ -74,6 +74,6 @@ public sealed class InitializationCoordinator : MonoBehaviour
             yield return ((IRoundInitializable)behaviour).InitializeRound(tick);
         }
 
-        _events.EnqueueRequest(new InitializationCompletedRequest(tick));
+        _requests.EnqueueRequest(new InitializationCompletedRequest(tick));
     }
 }

@@ -1,6 +1,6 @@
 public sealed class ResultPresenter : UiPresenter<ResultView>
 {
-    public ResultPresenter(ResultView view, IUiRequestDispatcher requests) : base(view, requests)
+    public ResultPresenter(ResultView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         View.RetryClicked += OnRetryClicked;
         SubscribeToResultData();
@@ -8,7 +8,7 @@ public sealed class ResultPresenter : UiPresenter<ResultView>
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Result;
     public void Present(ResultUiModel model) => View.Render(model);
-    private void OnRetryClicked() => Requests.Enqueue(UiRequestType.Restart);
+    private void OnRetryClicked() => Requests.Enqueue(UIRequestType.Restart);
 
     private void SubscribeToResultData()
     {

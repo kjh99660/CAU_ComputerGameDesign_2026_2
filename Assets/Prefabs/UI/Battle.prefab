@@ -419,7 +419,6 @@ MonoBehaviour:
   pauseButton: {fileID: 5880059333200567107}
   scoreValue: {fileID: 3635134015121077399}
   timerValue: {fileID: 4827213345781767218}
-  specialGaugeFill: {fileID: 0}
 --- !u!1 &7033980877563908675
 GameObject:
   m_ObjectHideFlags: 0

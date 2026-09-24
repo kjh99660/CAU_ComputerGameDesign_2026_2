@@ -1,6 +1,6 @@
 public sealed class DialoguePresenter : UiPresenter<DialogueView>
 {
-    public DialoguePresenter(DialogueView view, IUiRequestDispatcher requests) : base(view, requests)
+    public DialoguePresenter(DialogueView view, IUIRequestDispatcher requests) : base(view, requests)
     {
         View.SkipClicked += OnDialogueComplete;
         View.ContinueClicked += OnDialogueComplete;
@@ -11,7 +11,7 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         state == GameState.IntroDialogue || state == GameState.OutroDialogue;
 
     public void Present(DialogueUiModel model) => View.Render(model);
-    private void OnDialogueComplete() => Requests.Enqueue(UiRequestType.DialogueComplete);
+    private void OnDialogueComplete() => Requests.Enqueue(UIRequestType.DialogueComplete);
 
     private void SubscribeToDialogueData()
     {

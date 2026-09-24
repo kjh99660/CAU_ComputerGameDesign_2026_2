@@ -25,5 +25,8 @@ public sealed class StartView : UIScreenView
     }
 
     public void SetStartInteractable(bool interactable) => SetButtonInteractable(startButton, interactable);
-    private void HandleStartClicked() => StartClicked?.Invoke();
+    private void HandleStartClicked()
+    {
+        StartClicked?.Invoke();
+    }
 }

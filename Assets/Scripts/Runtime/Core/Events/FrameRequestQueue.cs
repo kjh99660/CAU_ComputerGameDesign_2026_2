@@ -52,7 +52,6 @@ public sealed class FrameRequestQueue
         {
             Request = request;
             Frame = frame;
-            Debug.Log($"Enqueued request {request.GetType().Name} at frame {frame}");
         }
     }
 }

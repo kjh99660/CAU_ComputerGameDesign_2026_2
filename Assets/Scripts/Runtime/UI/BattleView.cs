@@ -10,7 +10,8 @@ public sealed class BattleView : UIScreenView
     [SerializeField] private TMP_Text timerValue;
 
     public event Action PauseClicked;
-
+    private float _lastRemainingSeconds = 0f;
+    private int _lastScore = 0;
     public override void AutoBind()
     {
         base.AutoBind();
@@ -32,17 +33,35 @@ public sealed class BattleView : UIScreenView
 
     public void Render(BattleUiModel model)
     {
-        SetText(scoreValue, model.Score.ToString("D6"));
-        SetText(timerValue, FormatTime(model.RemainingSeconds));
+        RenderScore(model.Score);
+        RenderTimer(model.RemainingSeconds);
     }
 
     public void SetPauseInteractable(bool interactable) => SetButtonInteractable(pauseButton, interactable);
 
-    public override void ResetView() => Render(new BattleUiModel(0, 100f, 0f));
+    //TODO : 메니저 클래스에서 가져오기
+    public override void ResetView() => Render(new BattleUiModel(0, 10f, 0f));
 
     public void PlayScoreFeedback(int delta)
     {
         //TOOD : Score 증감량 Pool과 Scale/Color 연출을 연결한다.
+    }
+
+    public void RenderScore(int score)
+    {
+        _lastScore = score;
+        SetText(scoreValue, score.ToString("D6"));
+    }
+
+    public void RenderTimer(float remainingSeconds)
+    {
+        _lastRemainingSeconds = remainingSeconds;
+        SetText(timerValue, FormatTime(_lastRemainingSeconds));
+    }
+
+    public float GetRemainingSeconds()
+    {
+        return _lastRemainingSeconds;
     }
 
     private string FormatTime(float seconds)

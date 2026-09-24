@@ -4,7 +4,7 @@ public sealed class CountdownPresenter : UiPresenter<CountdownView>
     private float _remaining;
     private bool _completionRequested;
 
-    public CountdownPresenter(CountdownView view, IUiRequestDispatcher requests) : base(view, requests) { }
+    public CountdownPresenter(CountdownView view, IUIRequestDispatcher requests) : base(view, requests) { }
     protected override bool IsVisibleIn(GameState state) => state == GameState.Countdown;
 
     protected override void OnStateApplied(GameStateChangedEvent notification)
@@ -42,7 +42,7 @@ public sealed class CountdownPresenter : UiPresenter<CountdownView>
         }
 
         _completionRequested = true;
-        Requests.Enqueue(UiRequestType.CountdownComplete);
+        Requests.Enqueue(UIRequestType.CountdownComplete);
     }
 
     public override void Dispose() { }

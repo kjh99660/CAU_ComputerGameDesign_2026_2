@@ -14,7 +14,7 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     [SerializeField] private ResultView resultView;
     private UiLayer _layer;
 
-    public UiLayer Configure(IGameEventBus events, GameStateManager stateManager)
+    public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager)
     {
         AutoBind();
         if (!HasAllViews())
@@ -23,21 +23,22 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
             return null;
         }
         _layer?.Dispose();
-        _layer = new UiLayer(new UiRequestDispatcher(events, stateManager), startView, dialogueView,
+        _layer = new UiLayer(new UIRequestDispatcher(requests, stateManager), startView, dialogueView,
             countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView);
         return _layer;
     }
 
     public void AutoBind()
     {
-        if (startView == null) startView = FindScreen<StartView>("Start");
-        if (dialogueView == null) dialogueView = FindScreen<DialogueView>("Dialogue");
-        if (countdownView == null) countdownView = FindScreen<CountdownView>("Countdown");
-        if (battleView == null) battleView = FindScreen<BattleView>("Battle");
-        if (pauseView == null) pauseView = FindScreen<PauseView>("Pause");
-        if (retryConfirmationView == null) retryConfirmationView = FindScreen<RetryConfirmationView>("RetryConfirmation");
-        if (finishingView == null) finishingView = FindScreen<FinishingView>("Finishing");
-        if (resultView == null) resultView = FindScreen<ResultView>("Result");
+        // Inspector에 Prefab 원본이 연결되어 있어도 Presenter는 반드시 현재 Scene의 View를 사용한다.
+        startView = FindScreen<StartView>("Start");
+        dialogueView = FindScreen<DialogueView>("Dialogue");
+        countdownView = FindScreen<CountdownView>("Countdown");
+        battleView = FindScreen<BattleView>("Battle");
+        pauseView = FindScreen<PauseView>("Pause");
+        retryConfirmationView = FindScreen<RetryConfirmationView>("RetryConfirmation");
+        finishingView = FindScreen<FinishingView>("Finishing");
+        resultView = FindScreen<ResultView>("Result");
     }
 
     public void PresentDialogue(DialogueUiModel model) => _layer?.Dialogue.Present(model);

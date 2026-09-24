@@ -3,12 +3,12 @@ using System;
 public abstract class UiPresenter<TView> : IGameLoopNode, IDisposable where TView : UIScreenView
 {
     protected readonly TView View;
-    protected readonly IUiRequestDispatcher Requests;
+    protected readonly IUIRequestDispatcher Requests;
     protected GameState CurrentState { get; private set; } = GameState.Initializing;
     protected int CurrentTick { get; private set; }
     private bool _hasState;
 
-    protected UiPresenter(TView view, IUiRequestDispatcher requests)
+    protected UiPresenter(TView view, IUIRequestDispatcher requests)
     {
         View = view ?? throw new ArgumentNullException(nameof(view));
         Requests = requests ?? throw new ArgumentNullException(nameof(requests));
