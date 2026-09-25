@@ -1,6 +1,6 @@
 using System;
 
-public abstract class UiPresenter<TView> : IGameLoopNode, IDisposable where TView : UIScreenView
+public abstract class UiPresenter<TView> : IGameLoopSystem, IDisposable where TView : UIScreenView
 {
     protected readonly TView View;
     protected readonly IUIRequestDispatcher Requests;

@@ -9,20 +9,24 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     [SerializeField] private InitializationCoordinator initializationCoordinator;
     [SerializeField] private RoundResetCoordinator roundResetCoordinator;
     [SerializeField] private UIRoot uiRoot;
+    [SerializeField] private EnemyRuntime enemyRuntime;
 
     private bool _configured;
     private PlayerLayer _player;
     private EnemyLayer _enemy;
     private UiLayer _ui;
     private PhysicsLayer _physics;
+    private PhysicsPauseManager _physicsPauseManager;
     private GameRequestProcessor _requestProcessor;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
     {
         ResolveUiRoot();
+        ResolveEnemyRuntime();
         if (eventManager == null || gameStateManager == null ||
-            initializationCoordinator == null || roundResetCoordinator == null || uiRoot == null)
+            initializationCoordinator == null || roundResetCoordinator == null ||
+            uiRoot == null || enemyRuntime == null)
         {
             Debug.LogError("CoreBootstrap requires all Core service references and UIRoot.", this);
             return;
@@ -32,15 +36,19 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         initializationCoordinator.Configure(eventManager);
         initializationCoordinator.RegisterParticipant(uiRoot);
         roundResetCoordinator.RegisterParticipant(uiRoot);
+        _physicsPauseManager = new PhysicsPauseManager();
+        enemyRuntime.Configure(_physicsPauseManager);
+        initializationCoordinator.RegisterParticipant(enemyRuntime);
+        roundResetCoordinator.RegisterParticipant(enemyRuntime);
         _player = new PlayerLayer();
-        _enemy = new EnemyLayer();
+        _enemy = enemyRuntime.CreateLayer();
         _ui = uiRoot.Configure(eventManager, gameStateManager);
         if (_ui == null)
         {
             Debug.LogError("CoreBootstrap could not configure the UI layer.", this);
             return;
         }
-        _physics = new PhysicsLayer();
+        _physics = new PhysicsLayer(_physicsPauseManager);
         _requestProcessor = new GameRequestProcessor(gameStateManager);
         HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
         _configured = true;
@@ -58,6 +66,16 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         uiRoot = canvasObject.GetComponent<UIRoot>();
         if (uiRoot == null)
             uiRoot = canvasObject.AddComponent<UIRoot>();
+    }
+
+    private void ResolveEnemyRuntime()
+    {
+        if (enemyRuntime != null)
+            return;
+
+        enemyRuntime = GetComponent<EnemyRuntime>();
+        if (enemyRuntime == null)
+            enemyRuntime = gameObject.AddComponent<EnemyRuntime>();
     }
 
     // 연결이 끝났다면 초기화 Coordinator를 실행한다.

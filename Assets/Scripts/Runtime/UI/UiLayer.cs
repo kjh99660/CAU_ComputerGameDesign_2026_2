@@ -1,9 +1,9 @@
 using System;
 
 // 여덟 화면 Presenter의 상태 전달, 갱신, 입력 차단과 데이터 진입점을 소유한다.
-public sealed class UiLayer : IGameLoopNode, IDisposable
+public sealed class UiLayer : IGameLoopSystem, IDisposable
 {
-    private readonly IGameLoopNode[] _presenters;
+    private readonly IGameLoopSystem[] _presenters;
     private readonly IDisposable[] _disposables;
     private readonly UIScreenView[] _views;
     private readonly IUIRequestDispatcher _requests;
@@ -33,7 +33,7 @@ public sealed class UiLayer : IGameLoopNode, IDisposable
         pause.RetryConfirmationRequested += retry.Show;
         _views = new UIScreenView[] { startView, dialogueView, countdownView, battleView,
             pauseView, retryConfirmationView, finishingView, resultView };
-        _presenters = new IGameLoopNode[] { start, Dialogue, countdown, Battle, pause, retry, Finishing, Result };
+        _presenters = new IGameLoopSystem[] { start, Dialogue, countdown, Battle, pause, retry, Finishing, Result };
         _disposables = new IDisposable[] { start, Dialogue, countdown, Battle, pause, retry, Finishing, Result };
     }
 
@@ -55,12 +55,12 @@ public sealed class UiLayer : IGameLoopNode, IDisposable
             view.SetVisible(false);
         }
 
-        foreach (IGameLoopNode presenter in _presenters) presenter.OnGameStateChanged(notification);
+        foreach (IGameLoopSystem presenter in _presenters) presenter.OnGameStateChanged(notification);
     }
 
     public void Update(float deltaTime, float unscaledDeltaTime)
     {
-        foreach (IGameLoopNode presenter in _presenters) presenter.Update(deltaTime, unscaledDeltaTime);
+        foreach (IGameLoopSystem presenter in _presenters) presenter.Update(deltaTime, unscaledDeltaTime);
     }
 
     public void SetInputEnabled(bool enabled) => _requests.SetInputEnabled(enabled);

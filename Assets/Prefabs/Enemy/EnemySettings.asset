@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f79d21f3c3e50eb4f9a1c3b2506a8b03, type: 3}
+  m_Name: EnemySettings
+  m_EditorClassIdentifier: GameDemo.Systems::EnemySettings
+  initialEnemyCount: 5
+  spawnInterval: 1
+  spawnCountPerWave: 5
+  minimumSpawnDistance: 15
+  maximumSpawnDistance: 25
+  maximumEnemyCount: 100
+  spawnHeight: 1
+  moveSpeed: 3.5
+  attackRange: 2
+  attackInterval: 1.5
+  attackDuration: 0.35
+  separationDistance: 2
+  separationWeight: 1.5
+  spatialCellSize: 4
+  normalKnockbackForce: 8
+  knockbackUpwardForce: 3
+  knockbackFallbackDuration: 1.25
+  deathDuration: 0.25

@@ -29244,6 +29244,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1076726581}
   - component: {fileID: 1076726582}
+  - component: {fileID: 1076726583}
   m_Layer: 0
   m_Name: CoreMain
   m_TagString: Untagged
@@ -29283,6 +29284,22 @@ MonoBehaviour:
   initializationCoordinator: {fileID: 1315145441}
   roundResetCoordinator: {fileID: 745038666}
   uiRoot: {fileID: 217642903}
+  enemyRuntime: {fileID: 1076726583}
+--- !u!114 &1076726583
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1076726580}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da8dc3ff92581ee419b99d3f41c48b95, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: GameDemo.Systems::EnemyRuntime
+  enemyPrefab: {fileID: 9160315156332010305, guid: 801c9d2b711418449bc22eca47e3b250, type: 3}
+  settings: {fileID: 11400000, guid: bb6e791b82230f142b0b0478fd3dce31, type: 2}
+  target: {fileID: 0}
 --- !u!1001 &1079945673
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -1,6 +1,6 @@
-// Enemy의 새 판단과 진행 중 행동을 순서대로 갱신하는 계층이다.
+// Spawn, AI 판단, 진행 중 행동을 결정적인 순서로 갱신하는 Enemy 계층이다.
 public sealed class EnemyLayer : GameLoopLayer
 {
-    // 새 AI 판단 뒤 진행 중 결과를 처리하도록 하위 요소를 구성한다.
-    public EnemyLayer() : base(new EnemyDecisionNode(), new EnemyActionNode()) { }
+    public EnemyLayer(EnemyRuntime runtime)
+        : base(new EnemySpawnSystem(runtime), new EnemyAISystem(runtime), new EnemyActionSystem(runtime)) { }
 }

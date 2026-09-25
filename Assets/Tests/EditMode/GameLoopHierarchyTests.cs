@@ -6,39 +6,35 @@ using NUnit.Framework;
 public sealed class GameLoopHierarchyTests
 {
     // 각 하위 요소가 허용 상태와 거부 상태를 정확히 구분하는지 확인한다.
-    [TestCase(typeof(PlayerInputNode), GameState.Battle, true)]
-    [TestCase(typeof(PlayerInputNode), GameState.Finishing, false)]
-    [TestCase(typeof(PlayerActionNode), GameState.Finishing, true)]
-    [TestCase(typeof(EnemyDecisionNode), GameState.Finishing, false)]
-    [TestCase(typeof(EnemyActionNode), GameState.Finishing, true)]
-    [TestCase(typeof(BattleHudNode), GameState.Result, false)]
-    [TestCase(typeof(BattleHudNode), GameState.Finishing, true)]
-    [TestCase(typeof(DialogueNode), GameState.IntroDialogue, true)]
-    [TestCase(typeof(DialogueNode), GameState.Battle, false)]
-    [TestCase(typeof(PhysicsStateNode), GameState.Paused, false)]
-    [TestCase(typeof(PhysicsStateNode), GameState.Finishing, true)]
-    [TestCase(typeof(PhysicsBodyNode), GameState.Ready, false)]
-    public void NodeFiltersMatchTheirStatePolicy(Type nodeType, GameState state, bool expected)
+    [TestCase(typeof(PlayerInputSystem), GameState.Battle, true)]
+    [TestCase(typeof(PlayerInputSystem), GameState.Finishing, false)]
+    [TestCase(typeof(PlayerActionSystem), GameState.Finishing, true)]
+    [TestCase(typeof(BattleHudSystem), GameState.Result, false)]
+    [TestCase(typeof(BattleHudSystem), GameState.Finishing, true)]
+    [TestCase(typeof(DialogueSystem), GameState.IntroDialogue, true)]
+    [TestCase(typeof(DialogueSystem), GameState.Battle, false)]
+    [TestCase(typeof(PhysicsBodySystem), GameState.Ready, false)]
+    public void SystemFiltersMatchTheirStatePolicy(Type systemType, GameState state, bool expected)
     {
-        var node = (StateAwareNode)Activator.CreateInstance(nodeType);
-        Assert.AreEqual(expected, node.AllowsExecutionIn(state));
+        var system = (StateAwareSystem)Activator.CreateInstance(systemType);
+        Assert.AreEqual(expected, system.AllowsExecutionIn(state));
     }
 
     // 상태 변경을 받은 뒤에만 실행되고 이전 Tick 알림은 무시한다.
     [Test]
     public void StateNotificationUpdatesFilterAndRejectsOldTick()
     {
-        var node = new PlayerInputNode();
-        Assert.IsFalse(node.IsExecutionAllowed);
+        var system = new PlayerInputSystem();
+        Assert.IsFalse(system.IsExecutionAllowed);
 
-        node.OnGameStateChanged(new GameStateChangedEvent(GameState.Ready, GameState.Battle, 2));
-        Assert.IsTrue(node.IsExecutionAllowed);
+        system.OnGameStateChanged(new GameStateChangedEvent(GameState.Ready, GameState.Battle, 2));
+        Assert.IsTrue(system.IsExecutionAllowed);
 
-        node.OnGameStateChanged(new GameStateChangedEvent(GameState.Battle, GameState.Paused, 1));
-        Assert.IsTrue(node.IsExecutionAllowed);
+        system.OnGameStateChanged(new GameStateChangedEvent(GameState.Battle, GameState.Paused, 1));
+        Assert.IsTrue(system.IsExecutionAllowed);
 
-        node.OnGameStateChanged(new GameStateChangedEvent(GameState.Battle, GameState.Paused, 2));
-        Assert.IsFalse(node.IsExecutionAllowed);
+        system.OnGameStateChanged(new GameStateChangedEvent(GameState.Battle, GameState.Paused, 2));
+        Assert.IsFalse(system.IsExecutionAllowed);
     }
 
     // 상위 계층이 상태 알림과 Update를 자식에게 등록 순서대로 전달한다.
@@ -46,7 +42,7 @@ public sealed class GameLoopHierarchyTests
     public void LayerCallsChildrenInRegistrationOrder()
     {
         var calls = new List<string>();
-        var layer = new TestLayer(new SpyNode("first", calls), new SpyNode("second", calls));
+        var layer = new TestLayer(new SpySystem("first", calls), new SpySystem("second", calls));
 
         layer.OnGameStateChanged(new GameStateChangedEvent(GameState.Ready, GameState.Battle, 1));
         layer.Update(0.02f, 0.02f);
@@ -59,17 +55,17 @@ public sealed class GameLoopHierarchyTests
     private sealed class TestLayer : GameLoopLayer
     {
         // 두 하위 요소를 기반 계층에 등록한다.
-        public TestLayer(IGameLoopNode first, IGameLoopNode second) : base(first, second) { }
+        public TestLayer(IGameLoopSystem first, IGameLoopSystem second) : base(first, second) { }
     }
 
     // 상태와 프레임 호출 순서를 기록하는 테스트용 요소다.
-    private sealed class SpyNode : IGameLoopNode
+    private sealed class SpySystem : IGameLoopSystem
     {
         private readonly string _name;
         private readonly List<string> _calls;
 
         // 호출 기록 대상과 표시 이름을 보관한다.
-        public SpyNode(string name, List<string> calls)
+        public SpySystem(string name, List<string> calls)
         {
             _name = name;
             _calls = calls;

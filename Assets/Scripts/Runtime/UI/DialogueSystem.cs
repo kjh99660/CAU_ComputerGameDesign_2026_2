@@ -1,5 +1,5 @@
 // Intro와 Outro 대화의 표시와 진행 입력을 맡을 일반 C# 요소다.
-public sealed class DialogueNode : StateAwareNode
+public sealed class DialogueSystem : StateAwareSystem
 {
     // 대화 관련 갱신은 두 Dialogue 상태에서만 허용한다.
     public override bool AllowsExecutionIn(GameState state) =>

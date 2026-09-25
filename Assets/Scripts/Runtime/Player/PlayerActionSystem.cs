@@ -1,5 +1,5 @@
 // Battle과 Finishing에서 이미 시작된 Player 행동의 진행을 맡을 일반 C# 요소다.
-public sealed class PlayerActionNode : StateAwareNode
+public sealed class PlayerActionSystem : StateAwareSystem
 {
     // 진행 중인 공격 결과는 Finishing에서도 정산할 수 있다.
     public override bool AllowsExecutionIn(GameState state) =>

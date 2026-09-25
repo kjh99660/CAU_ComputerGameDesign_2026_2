@@ -1,5 +1,5 @@
 // Battle에서만 새 Player 입력과 행동 시작을 처리할 일반 C# 요소다.
-public sealed class PlayerInputNode : StateAwareNode
+public sealed class PlayerInputSystem : StateAwareSystem
 {
     // 새 조작은 전투 진행 중에만 허용한다.
     public override bool AllowsExecutionIn(GameState state) => state == GameState.Battle;

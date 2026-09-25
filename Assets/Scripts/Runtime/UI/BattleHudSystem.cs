@@ -1,5 +1,5 @@
 // Battle과 Finishing에서 전투 HUD의 표시와 연출을 맡을 일반 C# 요소다.
-public sealed class BattleHudNode : StateAwareNode
+public sealed class BattleHudSystem : StateAwareSystem
 {
     // Score와 Timer 표시는 Finishing에서도 유지한다.
     public override bool AllowsExecutionIn(GameState state) =>

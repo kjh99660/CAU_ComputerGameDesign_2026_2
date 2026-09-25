@@ -1,6 +1,6 @@
 // 상태에 따라 실행 여부를 캐시하는 일반 C# 하위 요소의 기반 클래스다.
 // 상태 알림은 상위 계층이 전달하며 Unity 생명주기 함수는 사용하지 않는다.
-public abstract class StateAwareNode : IGameLoopNode
+public abstract class StateAwareSystem : IGameLoopSystem
 {
     private bool _hasState;
 
