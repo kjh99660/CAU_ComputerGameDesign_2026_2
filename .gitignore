@@ -108,3 +108,7 @@ InitTestScene*.unity*
 # 3D Model AI Generate site Meshy.ai's Unity Plugin
 Assets/ai.meshy/
 Assets/ai.meshy.meta
+
+# Katana Animation Pack
+Assets/KatanaAnimationPack/
+Assets/KatanaAnimationPack.meta
