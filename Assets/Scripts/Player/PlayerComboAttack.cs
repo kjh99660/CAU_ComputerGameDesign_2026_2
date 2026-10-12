@@ -45,7 +45,7 @@ public class PlayerComboAttack : MonoBehaviour
         // 1. 기본 콤보 입력 (Idle, Attack1, Attack2)
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
-            if (stateInfo.IsName("Idle") || stateInfo.IsName("Run")) // Run 중에도 첫 타 공격 진입 허용 시 추가 가능
+            if (stateInfo.IsName("Idle") || stateInfo.IsTag("RunMotion")) // Run 중에도 첫 타 공격 진입 허용 시 추가 가능
             {
                 anim.SetTrigger("Attack");
             }

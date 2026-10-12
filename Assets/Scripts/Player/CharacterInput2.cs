@@ -39,15 +39,10 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (!canMove)
-        {
-            ClearInputStacks();
-            return;
-        }
-
         if (Keyboard.current == null) return;
 
-        // 1. 입력 스택 업데이트
+        // 1. [핵심] canMove가 false여도 '입력 스택'은 항상 최신 상태로 갱신되어야 
+        // 공격 끝날 때 미리 누르고 있던 키가 씹히지 않습니다.
         UpdateAxisStack(Keyboard.current.wKey, yAxisStack, yAxisSet, 1);
         UpdateAxisStack(Keyboard.current.sKey, yAxisStack, yAxisSet, -1);
         UpdateAxisStack(Keyboard.current.dKey, xAxisStack, xAxisSet, 1);
@@ -57,18 +52,23 @@ public class PlayerController : MonoBehaviour
         float y = yAxisStack.Count > 0 ? yAxisStack[yAxisStack.Count - 1] : 0f;
 
         Vector2 inputDir = Vector2.ClampMagnitude(new Vector2(x, y), 1f);
-
-        // 2. 입력 여부 확인
         bool isMovingInput = inputDir.sqrMagnitude > 0.01f;
 
-        // 3. 가속 및 감속 처리 (이동 속도만 부드럽게 줄어듦)
+        // 2. 만약 이동이 불가능한 상태(공격 중 등)라면 이동 연산만 건너뜁니다.
+        if (!canMove)
+        {
+            currentSpeed = 0f;
+            if (anim != null) anim.SetBool("isRunning", false);
+            return;
+        }
+
+        // 3. 가속 및 감속 처리
         float targetSpeed = isMovingInput ? moveSpeed : 0f;
         currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, acceleration * Time.deltaTime);
 
-        // [핵심] isRunning은 속도가 아니라 '키를 누르고 있는지(입력)'에 따라 즉시 반영
         anim.SetBool("isRunning", isMovingInput);
 
-        // 4. 이동 및 회전 처리 (속도가 남아있는 동안은 미끄러지듯 감속 이동)
+        // 4. 이동 및 회전 처리
         if (currentSpeed > 0.01f)
         {
             if (isMovingInput)

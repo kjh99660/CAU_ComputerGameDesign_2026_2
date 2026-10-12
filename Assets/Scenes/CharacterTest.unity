@@ -270,7 +270,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   player: {fileID: 824973231}
-  offset: {x: 0, y: 2, z: -4}
+  distance: 3
+  heightOffset: 1.5
+  mouseSensitivity: 0.5
+  minPitch: -20
+  maxPitch: 60
 --- !u!1 &398434600
 GameObject:
   m_ObjectHideFlags: 0
@@ -599,7 +603,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2033081830399922421, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: moveSpeed
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 2033081830399922421, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: acceleration
