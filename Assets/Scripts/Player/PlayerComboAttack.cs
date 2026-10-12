@@ -41,14 +41,27 @@ public class PlayerComboAttack : MonoBehaviour
             }
         }
 
-        // 2. 차지 홀드 중일 때 마우스 떼기 감지
-        // 애니메이터가 "Charge_Hold" 스테이트에 진입해 있다면 마우스 떼기를 감시
-        if (stateInfo.IsName("Charge_Hold"))
+        // 2. Attack2 이후 윈드업이나 홀드 상태에 진입했을 때부터 마우스 누름 상태 동기화
+        if (stateInfo.IsName("Charge_Windup") || stateInfo.IsName("Charge_Hold"))
         {
-            // 만약 마우스를 떼거나, 혹은 마우스를 누르고 있지 않다면 발사 트리거 On
-            if (Mouse.current.leftButton.wasReleasedThisFrame)
+            // 마우스를 계속 누르고 있는 동안은 IsHolding을 true로 유지
+            if (Mouse.current.leftButton.isPressed)
             {
-                anim.SetTrigger("Release"); // 애니메이터의 Charge_Release로 넘어가는 트리거
+                anim.SetBool("IsHolding", true);
+            }
+
+            // 아주 빨리 떼었거나, 누르고 있던 마우스를 떼는 순간
+            if (Mouse.current.leftButton.wasReleasedThisFrame || !Mouse.current.leftButton.isPressed)
+            {
+                anim.SetBool("IsHolding", false);
+            }
+        }
+        else
+        {
+            // 차지가 아닐 때는 IsHolding을 안전하게 false로 초기화
+            if (stateInfo.IsName("Idle"))
+            {
+                anim.SetBool("IsHolding", false);
             }
         }
     }
