@@ -118,6 +118,7 @@ public sealed class EnemySystemsTests
             EnemyRuntime runtime = owner.AddComponent<EnemyRuntime>();
             SetPrivateField(runtime, "enemyPrefab", prefab);
             SetPrivateField(runtime, "settings", settings);
+            runtime.SetTarget(owner.transform);
             runtime.Configure(new PhysicsPauseManager());
 
             Exhaust(runtime.InitializeRound(3));

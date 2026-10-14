@@ -26,6 +26,12 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
     public EnemySettings Settings => settings;
     public int ActiveEnemyCount => _registry?.Count ?? 0;
+    public Transform TargetTransform => target;
+
+    public void SetTarget(Transform value)
+    {
+        target = value != null ? value : throw new ArgumentNullException(nameof(value));
+    }
 
     public void Configure(PhysicsPauseManager physics)
     {
@@ -137,7 +143,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         return enemy.ApplyHit(impulse, settings, tick);
     }
 
-    private Vector3 TargetPosition => target != null ? target.position : transform.position;
+    private Vector3 TargetPosition => target != null
+        ? target.position
+        : throw new InvalidOperationException("EnemyRuntime requires a Player target.");
 
     private void EnsureInfrastructure()
     {
@@ -149,6 +157,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             throw new InvalidOperationException("EnemyRuntime requires EnemySettings.");
         if (_physics == null)
             throw new InvalidOperationException("EnemyRuntime requires PhysicsPauseManager configuration.");
+        if (target == null)
+            throw new InvalidOperationException("EnemyRuntime requires a Player target before configuration.");
 
         var rootObject = new GameObject("EnemyPool");
         _poolRoot = rootObject.transform;

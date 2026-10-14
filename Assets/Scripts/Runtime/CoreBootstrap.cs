@@ -10,6 +10,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     [SerializeField] private RoundResetCoordinator roundResetCoordinator;
     [SerializeField] private UIRoot uiRoot;
     [SerializeField] private EnemyRuntime enemyRuntime;
+    [SerializeField] private PlayerRuntime playerRuntime;
 
     private bool _configured;
     private PlayerLayer _player;
@@ -24,11 +25,12 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     {
         ResolveUiRoot();
         ResolveEnemyRuntime();
+        ResolvePlayerRuntime();
         if (eventManager == null || gameStateManager == null ||
             initializationCoordinator == null || roundResetCoordinator == null ||
-            uiRoot == null || enemyRuntime == null)
+            uiRoot == null || enemyRuntime == null || playerRuntime == null)
         {
-            Debug.LogError("CoreBootstrap requires all Core service references and UIRoot.", this);
+            Debug.LogError("CoreBootstrap requires all Core service references, UIRoot, EnemyRuntime and PlayerRuntime.", this);
             return;
         }
 
@@ -37,10 +39,13 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         initializationCoordinator.RegisterParticipant(uiRoot);
         roundResetCoordinator.RegisterParticipant(uiRoot);
         _physicsPauseManager = new PhysicsPauseManager();
+        initializationCoordinator.RegisterParticipant(playerRuntime);
+        roundResetCoordinator.RegisterParticipant(playerRuntime);
+        enemyRuntime.SetTarget(playerRuntime.TargetTransform);
         enemyRuntime.Configure(_physicsPauseManager);
         initializationCoordinator.RegisterParticipant(enemyRuntime);
         roundResetCoordinator.RegisterParticipant(enemyRuntime);
-        _player = new PlayerLayer();
+        _player = new PlayerLayer(playerRuntime);
         _enemy = enemyRuntime.CreateLayer();
         _ui = uiRoot.Configure(eventManager, gameStateManager);
         if (_ui == null)
@@ -76,6 +81,12 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         enemyRuntime = GetComponent<EnemyRuntime>();
         if (enemyRuntime == null)
             enemyRuntime = gameObject.AddComponent<EnemyRuntime>();
+    }
+
+    private void ResolvePlayerRuntime()
+    {
+        if (playerRuntime == null)
+            playerRuntime = FindFirstObjectByType<PlayerRuntime>(FindObjectsInactive.Include);
     }
 
     // 연결이 끝났다면 초기화 Coordinator를 실행한다.

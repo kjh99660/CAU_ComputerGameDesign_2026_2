@@ -340,6 +340,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player 1
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 6144efc66641b494698bb58ad294c531, type: 3}
+      propertyPath: m_Layer
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 6144efc66641b494698bb58ad294c531, type: 3}
+      propertyPath: m_TagString
+      value: Player
+      objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: 6144efc66641b494698bb58ad294c531, type: 3}
       propertyPath: m_Controller
       value: 
@@ -370,6 +378,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6144efc66641b494698bb58ad294c531, type: 3}
       insertIndex: -1
       addedObject: {fileID: 7287186114453735515}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6144efc66641b494698bb58ad294c531, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5565483986518594555}
   m_SourcePrefab: {fileID: 100100000, guid: 6144efc66641b494698bb58ad294c531, type: 3}
 --- !u!4 &1921595037960976705 stripped
 Transform:
@@ -393,7 +404,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7382676792506048396}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58aae771dec005c409c42d5bd002bc70, type: 3}
   m_Name: 
@@ -410,7 +421,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7382676792506048396}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e79274bab5ee3f9408fcf3344f07d709, type: 3}
   m_Name: 
@@ -442,6 +453,37 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.825, z: 0}
+--- !u!114 &5565483986518594555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7382676792506048396}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 359120fc9ef85fe44b6b9d1c1505ca2c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GameDemo.Systems::PlayerRuntime
+  animator: {fileID: 4314295702761660236}
+  characterController: {fileID: 7287186114453735515}
+  cameraTransform: {fileID: 0}
+  spawnPoint: {fileID: 0}
+  inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  actionMapName: Player
+  moveActionName: Move
+  lookActionName: Look
+  attackActionName: Attack
+  moveSpeed: 10
+  rotationSpeed: 720
+  acceleration: 20
+  cameraDistance: 4
+  cameraHeightOffset: 1.5
+  lookSensitivity: 0.2
+  minimumPitch: -20
+  maximumPitch: 60
+  comboWindowStart: 0.3
+  comboWindowEnd: 0.75
 --- !u!4 &7872109362996020534 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 6144efc66641b494698bb58ad294c531, type: 3}
