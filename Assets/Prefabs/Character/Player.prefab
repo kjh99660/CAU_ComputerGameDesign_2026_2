@@ -4295,9 +4295,10 @@ GameObject:
   - component: {fileID: 7287186114453735515}
   - component: {fileID: 2302373069651798964}
   - component: {fileID: 1306999857627721958}
-  m_Layer: 0
+  - component: {fileID: 5565483986518594555}
+  m_Layer: 9
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -4352,7 +4353,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7382676792506048396}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58aae771dec005c409c42d5bd002bc70, type: 3}
   m_Name: 
@@ -4369,7 +4370,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7382676792506048396}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e79274bab5ee3f9408fcf3344f07d709, type: 3}
   m_Name: 
@@ -5418,3 +5419,34 @@ Transform:
   - {fileID: 3379172535033907372}
   m_Father: {fileID: 5623399845799222198}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5565483986518594555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7382676792506048396}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 359120fc9ef85fe44b6b9d1c1505ca2c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: GameDemo.Systems::PlayerRuntime
+  animator: {fileID: 4314295702761660236}
+  characterController: {fileID: 7287186114453735515}
+  cameraTransform: {fileID: 0}
+  spawnPoint: {fileID: 0}
+  inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  actionMapName: Player
+  moveActionName: Move
+  lookActionName: Look
+  attackActionName: Attack
+  moveSpeed: 10
+  rotationSpeed: 720
+  acceleration: 20
+  cameraDistance: 4
+  cameraHeightOffset: 1.5
+  lookSensitivity: 0.2
+  minimumPitch: -20
+  maximumPitch: 60
+  comboWindowStart: 0.3
+  comboWindowEnd: 0.75

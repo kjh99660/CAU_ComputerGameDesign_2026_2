@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 public static class GameDemoPlayerPrefabBuilder
 {
-    private const string PlayerPrefabPath = "Assets/Prefabs/Character/Player 1.prefab";
+    private const string PlayerPrefabPath = "Assets/Prefabs/Character/Player.prefab";
     private const string InputActionsPath = "Assets/InputSystem_Actions.inputactions";
     private const string MainScenePath = "Assets/Scenes/Main.unity";
     private const string PlayerLayerName = "Player";
@@ -33,10 +33,21 @@ public static class GameDemoPlayerPrefabBuilder
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
         PlayerRuntime prefabRuntime = prefab != null ? prefab.GetComponent<PlayerRuntime>() : null;
         if (prefab == null)
-            failures.Add("Player 1 prefab is missing.");
+            failures.Add("Player prefab is missing.");
         else
         {
-            if (prefabRuntime == null) failures.Add("PlayerRuntime is missing from Player 1 prefab.");
+            if (prefabRuntime == null) failures.Add("PlayerRuntime is missing from Player prefab.");
+            else
+            {
+                if (!prefabRuntime.enabled) failures.Add("PlayerRuntime must be enabled in the gameplay prefab.");
+                var runtimeData = new SerializedObject(prefabRuntime);
+                if (runtimeData.FindProperty("animator").objectReferenceValue != prefab.GetComponent<Animator>())
+                    failures.Add("PlayerRuntime must drive the root Animator, not the reference rig.");
+                if (runtimeData.FindProperty("characterController").objectReferenceValue != prefab.GetComponent<CharacterController>())
+                    failures.Add("PlayerRuntime CharacterController reference is missing.");
+                if (runtimeData.FindProperty("inputActions").objectReferenceValue == null)
+                    failures.Add("PlayerRuntime InputActionAsset is missing.");
+            }
             if (prefab.GetComponent<CharacterController>() == null) failures.Add("CharacterController is missing.");
             if (prefab.GetComponentInChildren<Animator>(true) == null) failures.Add("Animator is missing.");
             PlayerController oldController = prefab.GetComponent<PlayerController>();
@@ -51,6 +62,8 @@ public static class GameDemoPlayerPrefabBuilder
         EnemyRuntime enemy = UnityEngine.Object.FindFirstObjectByType<EnemyRuntime>(FindObjectsInactive.Include);
         GameObject spawnObject = GameObject.Find(SpawnPointName);
         if (runtime == null) failures.Add("Main scene PlayerRuntime is missing.");
+        else if (PrefabUtility.GetCorrespondingObjectFromSource(runtime.gameObject) != prefab)
+            failures.Add("Main scene Player must use the gameplay Player prefab.");
         if (spawnObject == null) failures.Add("PlayerSpawnPoint is missing.");
         if (runtime != null && spawnObject != null && runtime.transform.position != spawnObject.transform.position)
             failures.Add("Player is not positioned at PlayerSpawnPoint.");
@@ -80,10 +93,11 @@ public static class GameDemoPlayerPrefabBuilder
         {
             root.layer = playerLayer;
             root.tag = "Player";
-            Animator animator = root.GetComponentInChildren<Animator>(true);
+            // The child reference rig also has an Animator. Drive the player root only.
+            Animator animator = root.GetComponent<Animator>();
             CharacterController controller = root.GetComponent<CharacterController>();
             if (animator == null || controller == null)
-                throw new InvalidOperationException("Player 1 requires an Animator and CharacterController.");
+                throw new InvalidOperationException("Player requires a root Animator and CharacterController.");
 
             PlayerController legacyController = root.GetComponent<PlayerController>();
             PlayerComboAttack legacyAttack = root.GetComponent<PlayerComboAttack>();
@@ -146,7 +160,7 @@ public static class GameDemoPlayerPrefabBuilder
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
             if (prefab == null)
-                throw new InvalidOperationException("Player 1 prefab could not be loaded.");
+                throw new InvalidOperationException("Player prefab could not be loaded.");
             GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
             instance.name = "Player";
             runtime = instance.GetComponent<PlayerRuntime>();

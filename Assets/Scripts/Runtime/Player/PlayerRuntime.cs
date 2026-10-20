@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -57,11 +58,16 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private bool _battleActive;
     private bool _stopRequested;
     private bool _referencesCached;
+    private float _animationSpeed;
+    private readonly List<IPlayerPresentation> _presentations = new List<IPlayerPresentation>();
 
     public Transform TargetTransform => transform;
 
     private void Awake()
     {
+        // CharacterTest explicitly disables this adapter and keeps its standalone controls.
+        if (!enabled)
+            return;
         CacheReferences();
         ResolveActions();
         DisableInput();
@@ -94,8 +100,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         if (tick < _tick)
             return;
 
+        // CoreBootstrap can dispatch Initializing before this component's Awake.
+        CacheReferences();
         _tick = tick;
         _battleActive = state == GameState.Battle;
+        animator.speed = state == GameState.Battle || state == GameState.Finishing ? _animationSpeed : 0f;
+        foreach (IPlayerPresentation presentation in _presentations)
+            presentation.ApplyState(state);
         if (_battleActive && !_stopRequested)
             EnableInput();
         else
@@ -258,7 +269,11 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             animator.SetBool(IsRunningHash, false);
             animator.Rebind();
             animator.Update(0f);
+            animator.speed = 0f;
         }
+
+        foreach (IPlayerPresentation presentation in _presentations)
+            presentation.ResetPresentation();
 
         _cameraYaw = spawnPoint.eulerAngles.y;
         _cameraPitch = 20f;
@@ -270,13 +285,19 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         if (_referencesCached)
             return;
         if (animator == null)
-            animator = GetComponentInChildren<Animator>(true);
+            animator = GetComponent<Animator>();
         if (characterController == null)
             characterController = GetComponent<CharacterController>();
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
         if (animator == null || characterController == null)
             throw new InvalidOperationException("PlayerRuntime requires an Animator and CharacterController.");
+        _animationSpeed = animator.speed;
+        foreach (MonoBehaviour component in GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (component is IPlayerPresentation presentation)
+                _presentations.Add(presentation);
+        }
         _referencesCached = true;
     }
 

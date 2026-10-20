@@ -25,10 +25,14 @@ public class SwordFollowBlend : MonoBehaviour
     public void Sheathe() { drawn = false; }
 
     public float sizeRatio = 1f;
+    private bool simulationActive = true;
+
+    public void SetSimulationActive(bool value) { simulationActive = value; }
 
     void LateUpdate()
     {
-        handWeight = Mathf.MoveTowards(handWeight, drawn ? 1f : 0f, blendSpeed * Time.deltaTime);
+        if (simulationActive)
+            handWeight = Mathf.MoveTowards(handWeight, drawn ? 1f : 0f, blendSpeed * Time.deltaTime);
 
         // 1) 손 기준 (기존 방식)
         Vector3 handPos = myRightHand.position + (refWeapon.position - refRightHand.position) * sizeRatio;
