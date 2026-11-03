@@ -12,6 +12,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     [SerializeField] private Transform target;
 
     private readonly List<EnemyAgent> _candidates = new();
+    private readonly List<EnemyAgent> _specialCandidates = new();
     private EnemyRegistry _registry;
     private EnemySpatialGrid _grid;
     private EnemyPool _pool;
@@ -27,7 +28,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public EnemySettings Settings => settings;
     public int ActiveEnemyCount => _registry?.Count ?? 0;
     public Transform TargetTransform => target;
-    public event Action<int> HitAccepted;
+    public event Action<int, bool> HitAccepted;
     public event Action<int> PlayerHit;
 
     public void SetTarget(Transform value)
@@ -132,7 +133,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         }
     }
 
-    public bool TryApplyHit(EnemyAgent enemy, Vector3 direction, float forceMultiplier, int tick)
+    public bool TryApplyHit(EnemyAgent enemy, Vector3 direction, float forceMultiplier, int tick, bool chargeGauge = true)
     {
         if (enemy == null || tick != _tick || (_state != GameState.Battle && _state != GameState.Finishing))
             return false;
@@ -146,8 +147,27 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         impulse.y = settings.KnockbackUpwardForce * Mathf.Max(0f, forceMultiplier);
         bool accepted = enemy.ApplyHit(impulse, settings, tick);
         if (accepted)
-            HitAccepted?.Invoke(tick);
+            HitAccepted?.Invoke(tick, chargeGauge);
         return accepted;
+    }
+
+    public int ApplySpecial(Vector3 center, float radius, float forceMultiplier, int tick, bool chargeGauge)
+    {
+        if (_state != GameState.Battle || _stopRequested || tick != _tick || _grid == null) return 0;
+        float safeRadius = Mathf.Max(0f, radius);
+        _grid.Query(center, safeRadius, _specialCandidates);
+        int hits = 0;
+        for (int i = 0; i < _specialCandidates.Count; i++)
+        {
+            EnemyAgent enemy = _specialCandidates[i];
+            if (enemy == null) continue;
+            Vector3 offset = enemy.transform.position - center;
+            offset.y = 0f;
+            if (offset.sqrMagnitude <= safeRadius * safeRadius && TryApplyHit(enemy, offset, forceMultiplier, tick, chargeGauge))
+                hits++;
+        }
+        _specialCandidates.Clear();
+        return hits;
     }
 
     private Vector3 TargetPosition => target != null

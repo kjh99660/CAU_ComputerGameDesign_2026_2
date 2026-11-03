@@ -57,7 +57,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
             combatSettings = Resources.Load<CombatSettings>("CombatSettings");
         _combat = gameObject.AddComponent<CombatRoundRuntime>();
         _combat.Configure(enemyRuntime, uiRoot, combatSettings, eventManager, playerRuntime);
-        playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings);
+        playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);
         roundResetCoordinator.RegisterParticipant(_combat);
         initializationCoordinator.RegisterParticipant(uiRoot);

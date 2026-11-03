@@ -24,6 +24,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [SerializeField] private string moveActionName = "Move";
     [SerializeField] private string lookActionName = "Look";
     [SerializeField] private string attackActionName = "Attack";
+    [SerializeField] private string specialActionName = "Interact"; // Provisional existing binding: E.
 
     [Header("Movement")]
     [SerializeField, Min(0f)] private float moveSpeed = 10f;
@@ -45,11 +46,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private InputAction _moveAction;
     private InputAction _lookAction;
     private InputAction _attackAction;
+    private InputAction _specialAction;
     private Vector2 _moveInput;
     private Vector2 _lookInput;
     private bool _attackPressed;
     private bool _attackHeld;
     private bool _attackReleased;
+    private bool _specialPressed;
     private float _currentSpeed;
     private Vector3 _lastMoveDirection = Vector3.forward;
     private float _cameraYaw;
@@ -63,6 +66,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private readonly Collider[] _attackResults = new Collider[512];
     private EnemyRuntime _combatEnemies;
     private CombatSettings _combatSettings;
+    private CombatRoundRuntime _combatRound;
     private bool _attackStartedInBattle;
     private GameState _gameState = GameState.Initializing;
 
@@ -80,10 +84,11 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
     public void ConfigureSpawnPoint(Transform value) => spawnPoint = value;
 
-    public void ConfigureCombat(EnemyRuntime enemies, CombatSettings settings)
+    public void ConfigureCombat(EnemyRuntime enemies, CombatSettings settings, CombatRoundRuntime combat = null)
     {
         _combatEnemies = enemies;
         _combatSettings = settings;
+        _combatRound = combat;
     }
 
     public IEnumerator InitializeRound(int tick)
@@ -148,6 +153,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _attackPressed = _attackAction?.WasPressedThisFrame() ?? false;
         _attackHeld = _attackAction?.IsPressed() ?? false;
         _attackReleased = _attackAction?.WasReleasedThisFrame() ?? false;
+        _specialPressed = _specialAction?.WasPressedThisFrame() ?? false;
     }
 
     public void UpdateAction(float deltaTime)
@@ -168,6 +174,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
         if (_battleActive && !_stopRequested)
         {
+            if (_specialPressed)
+                _combatRound?.TryUseSpecial(_tick, transform.position);
             UpdateAttack(stateInfo);
             UpdateMovement(deltaTime, !attackState);
         }
@@ -335,6 +343,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _moveAction = _actionMap.FindAction(moveActionName, true);
         _lookAction = _actionMap.FindAction(lookActionName, true);
         _attackAction = _actionMap.FindAction(attackActionName, true);
+        _specialAction = _actionMap.FindAction(specialActionName, false);
     }
 
     private void EnableInput() => _actionMap?.Enable();
@@ -352,6 +361,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _attackPressed = false;
         _attackHeld = false;
         _attackReleased = false;
+        _specialPressed = false;
     }
 
     private void ApplyAttackHits(AnimatorStateInfo stateInfo)

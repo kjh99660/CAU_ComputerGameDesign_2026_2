@@ -80,8 +80,14 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         Present();
     }
 
-    private void RecordEnemyHit(int tick) => _stats.RecordEnemyKill(tick);
+    private void RecordEnemyHit(int tick, bool chargeGauge) => _stats.RecordEnemyKill(tick, chargeGauge, _combatTime);
     private void RecordPlayerHit(int tick) => _stats.RecordPlayerHit(tick, _combatTime);
+    public bool TryUseSpecial(int tick, Vector3 center)
+    {
+        if (_state != GameState.Battle || _timerEnded || !_stats.TryUseSpecial(tick)) return false;
+        _enemy.ApplySpecial(center, _settings.specialRadius, _settings.specialKnockbackMultiplier, tick, _settings.specialKillsRestoreGauge);
+        return true;
+    }
     public void Advance(float deltaTime, float unscaledDeltaTime)
     {
         if (_clockActive) _combatTime += deltaTime;
@@ -122,7 +128,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         _ui.PresentBattleGauge(_stats.Gauge / Mathf.Max(0.01f, _settings.maximumGauge));
         _ui.PresentBattleTimer(_remaining);
         _ui.PresentFinishing(new FinishingUiModel(_stats.Score));
-        _ui.PresentResult(new ResultUiModel(_stats.Score, _stats.KillCount, 0, _stats.HitCount, 0));
+        _ui.PresentResult(new ResultUiModel(_stats.Score, _stats.KillCount, _stats.MaxCombo, _stats.HitCount, _stats.SpecialUseCount));
     }
 
     private void OnDestroy()
