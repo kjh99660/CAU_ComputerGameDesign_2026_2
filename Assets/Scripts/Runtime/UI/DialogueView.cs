@@ -30,6 +30,17 @@ public sealed class DialogueView : UIScreenView
     private void OnEnable()
     {
         AutoBind();
+        if (continueButton == null)
+        {
+            var box = FindNamed<Image>("DialogueBox");
+            if (box != null)
+            {
+                continueButton = box.GetComponent<Button>();
+                if (continueButton == null) continueButton = box.gameObject.AddComponent<Button>();
+                continueButton.transition = Selectable.Transition.None;
+                box.raycastTarget = true;
+            }
+        }
         if (skipButton != null) skipButton.onClick.AddListener(HandleSkipClicked);
         if (continueButton != null) continueButton.onClick.AddListener(HandleContinueClicked);
     }

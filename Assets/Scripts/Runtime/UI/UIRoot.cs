@@ -12,6 +12,7 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     [SerializeField] private RetryConfirmationView retryConfirmationView;
     [SerializeField] private FinishingView finishingView;
     [SerializeField] private ResultView resultView;
+    [SerializeField] private DialogueSequenceData dialogueData;
     private UiLayer _layer;
 
     public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager)
@@ -23,8 +24,9 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
             return null;
         }
         _layer?.Dispose();
+        if (dialogueData == null) dialogueData = Resources.Load<DialogueSequenceData>("DialogueSequence");
         _layer = new UiLayer(new UIRequestDispatcher(requests, stateManager), startView, dialogueView,
-            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView);
+            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView, dialogueData);
         return _layer;
     }
 
