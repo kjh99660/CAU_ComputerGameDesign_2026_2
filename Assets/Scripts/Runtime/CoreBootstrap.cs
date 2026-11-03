@@ -21,6 +21,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private PhysicsPauseManager _physicsPauseManager;
     private GameRequestProcessor _requestProcessor;
     private CombatRoundRuntime _combat;
+    private SpecialFeedback _specialFeedback;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -57,9 +58,12 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
             combatSettings = Resources.Load<CombatSettings>("CombatSettings");
         _combat = gameObject.AddComponent<CombatRoundRuntime>();
         _combat.Configure(enemyRuntime, uiRoot, combatSettings, eventManager, playerRuntime);
+        _specialFeedback = gameObject.AddComponent<SpecialFeedback>();
+        _specialFeedback.Configure(_combat);
         playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);
         roundResetCoordinator.RegisterParticipant(_combat);
+        roundResetCoordinator.RegisterParticipant(_specialFeedback);
         initializationCoordinator.RegisterParticipant(uiRoot);
         roundResetCoordinator.RegisterParticipant(uiRoot);
         _physics = new PhysicsLayer(_physicsPauseManager);
@@ -135,6 +139,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _enemy.OnGameStateChanged(notification);
         _ui.OnGameStateChanged(notification);
         _combat?.ApplyState(notification);
+        _specialFeedback?.ApplyState(notification);
         _physics.OnGameStateChanged(notification);
     }
 

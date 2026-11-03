@@ -16,6 +16,10 @@ public sealed class CombatSettings : ScriptableObject
     [Range(0f, 1f)] public float specialCostFraction = 1f;
     [Min(0.1f)] public float specialRadius = 6f;
     [Min(0f)] public float specialKnockbackMultiplier = 2f;
+    [Header("Special feedback - provisional")]
+    [Min(0.05f)] public float specialEffectDuration = 0.55f;
+    [Min(0.01f)] public float specialEffectWidth = 0.16f;
+    public Color specialEffectColor = new Color(0.15f, 0.9f, 1f, 1f);
     public bool specialKillsRestoreGauge = false;
     [Min(0.1f)] public float comboTimeoutSeconds = 2f;
     [Header("Round")]

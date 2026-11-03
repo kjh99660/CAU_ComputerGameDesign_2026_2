@@ -23,6 +23,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
 
     public RoundCombatStats Stats => _stats;
     public CombatSettings Settings => _settings;
+    public event Action<Vector3, float, int> SpecialActivated;
 
     public void Configure(EnemyRuntime enemy, UIRoot ui, CombatSettings settings, EventManager events = null, PlayerRuntime player = null)
     {
@@ -86,6 +87,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     {
         if (_state != GameState.Battle || _timerEnded || !_stats.TryUseSpecial(tick)) return false;
         _enemy.ApplySpecial(center, _settings.specialRadius, _settings.specialKnockbackMultiplier, tick, _settings.specialKillsRestoreGauge);
+        SpecialActivated?.Invoke(center, _settings.specialRadius, tick);
         return true;
     }
     public void Advance(float deltaTime, float unscaledDeltaTime)
