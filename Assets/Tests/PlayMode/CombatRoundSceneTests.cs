@@ -25,6 +25,12 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.IntroDialogue);
         var view = Object.FindFirstObjectByType<DialogueView>();
         var text = Find<TMP_Text>(view.transform, "BodyText");
+        var speaker = Find<TMP_Text>(view.transform, "SpeakerName");
+        Assert.AreSame(text.font, speaker.font);
+        Assert.AreEqual(AtlasPopulationMode.Dynamic, text.font.atlasPopulationMode);
+        Assert.IsTrue(text.font.HasCharacter('한', false, true));
+        Assert.IsTrue(text.font.HasCharacter('글', false, true));
+        var dialogueFont = text.font;
         var next = Find<Button>(view.transform, "DialogueBox");
         Assert.AreEqual(data.intro[0].text, text.text);
         Assert.AreEqual(data.intro[0].speaker, Find<TMP_Text>(view.transform, "SpeakerName").text);
@@ -42,6 +48,7 @@ public sealed class CombatRoundSceneTests
         events.EnqueueRequest(new StartRequest(state.Tick));
         yield return WaitFor(state, GameState.IntroDialogue);
         Assert.AreEqual(data.intro[0].text, text.text);
+        Assert.AreSame(dialogueFont, text.font);
         Find<Button>(view.transform, "SkipButton").onClick.Invoke();
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
