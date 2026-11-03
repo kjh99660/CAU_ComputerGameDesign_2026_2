@@ -5,9 +5,46 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using System.Reflection;
 
 public sealed class CombatRoundSceneTests
 {
+    [UnityTest]
+    public IEnumerator EscapePausesCancelsRetryConfirmationAndResumes()
+    {
+        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return null;
+        var state = Object.FindFirstObjectByType<GameStateManager>();
+        var events = Object.FindFirstObjectByType<EventManager>();
+        yield return WaitFor(state, GameState.Ready);
+        events.EnqueueRequest(new StartRequest(state.Tick));
+        yield return WaitFor(state, GameState.IntroDialogue);
+        events.EnqueueRequest(new DialogueCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Countdown);
+        events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Battle);
+        var bootstrap = Object.FindFirstObjectByType<CoreBootstrap>();
+        var layer = (UiLayer)typeof(CoreBootstrap).GetField("_ui", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(bootstrap);
+        PressEscape(layer);
+        yield return WaitFor(state, GameState.Paused);
+
+        var pause = Object.FindFirstObjectByType<PauseView>();
+        Find<Button>(pause.transform, "RetryButton").onClick.Invoke();
+        var confirmation = Object.FindFirstObjectByType<RetryConfirmationView>(FindObjectsInactive.Include);
+        Assert.IsTrue(confirmation.gameObject.activeSelf);
+        PressEscape(layer);
+        yield return null;
+        Assert.AreEqual(GameState.Paused, state.CurrentState);
+        Assert.IsFalse(confirmation.gameObject.activeSelf);
+        PressEscape(layer);
+        yield return WaitFor(state, GameState.Battle);
+    }
+
+    private static void PressEscape(UiLayer layer)
+    {
+        typeof(UiLayer).GetMethod("HandleEscape", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(layer, null);
+    }
+
     [UnityTest]
     public IEnumerator FullGaugeSpecialHitsNearbyEnemyAndUpdatesResult()
     {
