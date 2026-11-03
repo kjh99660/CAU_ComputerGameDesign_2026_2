@@ -224468,6 +224468,13 @@ AnimationClip:
     floatParameter: 0
     intParameter: 0
     messageOptions: 0
+  - time: 0.06666667
+    functionName: HitStart
+    data: 
+    objectReferenceParameter: {fileID: 11400000, guid: 8d038e77e424a7949bbc70d52def1f93, type: 2}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
   - time: 0.13333334
     functionName: Sheathe
     data: 
@@ -224477,6 +224484,13 @@ AnimationClip:
     messageOptions: 0
   - time: 0.21666667
     functionName: Draw
+    data: 
+    objectReferenceParameter: {fileID: 0}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
+  - time: 0.25
+    functionName: HitEnd
     data: 
     objectReferenceParameter: {fileID: 0}
     floatParameter: 0

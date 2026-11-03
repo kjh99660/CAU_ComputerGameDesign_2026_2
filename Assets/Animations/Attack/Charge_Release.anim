@@ -367604,6 +367604,20 @@ AnimationClip:
     floatParameter: 0
     intParameter: 0
     messageOptions: 0
+  - time: 0
+    functionName: HitStart
+    data: 
+    objectReferenceParameter: {fileID: 11400000, guid: 20113d1d0f8bde3419c6737a6261b75a, type: 2}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
+  - time: 0.1
+    functionName: HitEnd
+    data: 
+    objectReferenceParameter: {fileID: 0}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
   - time: 1.65
     functionName: Sheathe
     data: 
