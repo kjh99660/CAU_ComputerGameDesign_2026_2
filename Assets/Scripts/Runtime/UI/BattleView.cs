@@ -9,6 +9,16 @@ public sealed class BattleView : UIScreenView
     [SerializeField] private TMP_Text scoreValue;
     [SerializeField] private TMP_Text timerValue;
     [SerializeField] private Image specialGaugeFill;
+    [Header("Combat feedback - provisional")]
+    [SerializeField, Min(0.05f)] private float scoreFeedbackDuration = 0.3f;
+    [SerializeField, Min(0.05f)] private float hitFlashDuration = 0.35f;
+    [SerializeField, Range(0f, 0.5f)] private float hitFlashOpacity = 0.18f;
+    private Image _hitFlash;
+    private float _scoreFeedbackRemaining;
+    private float _hitFlashRemaining;
+    private Color _scoreBaseColor;
+    private Vector3 _scoreBaseScale;
+    private bool _scoreStyleCached;
     private TMP_Text _gaugePercent;
     private Sprite _gaugeRingSprite;
     private Texture2D _gaugeRingTexture;
@@ -31,6 +41,7 @@ public sealed class BattleView : UIScreenView
     {
         AutoBind();
         EnsureSpecialGauge();
+        EnsureHitFlash();
         if (pauseButton != null) pauseButton.onClick.AddListener(HandlePauseClicked);
     }
 
@@ -49,11 +60,75 @@ public sealed class BattleView : UIScreenView
     public void SetPauseInteractable(bool interactable) => SetButtonInteractable(pauseButton, interactable);
 
     //TODO : 메니저 클래스에서 가져오기
-    public override void ResetView() => Render(new BattleUiModel(0, 100f, 0f));
+    public override void ResetView()
+    {
+        ClearFeedback();
+        Render(new BattleUiModel(0, 100f, 0f));
+    }
 
     public void PlayScoreFeedback(int delta)
     {
-        //TOOD : Score 증감량 Pool과 Scale/Color 연출을 연결한다.
+        if (scoreValue == null || delta == 0) return;
+        CacheScoreStyle();
+        _scoreFeedbackRemaining = Mathf.Max(0.05f, scoreFeedbackDuration);
+        scoreValue.color = delta > 0 ? new Color(0.25f, 1f, 1f) : new Color(1f, 0.35f, 0.35f);
+        scoreValue.transform.localScale = _scoreBaseScale * 1.18f;
+    }
+
+    public void PlayPlayerHitFeedback()
+    {
+        EnsureHitFlash();
+        _hitFlashRemaining = Mathf.Max(0.05f, hitFlashDuration);
+        _hitFlash.color = new Color(1f, 0.08f, 0.08f, hitFlashOpacity);
+    }
+
+    public void UpdateFeedback(float deltaTime)
+    {
+        if (_scoreFeedbackRemaining > 0f)
+        {
+            _scoreFeedbackRemaining = Mathf.Max(0f, _scoreFeedbackRemaining - deltaTime);
+            float t = _scoreFeedbackRemaining / Mathf.Max(0.05f, scoreFeedbackDuration);
+            if (scoreValue != null) scoreValue.transform.localScale = _scoreBaseScale * (1f + 0.18f * t);
+            if (_scoreFeedbackRemaining <= 0f && scoreValue != null) scoreValue.color = _scoreBaseColor;
+        }
+        if (_hitFlashRemaining > 0f && _hitFlash != null)
+        {
+            _hitFlashRemaining = Mathf.Max(0f, _hitFlashRemaining - deltaTime);
+            _hitFlash.color = new Color(1f, 0.08f, 0.08f, hitFlashOpacity * _hitFlashRemaining / Mathf.Max(0.05f, hitFlashDuration));
+        }
+    }
+
+    private void CacheScoreStyle()
+    {
+        if (_scoreStyleCached || scoreValue == null) return;
+        _scoreBaseScale = scoreValue.transform.localScale;
+        _scoreBaseColor = scoreValue.color;
+        _scoreStyleCached = true;
+    }
+
+    private void EnsureHitFlash()
+    {
+        if (_hitFlash != null) return;
+        var go = new GameObject("PlayerHitFlash", typeof(RectTransform), typeof(Image));
+        var rect = (RectTransform)go.transform;
+        rect.SetParent(transform, false);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
+        _hitFlash = go.GetComponent<Image>();
+        _hitFlash.color = Color.clear;
+        _hitFlash.raycastTarget = false;
+    }
+
+    private void ClearFeedback()
+    {
+        _scoreFeedbackRemaining = _hitFlashRemaining = 0f;
+        if (_hitFlash != null) _hitFlash.color = Color.clear;
+        if (_scoreStyleCached && scoreValue != null)
+        {
+            scoreValue.color = _scoreBaseColor;
+            scoreValue.transform.localScale = _scoreBaseScale;
+        }
     }
 
     public void RenderScore(int score)

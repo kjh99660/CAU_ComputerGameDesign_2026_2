@@ -17,11 +17,18 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
     public void PresentGauge(float normalized) => View.RenderGauge(normalized);
     public void PresentTimer(float remaining) => View.RenderTimer(remaining);
     public void PresentScoreChange(int delta) => View.PlayScoreFeedback(delta);
+    public void PresentPlayerHit() => View.PlayPlayerHitFeedback();
     private void OnPauseClicked() => Requests.Enqueue(UIRequestType.Pause);
 
     public override void Dispose()
     {
         View.PauseClicked -= OnPauseClicked;
+    }
+
+    public override void Update(float deltaTime, float unscaledDeltaTime)
+    {
+        if (CurrentState == GameState.Battle)
+            View.UpdateFeedback(deltaTime);
     }
 
 }

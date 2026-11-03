@@ -47,6 +47,7 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     public void PresentBattleGauge(float normalized) => _layer?.Battle.PresentGauge(normalized);
     public void PresentBattleTimer(float remaining) => _layer?.Battle.PresentTimer(remaining);
     public void PresentScoreChange(int delta) => _layer?.Battle.PresentScoreChange(delta);
+    public void PresentPlayerHit() => _layer?.Battle.PresentPlayerHit();
     public void PresentFinishing(FinishingUiModel model) => _layer?.Finishing.Present(model);
     public void PresentResult(ResultUiModel model) => _layer?.Result.Present(model);
 

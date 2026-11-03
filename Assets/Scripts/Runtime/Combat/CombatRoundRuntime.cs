@@ -81,8 +81,20 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         Present();
     }
 
-    private void RecordEnemyHit(int tick, bool chargeGauge) => _stats.RecordEnemyKill(tick, chargeGauge, _combatTime);
-    private void RecordPlayerHit(int tick) => _stats.RecordPlayerHit(tick, _combatTime);
+    private void RecordEnemyHit(int tick, bool chargeGauge)
+    {
+        int previous = _stats.Score;
+        if (_stats.RecordEnemyKill(tick, chargeGauge, _combatTime) && _state == GameState.Battle)
+            _ui.PresentScoreChange(_stats.Score - previous);
+    }
+
+    private void RecordPlayerHit(int tick)
+    {
+        int previous = _stats.Score;
+        if (!_stats.RecordPlayerHit(tick, _combatTime) || _state != GameState.Battle) return;
+        _ui.PresentScoreChange(_stats.Score - previous);
+        _ui.PresentPlayerHit();
+    }
     public bool TryUseSpecial(int tick, Vector3 center)
     {
         if (_state != GameState.Battle || _timerEnded || !_stats.TryUseSpecial(tick)) return false;
