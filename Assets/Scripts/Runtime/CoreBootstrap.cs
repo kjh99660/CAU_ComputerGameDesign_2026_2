@@ -11,6 +11,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     [SerializeField] private UIRoot uiRoot;
     [SerializeField] private EnemyRuntime enemyRuntime;
     [SerializeField] private PlayerRuntime playerRuntime;
+    [SerializeField] private CombatSettings combatSettings;
 
     private bool _configured;
     private PlayerLayer _player;
@@ -19,6 +20,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private PhysicsLayer _physics;
     private PhysicsPauseManager _physicsPauseManager;
     private GameRequestProcessor _requestProcessor;
+    private CombatRoundRuntime _combat;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -36,8 +38,6 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
 
         gameStateManager.Configure(roundResetCoordinator, this);
         initializationCoordinator.Configure(eventManager);
-        initializationCoordinator.RegisterParticipant(uiRoot);
-        roundResetCoordinator.RegisterParticipant(uiRoot);
         _physicsPauseManager = new PhysicsPauseManager();
         initializationCoordinator.RegisterParticipant(playerRuntime);
         roundResetCoordinator.RegisterParticipant(playerRuntime);
@@ -53,6 +53,15 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
             Debug.LogError("CoreBootstrap could not configure the UI layer.", this);
             return;
         }
+        if (combatSettings == null)
+            combatSettings = Resources.Load<CombatSettings>("CombatSettings");
+        _combat = gameObject.AddComponent<CombatRoundRuntime>();
+        _combat.Configure(enemyRuntime, uiRoot, combatSettings, eventManager, playerRuntime);
+        playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings);
+        initializationCoordinator.RegisterParticipant(_combat);
+        roundResetCoordinator.RegisterParticipant(_combat);
+        initializationCoordinator.RegisterParticipant(uiRoot);
+        roundResetCoordinator.RegisterParticipant(uiRoot);
         _physics = new PhysicsLayer(_physicsPauseManager);
         _requestProcessor = new GameRequestProcessor(gameStateManager);
         HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
@@ -105,6 +114,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         eventManager.DrainPreviousFrames(_requestProcessor);
         float deltaTime = Time.deltaTime;
         float unscaledDeltaTime = Time.unscaledDeltaTime;
+        _combat.Advance(deltaTime, unscaledDeltaTime);
         _player.Update(deltaTime, unscaledDeltaTime);
         _enemy.Update(deltaTime, unscaledDeltaTime);
         _ui.Update(deltaTime, unscaledDeltaTime);
@@ -124,6 +134,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _player.OnGameStateChanged(notification);
         _enemy.OnGameStateChanged(notification);
         _ui.OnGameStateChanged(notification);
+        _combat?.ApplyState(notification);
         _physics.OnGameStateChanged(notification);
     }
 

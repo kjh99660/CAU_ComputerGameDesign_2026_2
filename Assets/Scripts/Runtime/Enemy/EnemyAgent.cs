@@ -13,6 +13,7 @@ public sealed class EnemyAgent : MonoBehaviour
     private float _attackCooldown;
     private float _stateTime;
     private bool _acceptedHit;
+    private bool _attackHitChecked;
 
     public Rigidbody Body => _body;
     public EnemyAgentState State { get; private set; } = EnemyAgentState.Pooled;
@@ -40,6 +41,7 @@ public sealed class EnemyAgent : MonoBehaviour
         ActiveTick = tick;
         State = EnemyAgentState.Idle;
         _acceptedHit = false;
+        _attackHitChecked = false;
         _attackCooldown = 0f;
         _stateTime = 0f;
         _body.isKinematic = true;
@@ -70,6 +72,7 @@ public sealed class EnemyAgent : MonoBehaviour
             if (_attackCooldown <= 0f)
             {
                 State = EnemyAgentState.Attack;
+                _attackHitChecked = false;
                 _stateTime = settings.AttackDuration;
                 _attackCooldown = settings.AttackInterval;
             }
@@ -109,6 +112,18 @@ public sealed class EnemyAgent : MonoBehaviour
         {
             _stateTime -= deltaTime;
         }
+    }
+
+    // A single provisional hit check halfway through each existing attack.
+    public bool TryAttackHit(Vector3 target, EnemySettings settings, float deltaTime, int tick)
+    {
+        if (tick != ActiveTick || State != EnemyAgentState.Attack || _attackHitChecked ||
+            _stateTime - deltaTime > settings.AttackDuration * 0.5f)
+            return false;
+        _attackHitChecked = true;
+        Vector3 distance = target - transform.position;
+        distance.y = 0f;
+        return distance.sqrMagnitude <= settings.AttackRange * settings.AttackRange;
     }
 
     public bool ApplyHit(Vector3 impulse, EnemySettings settings, int tick)

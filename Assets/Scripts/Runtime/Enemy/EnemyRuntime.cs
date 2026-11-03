@@ -27,6 +27,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public EnemySettings Settings => settings;
     public int ActiveEnemyCount => _registry?.Count ?? 0;
     public Transform TargetTransform => target;
+    public event Action<int> HitAccepted;
+    public event Action<int> PlayerHit;
 
     public void SetTarget(Transform value)
     {
@@ -122,6 +124,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             EnemyAgent enemy = active[i];
             if (enemy == null)
                 continue;
+            if (enemy.TryAttackHit(TargetPosition, settings, deltaTime, tick))
+                PlayerHit?.Invoke(tick);
             enemy.RunAction(settings, deltaTime, tick);
             if (enemy.WantsPoolReturn)
                 Release(enemy);
@@ -140,7 +144,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         horizontal.Normalize();
         Vector3 impulse = horizontal * (settings.NormalKnockbackForce * Mathf.Max(0f, forceMultiplier));
         impulse.y = settings.KnockbackUpwardForce * Mathf.Max(0f, forceMultiplier);
-        return enemy.ApplyHit(impulse, settings, tick);
+        bool accepted = enemy.ApplyHit(impulse, settings, tick);
+        if (accepted)
+            HitAccepted?.Invoke(tick);
+        return accepted;
     }
 
     private Vector3 TargetPosition => target != null
