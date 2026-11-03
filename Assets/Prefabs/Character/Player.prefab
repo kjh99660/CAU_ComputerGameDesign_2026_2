@@ -4297,6 +4297,7 @@ GameObject:
   - component: {fileID: 1306999857627721958}
   - component: {fileID: 5565483986518594555}
   - component: {fileID: 6251622101733089}
+  - component: {fileID: 5119802800964264244}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -4477,6 +4478,20 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   gizmoPreview: {fileID: 11400000, guid: 10017bf571fe8ef48a0a1c47a0f2f531, type: 2}
+--- !u!114 &5119802800964264244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7382676792506048396}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3f2776852dff444c9efd8ea4ba05723, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAttackLunge
+  attack1: {fileID: 11400000, guid: 10017bf571fe8ef48a0a1c47a0f2f531, type: 2}
+  attack2: {fileID: 11400000, guid: 8d038e77e424a7949bbc70d52def1f93, type: 2}
 --- !u!1 &7409351387047053508
 GameObject:
   m_ObjectHideFlags: 0
