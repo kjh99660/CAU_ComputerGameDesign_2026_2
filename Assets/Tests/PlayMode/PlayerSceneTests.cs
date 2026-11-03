@@ -32,6 +32,12 @@ public sealed class PlayerSceneTests
     {
         yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
         yield return null;
+        GameStateManager state = Object.FindFirstObjectByType<GameStateManager>();
+        Assert.IsNotNull(state);
+        float deadline = Time.realtimeSinceStartup + 20f;
+        while (state.CurrentState != GameState.Ready && Time.realtimeSinceStartup < deadline)
+            yield return null;
+        Assert.AreEqual(GameState.Ready, state.CurrentState);
         PlayerRuntime player = Object.FindFirstObjectByType<PlayerRuntime>();
         Assert.IsNotNull(player);
         Animator animator = player.GetComponent<Animator>();

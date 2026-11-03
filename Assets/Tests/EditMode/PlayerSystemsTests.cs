@@ -87,7 +87,10 @@ public sealed class PlayerSystemsTests
         }
         finally
         {
-            EditorSceneManager.RestoreSceneManagerSetup(setup);
+            if (System.Array.Exists(setup, scene => scene.isLoaded && scene.isActive))
+                EditorSceneManager.RestoreSceneManagerSetup(setup);
+            else
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
     }
 
