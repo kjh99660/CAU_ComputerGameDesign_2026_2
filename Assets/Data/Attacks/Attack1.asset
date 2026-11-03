@@ -12,9 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 51cd9fb76c301d842be1b0f3bcd6a1e2, type: 3}
   m_Name: Attack1
   m_EditorClassIdentifier: Assembly-CSharp::AttackHitData
-  center: {x: 0, y: 1, z: 1.2}
-  size: {x: 3, y: 2, z: 2.4}
+  shape: 0
+  center: {x: 0, y: 1, z: 1.5}
+  size: {x: 5, y: 2, z: 3.5}
   knockbackMultiplier: 1
+  sectorGrowth: 0
+  sectorRadius: 3
+  sectorAngle: 270
+  sectorMaxAngle: 270
+  sectorReverse: 0
   lungeStartTime: 0
-  lungeEndTime: 0.08
-  lungeDistance: 1.5
+  lungeEndTime: 0.1
+  lungeDistance: 3
+  chargeMode: 0
+  chargeMaxTime: 1.5
+  chargeMaxScale: 2
+  chargeSteps: []
+  chargeScalesKnockback: 0

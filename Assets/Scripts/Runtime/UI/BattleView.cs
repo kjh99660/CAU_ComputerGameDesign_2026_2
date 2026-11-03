@@ -40,7 +40,7 @@ public sealed class BattleView : UIScreenView
     public void SetPauseInteractable(bool interactable) => SetButtonInteractable(pauseButton, interactable);
 
     //TODO : 메니저 클래스에서 가져오기
-    public override void ResetView() => Render(new BattleUiModel(0, 10f, 0f));
+    public override void ResetView() => Render(new BattleUiModel(0, 60f, 0f));
 
     public void PlayScoreFeedback(int delta)
     {

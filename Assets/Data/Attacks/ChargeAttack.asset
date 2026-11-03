@@ -12,9 +12,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 51cd9fb76c301d842be1b0f3bcd6a1e2, type: 3}
   m_Name: ChargeAttack
   m_EditorClassIdentifier: Assembly-CSharp::AttackHitData
+  shape: 1
   center: {x: 0, y: 1, z: 1.6}
   size: {x: 6, y: 2, z: 4}
   knockbackMultiplier: 1
+  sectorGrowth: 0
+  sectorRadius: 3
+  sectorAngle: 270
+  sectorMaxAngle: 270
+  sectorReverse: 0
   lungeStartTime: 0
   lungeEndTime: 0.15
   lungeDistance: 0
+  chargeMode: 1
+  chargeMaxTime: 1
+  chargeMaxScale: 9
+  chargeSteps:
+  - time: 0.5
+    scale: 1.5
+  - time: 1
+    scale: 2
+  - time: 1.5
+    scale: 2.5
+  chargeScalesKnockback: 1
