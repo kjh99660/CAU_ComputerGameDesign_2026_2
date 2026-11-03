@@ -27,8 +27,8 @@ public sealed class CombatRoundSceneTests
         var enemy = Object.FindFirstObjectByType<EnemyAgent>();
         enemy.transform.position = player.transform.position + Vector3.forward;
         Physics.SyncTransforms();
-        yield return null;
-        yield return null; // Let the enemy spatial grid observe its new location.
+        var enemies = Object.FindFirstObjectByType<EnemyRuntime>();
+        enemies.UpdateAI(0f, state.Tick); // Update the grid after positioning the test enemy.
         for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(state.Tick);
         Assert.AreEqual(100f, combat.Stats.Gauge);
         int previousKills = combat.Stats.KillCount;
@@ -37,6 +37,16 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual(0f, combat.Stats.Gauge);
         Assert.Greater(combat.Stats.KillCount, previousKills);
         Assert.IsFalse(combat.TryUseSpecial(state.Tick, player.transform.position));
+        var ring = GameObject.Find("SpecialShockwave").GetComponent<LineRenderer>();
+        Assert.IsTrue(ring.enabled);
+        events.EnqueueRequest(new PauseRequest(state.Tick));
+        yield return WaitFor(state, GameState.Paused);
+        Vector3 pausedScale = ring.transform.localScale;
+        yield return new WaitForSecondsRealtime(0.1f);
+        Assert.AreEqual(pausedScale, ring.transform.localScale);
+        events.EnqueueRequest(new RestartRequest(state.Tick));
+        yield return WaitFor(state, GameState.Ready);
+        Assert.IsFalse(ring.enabled);
     }
 
     [UnityTest]
