@@ -26,7 +26,7 @@ MonoBehaviour:
   lungeDistance: 0
   chargeMode: 1
   chargeMaxTime: 1
-  chargeMaxScale: 9
+  chargeMaxScale: 2.5
   chargeSteps:
   - time: 0.5
     scale: 1.5
