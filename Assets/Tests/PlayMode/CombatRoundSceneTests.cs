@@ -91,6 +91,11 @@ public sealed class CombatRoundSceneTests
         var fill = Find<Image>(battle.transform, "SpecialGaugeFill");
         Assert.IsNotNull(fill.sprite);
         Assert.AreEqual(0.08f, fill.fillAmount, 0.0001f);
+        var percent = Find<TMP_Text>(battle.transform, "SpecialGaugePercent");
+        Assert.AreEqual("8%", percent.text);
+        battle.RenderGauge(1f);
+        Assert.AreEqual("100%", percent.text);
+        Assert.Greater(fill.color.r, fill.color.b);
 
         events.EnqueueRequest(new PauseRequest(state.Tick));
         yield return WaitFor(state, GameState.Paused);
