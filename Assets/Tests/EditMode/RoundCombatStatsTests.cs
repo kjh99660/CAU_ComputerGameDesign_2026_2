@@ -5,6 +5,32 @@ using System.Reflection;
 public sealed class RoundCombatStatsTests
 {
     [Test]
+    public void SpecialRequiresFullGaugeConsumesItAndResetsRoundStatistics()
+    {
+        var settings = ScriptableObject.CreateInstance<CombatSettings>();
+        try
+        {
+            var stats = new RoundCombatStats(settings);
+            stats.Reset(3);
+            stats.SetAccepting(true);
+            Assert.IsFalse(stats.TryUseSpecial(3));
+            for (int i = 0; i < 13; i++) stats.RecordEnemyKill(3, true, i * 0.1f);
+            Assert.AreEqual(100f, stats.Gauge);
+            Assert.AreEqual(13, stats.MaxCombo);
+            Assert.IsFalse(stats.TryUseSpecial(2));
+            Assert.IsTrue(stats.TryUseSpecial(3));
+            Assert.AreEqual(0f, stats.Gauge);
+            Assert.AreEqual(1, stats.SpecialUseCount);
+            stats.RecordEnemyKill(3, false, 2f);
+            Assert.AreEqual(0f, stats.Gauge);
+            stats.Reset(4);
+            Assert.AreEqual(0, stats.SpecialUseCount);
+            Assert.AreEqual(0, stats.MaxCombo);
+        }
+        finally { Object.DestroyImmediate(settings); }
+    }
+
+    [Test]
     public void FinishingClosesScoreWindowAndRestoresTimeScale()
     {
         var root = new GameObject("FinishingTest");

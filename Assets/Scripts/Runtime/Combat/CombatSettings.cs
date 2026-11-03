@@ -12,6 +12,12 @@ public sealed class CombatSettings : ScriptableObject
     [Min(0.01f)] public float maximumGauge = 100f;
     [Range(0f, 1f)] public float playerHitPenalty = 0.1f;
     [Min(0f)] public float invulnerabilitySeconds = 0.8f;
+    [Header("Special and combo - provisional")]
+    [Range(0f, 1f)] public float specialCostFraction = 1f;
+    [Min(0.1f)] public float specialRadius = 6f;
+    [Min(0f)] public float specialKnockbackMultiplier = 2f;
+    public bool specialKillsRestoreGauge = false;
+    [Min(0.1f)] public float comboTimeoutSeconds = 2f;
     [Header("Round")]
     [Min(0.1f)] public float roundDuration = 100f;
     [Min(0.1f)] public float finishingDuration = 2.5f;
