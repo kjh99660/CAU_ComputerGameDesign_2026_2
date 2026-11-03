@@ -10,6 +10,53 @@ using System.Reflection;
 public sealed class CombatRoundSceneTests
 {
     [UnityTest]
+    public IEnumerator DialogueAdvancesSkipsAndRestartsAfterRetry()
+    {
+        var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        Assert.IsNotNull(data);
+        Assert.GreaterOrEqual(data.intro.Length, 2);
+        Assert.GreaterOrEqual(data.outro.Length, 1);
+        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return null;
+        var state = Object.FindFirstObjectByType<GameStateManager>();
+        var events = Object.FindFirstObjectByType<EventManager>();
+        yield return WaitFor(state, GameState.Ready);
+        events.EnqueueRequest(new StartRequest(state.Tick));
+        yield return WaitFor(state, GameState.IntroDialogue);
+        var view = Object.FindFirstObjectByType<DialogueView>();
+        var text = Find<TMP_Text>(view.transform, "BodyText");
+        var next = Find<Button>(view.transform, "DialogueBox");
+        Assert.AreEqual(data.intro[0].text, text.text);
+        Assert.AreEqual(data.intro[0].speaker, Find<TMP_Text>(view.transform, "SpeakerName").text);
+        next.onClick.Invoke();
+        Assert.AreEqual(data.intro[1].text, text.text);
+        Assert.AreEqual(data.intro[1].speaker, Find<TMP_Text>(view.transform, "SpeakerName").text);
+        next.onClick.Invoke();
+        yield return WaitFor(state, GameState.Countdown);
+        events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Battle);
+        events.EnqueueRequest(new PauseRequest(state.Tick));
+        yield return WaitFor(state, GameState.Paused);
+        events.EnqueueRequest(new RestartRequest(state.Tick));
+        yield return WaitFor(state, GameState.Ready);
+        events.EnqueueRequest(new StartRequest(state.Tick));
+        yield return WaitFor(state, GameState.IntroDialogue);
+        Assert.AreEqual(data.intro[0].text, text.text);
+        Find<Button>(view.transform, "SkipButton").onClick.Invoke();
+        yield return WaitFor(state, GameState.Countdown);
+        events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Battle);
+        events.EnqueueRequest(new TimerReachedZeroRequest(state.Tick));
+        yield return WaitFor(state, GameState.Finishing);
+        events.EnqueueRequest(new FinishingCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.OutroDialogue);
+        Assert.AreEqual(data.outro[0].text, text.text);
+        next.onClick.Invoke();
+        yield return WaitFor(state, GameState.Result);
+        Assert.AreEqual(1f, Time.timeScale);
+    }
+
+    [UnityTest]
     public IEnumerator EscapePausesCancelsRetryConfirmationAndResumes()
     {
         yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
