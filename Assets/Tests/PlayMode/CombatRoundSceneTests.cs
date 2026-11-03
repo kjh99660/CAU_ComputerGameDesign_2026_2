@@ -129,6 +129,8 @@ public sealed class CombatRoundSceneTests
         Assert.IsFalse(runtime.TryApplyHit(enemy, Vector3.forward, 1f, state.Tick));
         Assert.AreEqual(110, combat.Stats.Score);
         Assert.AreEqual("000110", Find<TMP_Text>(battle.transform, "ScoreValue").text);
+        var scoreText = Find<TMP_Text>(battle.transform, "ScoreValue");
+        Assert.Greater(scoreText.color.g, scoreText.color.r);
         var fill = Find<Image>(battle.transform, "SpecialGaugeFill");
         Assert.IsNotNull(fill.sprite);
         Assert.AreEqual(0.08f, fill.fillAmount, 0.0001f);
@@ -138,13 +140,31 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual("100%", percent.text);
         Assert.Greater(fill.color.r, fill.color.b);
 
+        EnemyAgent attacker = null;
+        foreach (var candidate in Object.FindObjectsByType<EnemyAgent>(FindObjectsSortMode.None))
+            if (candidate != enemy) { attacker = candidate; break; }
+        Assert.IsNotNull(attacker);
+        attacker.transform.position = player.transform.position + Vector3.forward * 0.5f;
+        Physics.SyncTransforms();
+        runtime.UpdateAI(0f, state.Tick);
+        runtime.UpdateActions(runtime.Settings.AttackDuration, state.Tick);
+        Assert.AreEqual(1, combat.Stats.HitCount);
+        Assert.AreEqual(99, combat.Stats.Score);
+        Assert.Greater(scoreText.color.r, scoreText.color.g);
+        Image hitFlash = Find<Image>(battle.transform, "PlayerHitFlash");
+        Assert.Greater(hitFlash.color.a, 0f);
+
         events.EnqueueRequest(new PauseRequest(state.Tick));
         yield return WaitFor(state, GameState.Paused);
+        float pausedAlpha = hitFlash.color.a;
+        yield return new WaitForSecondsRealtime(0.1f);
+        Assert.AreEqual(pausedAlpha, hitFlash.color.a, 0.0001f);
         events.EnqueueRequest(new RestartRequest(state.Tick));
         yield return WaitFor(state, GameState.Ready);
         Assert.AreEqual(0, combat.Stats.Score);
         Assert.AreEqual(0f, combat.Stats.Gauge);
         Assert.AreEqual(0, combat.Stats.KillCount);
+        Assert.AreEqual(0f, hitFlash.color.a, 0.0001f);
     }
 
     private static IEnumerator WaitFor(GameStateManager state, GameState expected)
