@@ -9,6 +9,37 @@ using UnityEngine.UI;
 public sealed class CombatRoundSceneTests
 {
     [UnityTest]
+    public IEnumerator FullGaugeSpecialHitsNearbyEnemyAndUpdatesResult()
+    {
+        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return null;
+        var state = Object.FindFirstObjectByType<GameStateManager>();
+        var events = Object.FindFirstObjectByType<EventManager>();
+        yield return WaitFor(state, GameState.Ready);
+        events.EnqueueRequest(new StartRequest(state.Tick));
+        yield return WaitFor(state, GameState.IntroDialogue);
+        events.EnqueueRequest(new DialogueCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Countdown);
+        events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
+        yield return WaitFor(state, GameState.Battle);
+        var combat = Object.FindFirstObjectByType<CombatRoundRuntime>();
+        var player = Object.FindFirstObjectByType<PlayerRuntime>();
+        var enemy = Object.FindFirstObjectByType<EnemyAgent>();
+        enemy.transform.position = player.transform.position + Vector3.forward;
+        Physics.SyncTransforms();
+        yield return null;
+        yield return null; // Let the enemy spatial grid observe its new location.
+        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(state.Tick);
+        Assert.AreEqual(100f, combat.Stats.Gauge);
+        int previousKills = combat.Stats.KillCount;
+        Assert.IsTrue(combat.TryUseSpecial(state.Tick, player.transform.position));
+        Assert.AreEqual(1, combat.Stats.SpecialUseCount);
+        Assert.AreEqual(0f, combat.Stats.Gauge);
+        Assert.Greater(combat.Stats.KillCount, previousKills);
+        Assert.IsFalse(combat.TryUseSpecial(state.Tick, player.transform.position));
+    }
+
+    [UnityTest]
     public IEnumerator TimerFinishingAcceptsExistingResultsThenClosesAndRestoresTime()
     {
         var settings = Resources.Load<CombatSettings>("CombatSettings");
