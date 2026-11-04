@@ -81,6 +81,39 @@ public sealed class EnemySystemsTests
     }
 
     [Test]
+    public void ReactivatedEnemyRestoresIdleStateAndVisualTransform()
+    {
+        GameObject gameObject = new("Enemy");
+        GameObject visualObject = new("Visual");
+        GameObject poolRoot = new("Pool");
+        try
+        {
+            visualObject.transform.SetParent(gameObject.transform, false);
+            EnemyAgent enemy = gameObject.AddComponent<EnemyAgent>();
+            enemy.Initialize(null);
+            enemy.Activate(Vector3.zero, 5);
+
+            visualObject.transform.localPosition = new Vector3(0f, -0.65f, 0f);
+            visualObject.transform.localRotation = Quaternion.Euler(0f, 0f, 78f);
+            visualObject.transform.localScale = new Vector3(1f, 0.35f, 1f);
+            enemy.DeactivateForPool(poolRoot.transform);
+            enemy.Activate(Vector3.one, 6);
+
+            Assert.AreEqual(EnemyAgentState.Idle, enemy.State);
+            Assert.AreEqual(6, enemy.ActiveTick);
+            Assert.AreEqual(Vector3.zero, visualObject.transform.localPosition);
+            Assert.AreEqual(Quaternion.identity, visualObject.transform.localRotation);
+            Assert.AreEqual(Vector3.one, visualObject.transform.localScale);
+            Assert.AreEqual(Vector3.one, enemy.transform.localScale);
+        }
+        finally
+        {
+            Object.DestroyImmediate(gameObject);
+            Object.DestroyImmediate(poolRoot);
+        }
+    }
+
+    [Test]
     public void PhysicsPauseRestoresSameTickSnapshot()
     {
         GameObject gameObject = new("Body");

@@ -18,7 +18,7 @@ MonoBehaviour:
   minimumSpawnDistance: 15
   maximumSpawnDistance: 25
   maximumEnemyCount: 100
-  spawnHeight: 1
+  spawnHeight: 0
   moveSpeed: 3.5
   attackRange: 2
   attackInterval: 1.5

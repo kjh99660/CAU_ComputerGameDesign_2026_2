@@ -2,17 +2,29 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-[RequireComponent(typeof(BoxCollider), typeof(Rigidbody), typeof(MeshRenderer))]
+[RequireComponent(typeof(BoxCollider), typeof(Rigidbody))]
 public sealed class EnemyAgent : MonoBehaviour
 {
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private MaterialPropertyBlock _properties;
     private Rigidbody _body;
-    private Renderer _renderer;
+    private Renderer[] _renderers;
+    private Animator _animator;
+    private Transform _visualRoot;
+    private Vector3 _rootDefaultScale = Vector3.one;
+    private Vector3 _visualDefaultPosition;
+    private Quaternion _visualDefaultRotation;
+    private Vector3 _visualDefaultScale = Vector3.one;
     private EnemyRuntime _owner;
     private float _attackCooldown;
     private float _stateTime;
     private bool _acceptedHit;
+
+    private static readonly int IdleState = Animator.StringToHash("Idle");
+    private static readonly int ChaseState = Animator.StringToHash("Chase");
+    private static readonly int AttackState = Animator.StringToHash("Attack");
+    private static readonly int KnockbackState = Animator.StringToHash("Knockback");
+    private static readonly int DyingState = Animator.StringToHash("Dying");
 
     public Rigidbody Body => _body;
     public EnemyAgentState State { get; private set; } = EnemyAgentState.Pooled;
@@ -22,7 +34,16 @@ public sealed class EnemyAgent : MonoBehaviour
     private void Awake()
     {
         _body = GetComponent<Rigidbody>();
-        _renderer = GetComponent<Renderer>();
+        _rootDefaultScale = transform.localScale;
+        _renderers = GetComponentsInChildren<Renderer>(true);
+        _animator = GetComponent<Animator>();
+        _visualRoot = transform.Find("Visual");
+        if (_visualRoot != null)
+        {
+            _visualDefaultPosition = _visualRoot.localPosition;
+            _visualDefaultRotation = _visualRoot.localRotation;
+            _visualDefaultScale = _visualRoot.localScale;
+        }
         _properties = new MaterialPropertyBlock();
     }
 
@@ -37,8 +58,17 @@ public sealed class EnemyAgent : MonoBehaviour
     {
         gameObject.SetActive(true);
         transform.SetPositionAndRotation(position, Quaternion.identity);
+        transform.localScale = _rootDefaultScale;
         ActiveTick = tick;
-        State = EnemyAgentState.Idle;
+        if (_animator != null)
+        {
+            _animator.Rebind();
+            _animator.speed = 1f;
+        }
+        ResetVisualPose();
+        ChangeState(EnemyAgentState.Idle, true);
+        if (_animator != null)
+            _animator.Update(0f);
         _acceptedHit = false;
         _attackCooldown = 0f;
         _stateTime = 0f;
@@ -51,7 +81,10 @@ public sealed class EnemyAgent : MonoBehaviour
     {
         if (tick != ActiveTick || State == EnemyAgentState.Pooled)
             return;
-        State = EnemyAgentState.Idle;
+        ResetVisualPose();
+        ChangeState(EnemyAgentState.Idle, true);
+        if (_animator != null)
+            _animator.Update(0f);
         _body.isKinematic = true;
         _stateTime = 0f;
     }
@@ -69,14 +102,14 @@ public sealed class EnemyAgent : MonoBehaviour
         {
             if (_attackCooldown <= 0f)
             {
-                State = EnemyAgentState.Attack;
+                ChangeState(EnemyAgentState.Attack);
                 _stateTime = settings.AttackDuration;
                 _attackCooldown = settings.AttackInterval;
             }
             return;
         }
 
-        State = EnemyAgentState.Chase;
+        ChangeState(EnemyAgentState.Chase);
         Vector3 separation = CalculateSeparation(neighbours, settings.SeparationDistance, tick);
         Vector3 direction = toTarget.normalized + separation * settings.SeparationWeight;
         direction.y = 0f;
@@ -97,7 +130,7 @@ public sealed class EnemyAgent : MonoBehaviour
         {
             _stateTime -= deltaTime;
             if (_stateTime <= 0f)
-                State = EnemyAgentState.Chase;
+                ChangeState(EnemyAgentState.Chase);
         }
         else if (State == EnemyAgentState.Knockback)
         {
@@ -117,7 +150,7 @@ public sealed class EnemyAgent : MonoBehaviour
             return false;
 
         _acceptedHit = true;
-        State = EnemyAgentState.Knockback;
+        ChangeState(EnemyAgentState.Knockback);
         _stateTime = settings.KnockbackFallbackDuration;
         _body.isKinematic = false;
         _body.useGravity = true;
@@ -137,8 +170,23 @@ public sealed class EnemyAgent : MonoBehaviour
         State = EnemyAgentState.Pooled;
         ActiveTick = -1;
         _acceptedHit = false;
+        _attackCooldown = 0f;
+        _stateTime = 0f;
+        if (_animator != null)
+        {
+            _animator.Rebind();
+            _animator.Update(0f);
+        }
+        ResetVisualPose();
         transform.SetParent(poolRoot, false);
+        transform.localScale = _rootDefaultScale;
         gameObject.SetActive(false);
+    }
+
+    public void SetAnimationPaused(bool paused)
+    {
+        if (_animator != null)
+            _animator.speed = paused ? 0f : 1f;
     }
 
     private Vector3 CalculateSeparation(IReadOnlyList<EnemyAgent> neighbours, float distance, int tick)
@@ -184,18 +232,55 @@ public sealed class EnemyAgent : MonoBehaviour
             _body.angularVelocity = Vector3.zero;
         }
         _body.isKinematic = true;
-        State = EnemyAgentState.Dying;
+        ChangeState(EnemyAgentState.Dying);
         _stateTime = Mathf.Max(0f, duration);
         SetColor(new Color(0.22f, 0.22f, 0.24f, 1f));
     }
 
     private void SetColor(Color color)
     {
-        if (_renderer == null)
+        if (_renderers == null || _renderers.Length == 0)
             return;
         _properties ??= new MaterialPropertyBlock();
-        _renderer.GetPropertyBlock(_properties);
-        _properties.SetColor(BaseColor, color);
-        _renderer.SetPropertyBlock(_properties);
+        for (int i = 0; i < _renderers.Length; i++)
+        {
+            Renderer renderer = _renderers[i];
+            if (renderer == null)
+                continue;
+            renderer.GetPropertyBlock(_properties);
+            _properties.SetColor(BaseColor, color);
+            renderer.SetPropertyBlock(_properties);
+        }
+    }
+
+    private void ChangeState(EnemyAgentState state, bool restart = false)
+    {
+        if (!restart && State == state)
+            return;
+
+        State = state;
+        if (_animator == null)
+            return;
+
+        int stateHash = state switch
+        {
+            EnemyAgentState.Idle => IdleState,
+            EnemyAgentState.Chase => ChaseState,
+            EnemyAgentState.Attack => AttackState,
+            EnemyAgentState.Knockback => KnockbackState,
+            EnemyAgentState.Dying => DyingState,
+            _ => 0
+        };
+        if (stateHash != 0)
+            _animator.Play(stateHash, 0, 0f);
+    }
+
+    private void ResetVisualPose()
+    {
+        if (_visualRoot == null)
+            return;
+        _visualRoot.localPosition = _visualDefaultPosition;
+        _visualRoot.localRotation = _visualDefaultRotation;
+        _visualRoot.localScale = _visualDefaultScale;
     }
 }

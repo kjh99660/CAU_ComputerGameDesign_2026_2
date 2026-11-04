@@ -10,7 +10,7 @@ public sealed class EnemySettings : ScriptableObject
     [SerializeField, Min(0f)] private float minimumSpawnDistance = 15f;
     [SerializeField, Min(0f)] private float maximumSpawnDistance = 25f;
     [SerializeField, Min(1)] private int maximumEnemyCount = 100;
-    [SerializeField] private float spawnHeight = 1f;
+    [SerializeField] private float spawnHeight = 0f;
 
     [Header("AI - provisional")]
     [SerializeField, Min(0f)] private float moveSpeed = 3.5f;

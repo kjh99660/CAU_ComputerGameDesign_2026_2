@@ -70,6 +70,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
         _state = state;
         _tick = tick;
+        SetAnimationPausedForAll(state != GameState.Ready &&
+                                 state != GameState.Battle &&
+                                 state != GameState.Finishing);
         if (state == GameState.Ready)
         {
             _stopRequested = false;
@@ -224,5 +227,15 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         for (int i = 0; i < active.Count; i++)
             active[i].SetIdle(tick);
+    }
+
+    private void SetAnimationPausedForAll(bool paused)
+    {
+        if (_registry == null)
+            return;
+        IReadOnlyList<EnemyAgent> active = _registry.Active;
+        for (int i = 0; i < active.Count; i++)
+            if (active[i] != null)
+                active[i].SetAnimationPaused(paused);
     }
 }
