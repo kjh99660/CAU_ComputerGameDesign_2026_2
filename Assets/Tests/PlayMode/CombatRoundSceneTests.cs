@@ -208,10 +208,16 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual(2.5f, combat.Settings.finishingDuration);
         Assert.IsNotNull(enemy);
         Assert.IsNotNull(player);
-        enemy.transform.position = player.transform.position + player.transform.forward * combat.Settings.attackForwardOffset + Vector3.up * combat.Settings.attackHeight;
+        // Keep unrelated enemies away from this animation-event hit and its lunge.
+        foreach (var candidate in Object.FindObjectsByType<EnemyAgent>(FindObjectsSortMode.None))
+            candidate.transform.position = player.transform.position + Vector3.right * 100f;
+        enemy.transform.position = player.transform.position + player.transform.forward * 4.5f;
+        Assert.IsTrue((bool)typeof(PlayerRuntime).GetField("_hasAttackHitSource",
+            BindingFlags.Instance | BindingFlags.NonPublic).GetValue(player),
+            "The prefab hitbox must replace the provisional runtime attack sphere.");
         Physics.SyncTransforms();
         var animator = player.GetComponent<Animator>();
-        animator.Play("Attack1", 0, 0.25f);
+        animator.Play("Attack1", 0, 0f);
         animator.Update(0f);
         float hitDeadline = Time.realtimeSinceStartup + 4f;
         while (combat.Stats.KillCount == 0 && Time.realtimeSinceStartup < hitDeadline)

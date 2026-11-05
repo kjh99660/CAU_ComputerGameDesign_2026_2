@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerAttackHitbox : MonoBehaviour, IPlayerPresentation
+public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
 {
     [SerializeField] private LayerMask enemyMask = ~0;      // Enemy 레이어를 만들면 그것만 선택
     [SerializeField] private AttackHitData gizmoPreview;    // Scene 뷰에서 미리 볼 공격
@@ -14,6 +14,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerPresentation
     private EnemyRuntime _enemies;
     private GameStateManager _state;
     private PlayerChargeTracker _charge;
+    private int _attackTick = -1;
 
     // ── 디버그용 기록 ──
     private int _dbgSphere, _dbgHeight, _dbgAngle;   // 마지막 검사의 단계별 통과 수
@@ -31,6 +32,9 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerPresentation
     // ── 애니메이션 이벤트 ──
     public void HitStart(AttackHitData data)
     {
+        if (_state == null || (_state.CurrentState != GameState.Battle &&
+            _state.CurrentState != GameState.Finishing)) return;
+        _attackTick = _state.Tick;
         _current = data;
         _scale = (data != null && _charge != null) ? data.GetChargeScale(_charge.ChargeTime) : 1f;
         _hitThisSwing.Clear();
@@ -73,6 +77,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerPresentation
     private void CheckHits()
     {
         if (_current == null || _enemies == null || _state == null) return;
+        if (_attackTick != _state.Tick ||
+            (_state.CurrentState != GameState.Battle && _state.CurrentState != GameState.Finishing)) return;
 
         int count = _current.shape == AttackHitData.HitShape.Sector ? QuerySector() : QueryBox();
         int enemyCount = 0, newHits = 0;
@@ -164,7 +170,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerPresentation
 
     // ── 팀원 구조가 보내 주는 알림 (PlayerRuntime이 자동으로 찾아서 호출) ──
     public void ApplyState(GameState state) { }    // Pause 중에는 Animator가 멈추니 따로 할 일 없음
-    public void ResetPresentation() { _current = null; _scale = 1f; _hitThisSwing.Clear(); }
+    public void ResetPresentation() { _current = null; _attackTick = -1; _scale = 1f; _hitThisSwing.Clear(); }
 
     private void OnDrawGizmosSelected()
     {

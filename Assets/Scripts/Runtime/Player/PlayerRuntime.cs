@@ -68,6 +68,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private CombatSettings _combatSettings;
     private CombatRoundRuntime _combatRound;
     private bool _attackStartedInBattle;
+    private bool _hasAttackHitSource;
     private GameState _gameState = GameState.Initializing;
 
     public Transform TargetTransform => transform;
@@ -328,6 +329,9 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         {
             if (component is IPlayerPresentation presentation)
                 _presentations.Add(presentation);
+            // Bootstrap can cache these references before the scene object becomes active.
+            if (component is IPlayerAttackHitSource && component.enabled)
+                _hasAttackHitSource = true;
         }
         _referencesCached = true;
     }
@@ -366,7 +370,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
     private void ApplyAttackHits(AnimatorStateInfo stateInfo)
     {
-        if (_combatEnemies == null || _combatSettings == null ||
+        if (_hasAttackHitSource || _combatEnemies == null || _combatSettings == null ||
             !(stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2") || stateInfo.IsName("Charge_Release")))
             return;
         float normalized = stateInfo.normalizedTime;

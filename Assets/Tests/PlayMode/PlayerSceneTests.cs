@@ -114,6 +114,8 @@ public sealed class PlayerSceneTests
         Transform visual = enemy.transform.Find("Visual");
         Assert.IsNotNull(animator);
         Assert.IsNotNull(visual);
+        Vector3 defaultVisualScale = visual.localScale;
+        Vector3 defaultRootScale = enemy.transform.localScale;
 
         int oldTick = enemy.ActiveTick;
         Assert.IsTrue(enemy.ApplyHit(Vector3.back, runtime.Settings, oldTick));
@@ -131,8 +133,8 @@ public sealed class PlayerSceneTests
         Assert.AreEqual(oldTick + 1, enemy.ActiveTick);
         Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"));
         Assert.AreEqual(Vector3.zero, visual.localPosition);
-        Assert.AreEqual(Vector3.one, visual.localScale);
-        Assert.AreEqual(Vector3.one, enemy.transform.localScale);
+        Assert.AreEqual(defaultVisualScale, visual.localScale);
+        Assert.AreEqual(defaultRootScale, enemy.transform.localScale);
         Assert.Less(Quaternion.Angle(Quaternion.identity, visual.localRotation), 1.1f);
         Object.Destroy(poolRoot);
     }

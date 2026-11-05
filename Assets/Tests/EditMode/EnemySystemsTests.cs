@@ -6,6 +6,70 @@ using UnityEngine;
 public sealed class EnemySystemsTests
 {
     [Test]
+    public void EnemyAttackChecksOnceAtMidpointAndResetsForNextAttackAndSpawn()
+    {
+        GameObject gameObject = new("AttackingEnemy");
+        GameObject poolRoot = new("Pool");
+        EnemySettings settings = ScriptableObject.CreateInstance<EnemySettings>();
+        try
+        {
+            EnemyAgent enemy = gameObject.AddComponent<EnemyAgent>();
+            enemy.Initialize(null);
+            enemy.Activate(Vector3.zero, 7);
+            var neighbours = System.Array.Empty<EnemyAgent>();
+            enemy.RunAI(Vector3.forward, neighbours, settings, 0f, 7);
+            Assert.AreEqual(EnemyAgentState.Attack, enemy.State);
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration * 0.25f, 7));
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 6));
+            Assert.IsTrue(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration * 0.5f, 7));
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 7));
+
+            enemy.RunAction(settings, settings.AttackDuration, 7);
+            enemy.RunAI(Vector3.forward, neighbours, settings, settings.AttackInterval, 7);
+            Assert.IsTrue(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 7));
+
+            enemy.DeactivateForPool(poolRoot.transform);
+            enemy.Activate(Vector3.zero, 8);
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 8));
+            enemy.RunAI(Vector3.forward, neighbours, settings, 0f, 8);
+            Assert.IsTrue(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 8));
+        }
+        finally
+        {
+            Object.DestroyImmediate(gameObject);
+            Object.DestroyImmediate(poolRoot);
+            Object.DestroyImmediate(settings);
+        }
+    }
+
+    [Test]
+    public void MissedOrInterruptedEnemyAttackCannotHitLater()
+    {
+        GameObject gameObject = new("AttackingEnemy");
+        EnemySettings settings = ScriptableObject.CreateInstance<EnemySettings>();
+        try
+        {
+            EnemyAgent enemy = gameObject.AddComponent<EnemyAgent>();
+            enemy.Initialize(null);
+            enemy.Activate(Vector3.zero, 7);
+            var neighbours = System.Array.Empty<EnemyAgent>();
+            enemy.RunAI(Vector3.forward, neighbours, settings, 0f, 7);
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward * (settings.AttackRange + 1f), settings, settings.AttackDuration, 7));
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 7));
+
+            enemy.RunAction(settings, settings.AttackDuration, 7);
+            enemy.RunAI(Vector3.forward, neighbours, settings, settings.AttackInterval, 7);
+            Assert.IsTrue(enemy.ApplyHit(Vector3.zero, settings, 7));
+            Assert.IsFalse(enemy.TryAttackHit(Vector3.forward, settings, settings.AttackDuration, 7));
+        }
+        finally
+        {
+            Object.DestroyImmediate(gameObject);
+            Object.DestroyImmediate(settings);
+        }
+    }
+
+    [Test]
     public void EnemySystemsFollowBattleAndFinishingPolicy()
     {
         GameObject owner = new("EnemyRuntimeTest");
