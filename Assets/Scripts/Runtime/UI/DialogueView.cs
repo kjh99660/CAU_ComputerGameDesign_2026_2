@@ -12,6 +12,7 @@ public sealed class DialogueView : UIScreenView
     [SerializeField] private Image leftPortrait;
     [SerializeField] private Image rightPortrait;
     [SerializeField, Range(0f, 1f)] private float inactiveSpeakerAlpha = 0.45f;
+    private TMP_FontAsset dialogueFont;
 
     public event Action SkipClicked;
     public event Action ContinueClicked;
@@ -30,6 +31,18 @@ public sealed class DialogueView : UIScreenView
     private void OnEnable()
     {
         AutoBind();
+        ApplyDialogueFont();
+        if (continueButton == null)
+        {
+            var box = FindNamed<Image>("DialogueBox");
+            if (box != null)
+            {
+                continueButton = box.GetComponent<Button>();
+                if (continueButton == null) continueButton = box.gameObject.AddComponent<Button>();
+                continueButton.transition = Selectable.Transition.None;
+                box.raycastTarget = true;
+            }
+        }
         if (skipButton != null) skipButton.onClick.AddListener(HandleSkipClicked);
         if (continueButton != null) continueButton.onClick.AddListener(HandleContinueClicked);
     }
@@ -38,6 +51,32 @@ public sealed class DialogueView : UIScreenView
     {
         if (skipButton != null) skipButton.onClick.RemoveListener(HandleSkipClicked);
         if (continueButton != null) continueButton.onClick.RemoveListener(HandleContinueClicked);
+    }
+
+    private void OnDestroy()
+    {
+        if (dialogueFont == null) return;
+        if (dialogueFont.material != null) Destroy(dialogueFont.material);
+        foreach (var atlas in dialogueFont.atlasTextures)
+            if (atlas != null) Destroy(atlas);
+        Destroy(dialogueFont);
+    }
+
+    private void ApplyDialogueFont()
+    {
+        if (dialogueFont == null)
+        {
+            var source = Resources.Load<Font>("Fonts/NanumGothic-Regular");
+            if (source != null) dialogueFont = TMP_FontAsset.CreateFontAsset(source);
+            if (dialogueFont == null)
+            {
+                Debug.LogError("대화용 한글 폰트를 불러오지 못했습니다.", this);
+                return;
+            }
+        }
+
+        if (speakerName != null) speakerName.font = dialogueFont;
+        if (bodyText != null) bodyText.font = dialogueFont;
     }
 
     public void Render(DialogueUiModel model)

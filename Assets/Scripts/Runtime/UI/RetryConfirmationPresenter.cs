@@ -1,6 +1,7 @@
 public sealed class RetryConfirmationPresenter : UiPresenter<RetryConfirmationView>
 {
     private bool _isOpen;
+    public bool IsOpen => _isOpen;
 
     public RetryConfirmationPresenter(RetryConfirmationView view, IUIRequestDispatcher requests) : base(view, requests)
     {

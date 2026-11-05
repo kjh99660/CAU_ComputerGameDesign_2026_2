@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.InputSystem;
 
 // 여덟 화면 Presenter의 상태 전달, 갱신, 입력 차단과 데이터 진입점을 소유한다.
 public sealed class UiLayer : IGameLoopSystem, IDisposable
@@ -7,6 +8,7 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
     private readonly IDisposable[] _disposables;
     private readonly UIScreenView[] _views;
     private readonly IUIRequestDispatcher _requests;
+    private readonly RetryConfirmationPresenter _retry;
     private bool _disposed;
     private bool _hasState;
     private int _currentTick;
@@ -19,15 +21,16 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
 
     public UiLayer(IUIRequestDispatcher requests, StartView startView, DialogueView dialogueView,
         CountdownView countdownView, BattleView battleView, PauseView pauseView,
-        RetryConfirmationView retryConfirmationView, FinishingView finishingView, ResultView resultView)
+        RetryConfirmationView retryConfirmationView, FinishingView finishingView, ResultView resultView, DialogueSequenceData dialogueData = null)
     {
         _requests = requests ?? throw new ArgumentNullException(nameof(requests));
         var start = new StartPresenter(startView, requests);
-        Dialogue = new DialoguePresenter(dialogueView, requests);
+        Dialogue = new DialoguePresenter(dialogueView, requests, dialogueData);
         var countdown = new CountdownPresenter(countdownView, requests);
         Battle = new BattlePresenter(battleView, requests);
         var pause = new PausePresenter(pauseView, requests);
         var retry = new RetryConfirmationPresenter(retryConfirmationView, requests);
+        _retry = retry;
         Finishing = new FinishingPresenter(finishingView, requests);
         Result = new ResultPresenter(resultView, requests);
         pause.RetryConfirmationRequested += retry.Show;
@@ -60,7 +63,22 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
 
     public void Update(float deltaTime, float unscaledDeltaTime)
     {
+        // Provisional keyboard binding. UI buttons and keyboard share the same request path.
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            HandleEscape();
         foreach (IGameLoopSystem presenter in _presenters) presenter.Update(deltaTime, unscaledDeltaTime);
+    }
+
+    private void HandleEscape()
+    {
+        if (!_hasState || !_requests.IsInputEnabled) return;
+        if (_currentState == GameState.Battle)
+            _requests.Enqueue(UIRequestType.Pause);
+        else if (_currentState == GameState.Paused)
+        {
+            if (_retry.IsOpen) _retry.Hide();
+            else _requests.Enqueue(UIRequestType.Resume);
+        }
     }
 
     public void SetInputEnabled(bool enabled) => _requests.SetInputEnabled(enabled);

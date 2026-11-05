@@ -24,6 +24,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [SerializeField] private string moveActionName = "Move";
     [SerializeField] private string lookActionName = "Look";
     [SerializeField] private string attackActionName = "Attack";
+    [SerializeField] private string specialActionName = "Interact"; // Provisional existing binding: E.
 
     [Header("Movement")]
     [SerializeField, Min(0f)] private float moveSpeed = 10f;
@@ -45,11 +46,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private InputAction _moveAction;
     private InputAction _lookAction;
     private InputAction _attackAction;
+    private InputAction _specialAction;
     private Vector2 _moveInput;
     private Vector2 _lookInput;
     private bool _attackPressed;
     private bool _attackHeld;
     private bool _attackReleased;
+    private bool _specialPressed;
     private float _currentSpeed;
     private Vector3 _lastMoveDirection = Vector3.forward;
     private float _cameraYaw;
@@ -60,6 +63,12 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private bool _referencesCached;
     private float _animationSpeed;
     private readonly List<IPlayerPresentation> _presentations = new List<IPlayerPresentation>();
+    private readonly Collider[] _attackResults = new Collider[512];
+    private EnemyRuntime _combatEnemies;
+    private CombatSettings _combatSettings;
+    private CombatRoundRuntime _combatRound;
+    private bool _attackStartedInBattle;
+    private GameState _gameState = GameState.Initializing;
 
     public Transform TargetTransform => transform;
 
@@ -74,6 +83,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     }
 
     public void ConfigureSpawnPoint(Transform value) => spawnPoint = value;
+
+    public void ConfigureCombat(EnemyRuntime enemies, CombatSettings settings, CombatRoundRuntime combat = null)
+    {
+        _combatEnemies = enemies;
+        _combatSettings = settings;
+        _combatRound = combat;
+    }
 
     public IEnumerator InitializeRound(int tick)
     {
@@ -103,6 +119,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         // CoreBootstrap can dispatch Initializing before this component's Awake.
         CacheReferences();
         _tick = tick;
+        _gameState = state;
         _battleActive = state == GameState.Battle;
         animator.speed = state == GameState.Battle || state == GameState.Finishing ? _animationSpeed : 0f;
         foreach (IPlayerPresentation presentation in _presentations)
@@ -136,6 +153,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _attackPressed = _attackAction?.WasPressedThisFrame() ?? false;
         _attackHeld = _attackAction?.IsPressed() ?? false;
         _attackReleased = _attackAction?.WasReleasedThisFrame() ?? false;
+        _specialPressed = _specialAction?.WasPressedThisFrame() ?? false;
     }
 
     public void UpdateAction(float deltaTime)
@@ -147,8 +165,17 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
         bool attackState = IsAttackState(stateInfo);
 
+        if (_battleActive && attackState)
+            _attackStartedInBattle = true;
+        if (!attackState && !_attackPressed && _battleActive)
+            _attackStartedInBattle = false;
+        if ((_gameState == GameState.Battle || _gameState == GameState.Finishing) && _attackStartedInBattle)
+            ApplyAttackHits(stateInfo);
+
         if (_battleActive && !_stopRequested)
         {
+            if (_specialPressed)
+                _combatRound?.TryUseSpecial(_tick, transform.position);
             UpdateAttack(stateInfo);
             UpdateMovement(deltaTime, !attackState);
         }
@@ -211,11 +238,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         {
             if (stateInfo.IsName("Idle") || stateInfo.IsTag("RunMotion"))
             {
+                _attackStartedInBattle = true;
                 animator.SetTrigger(AttackHash);
             }
             else if ((stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2")) &&
                      normalizedTime >= comboWindowStart && normalizedTime <= comboWindowEnd)
             {
+                _attackStartedInBattle = true;
                 animator.SetTrigger(AttackHash);
             }
         }
@@ -248,6 +277,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _tick = tick;
         _stopRequested = false;
         _battleActive = false;
+        _attackStartedInBattle = false;
+        _gameState = GameState.Ready;
         DisableInput();
         _currentSpeed = 0f;
         _lastMoveDirection = Vector3.forward;
@@ -312,6 +343,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _moveAction = _actionMap.FindAction(moveActionName, true);
         _lookAction = _actionMap.FindAction(lookActionName, true);
         _attackAction = _actionMap.FindAction(attackActionName, true);
+        _specialAction = _actionMap.FindAction(specialActionName, false);
     }
 
     private void EnableInput() => _actionMap?.Enable();
@@ -329,6 +361,26 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _attackPressed = false;
         _attackHeld = false;
         _attackReleased = false;
+        _specialPressed = false;
+    }
+
+    private void ApplyAttackHits(AnimatorStateInfo stateInfo)
+    {
+        if (_combatEnemies == null || _combatSettings == null ||
+            !(stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2") || stateInfo.IsName("Charge_Release")))
+            return;
+        float normalized = stateInfo.normalizedTime;
+        if (normalized < _combatSettings.attackActiveStart || normalized > _combatSettings.attackActiveEnd)
+            return;
+        Vector3 center = transform.position + transform.forward * _combatSettings.attackForwardOffset + Vector3.up * _combatSettings.attackHeight;
+        int count = Physics.OverlapSphereNonAlloc(center, Mathf.Max(0.05f, _combatSettings.attackRadius), _attackResults, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+        {
+            Collider candidate = _attackResults[i];
+            if (candidate != null && candidate.TryGetComponent(out EnemyAgent enemy))
+                _combatEnemies.TryApplyHit(enemy, transform.forward, 1f, _tick);
+            _attackResults[i] = null;
+        }
     }
 
     private void SetRunning(bool value)

@@ -12,6 +12,7 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     [SerializeField] private RetryConfirmationView retryConfirmationView;
     [SerializeField] private FinishingView finishingView;
     [SerializeField] private ResultView resultView;
+    [SerializeField] private DialogueSequenceData dialogueData;
     private UiLayer _layer;
 
     public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager)
@@ -23,8 +24,9 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
             return null;
         }
         _layer?.Dispose();
+        if (dialogueData == null) dialogueData = Resources.Load<DialogueSequenceData>("DialogueSequence");
         _layer = new UiLayer(new UIRequestDispatcher(requests, stateManager), startView, dialogueView,
-            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView);
+            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView, dialogueData);
         return _layer;
     }
 
@@ -43,7 +45,11 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
 
     public void PresentDialogue(DialogueUiModel model) => _layer?.Dialogue.Present(model);
     public void PresentBattle(BattleUiModel model) => _layer?.Battle.Present(model);
+    public void PresentBattleScore(int score) => _layer?.Battle.PresentScore(score);
+    public void PresentBattleGauge(float normalized) => _layer?.Battle.PresentGauge(normalized);
+    public void PresentBattleTimer(float remaining) => _layer?.Battle.PresentTimer(remaining);
     public void PresentScoreChange(int delta) => _layer?.Battle.PresentScoreChange(delta);
+    public void PresentPlayerHit() => _layer?.Battle.PresentPlayerHit();
     public void PresentFinishing(FinishingUiModel model) => _layer?.Finishing.Present(model);
     public void PresentResult(ResultUiModel model) => _layer?.Result.Present(model);
 
