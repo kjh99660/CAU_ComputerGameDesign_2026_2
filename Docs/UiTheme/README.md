@@ -1,6 +1,6 @@
 # REBOOT UI 테마: 고스트 + 사선 스트립
 
-작성일 2026-11-11, 갱신 2026-11-13(`JH_Work` `8e88d9e` 병합 후 재검증). 작업 브랜치 `level-design/reboot-hub`(푸시 안 함). 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
+작성일 2026-11-11, 갱신 2026-11-13(`JH_Work` `8e88d9e` 병합 후 재검증, 대화 연출 추가). 테마는 브랜치 `level-design/reboot-hub`(원격에 올림), 대화 연출은 그 위의 `ui/dialogue`. 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
 
 | 항목 | 선택 |
 | --- | --- |
@@ -95,6 +95,60 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 - 글리치 프레임 캡처: `Previews/09_HitGlitch_0.jpg`, `_50.jpg`, `_100.jpg`(UI 제외, 3D 화면만).
 - EditMode 42/42, PlayMode 9 통과 + 1 판정 불가(적 생성 문제). 피격 피드백이 일시정지 중 멈추고 Retry 후 사라지는지 확인하는 기존 테스트가 통과했다.
 - 실제 Play에서 확인하지 못한 것: 움직이는 글리치의 체감 강도, 연속 피격 시 느낌, FPS 영향.
+
+## 대화 연출
+
+기획서(10/25) 2-7·2-8의 대사와 UI 설계 6절의 대화 화면을 연결했다. 브랜치 `ui/dialogue`.
+
+- **대사**: 임시 문구 3줄을 도입 6줄, 마무리 4줄로 바꿨다(`Assets/Resources/DialogueSequence.asset`). 노아는 왼쪽, K-7은 오른쪽이다.
+- **타이핑**: 대사가 한 글자씩 나온다(초당 40자, unscaled time). TMP 문자열은 그대로 두고 그리는 글자 수만 바꿔 매 프레임 할당이 없다.
+- **넘기기**: Space, Enter, 화면 아무 곳 클릭으로 넘긴다.
+  - 타이핑 중이면 그 줄을 한 번에 다 보여 주고, 다 보인 줄이면 다음 줄로 넘어간다.
+  - 마지막 줄을 넘기거나 Skip을 누르면 같은 `DialogueCompleteRequest`를 한 번만 보낸다.
+- **열린 직후 입력 무시**: 대화가 열린 뒤 0.35초 동안은 넘기기 입력을 받지 않는다. 전투 끝까지 누르던 공격 클릭이 마무리 대사 첫 줄을 넘기지 않게 하려는 것이다. Skip에는 적용하지 않는다.
+- **초상화와 화자 강조**
+  - 대화 프리팹에 초상화가 아예 없어서 강조 코드가 아무 효과가 없었다(처음 커밋부터 없었음).
+  - 노아·K-7 초상화를 대사 상자 뒤에 배치했다. 위치와 크기(420×630)는 팀 원래 빌더(`GameDemoUiPrefabBuilder`)의 값이다.
+  - 말하는 쪽은 원래 밝기·크기, 듣는 쪽은 어둡게, 0.96배, 12px 낮게 둔다. 전환은 0.15초다. 대화가 새로 시작되면 첫 화자는 전환 없이 바로 강조한다.
+- **넘김 표시**: 줄이 다 보이면 대사 상자 오른쪽 아래의 청록 마름모가 초당 1.2회 깜빡인다. 글꼴에 ▼ 글자가 있는지에 기대지 않도록 도형으로 그렸다.
+- **Retry**: 도입 대화는 매번 첫 줄, 글자 0개부터 다시 시작한다. 코루틴 없이 기존 UI 갱신 루프에서 처리해 Reset 뒤에 남는 연출이 없다.
+
+### 조절값(`DialogueView`, 모두 임시값)
+
+| 값 | 기본 | 뜻 |
+| --- | --- | --- |
+| `charactersPerSecond` | 40 | 타이핑 속도. 0이면 줄 전체를 바로 보여 준다 |
+| `inputGraceSeconds` | 0.35 | 대화가 열린 직후 넘기기 입력을 무시하는 시간 |
+| `speakerTransitionSeconds` | 0.15 | 화자 강조가 옮겨 가는 시간 |
+| `listenerTint` | (0.42, 0.47, 0.52) | 듣는 쪽 초상화 색 |
+| `listenerScale`, `listenerOffsetY` | 0.96, -12 | 듣는 쪽 크기와 높이 |
+| `nextIndicatorBlinkHz` | 1.2 | 넘김 표시 깜빡임 횟수(초당) |
+
+### 구성
+
+| 파일 | 내용 |
+| --- | --- |
+| `Assets/Scripts/Runtime/UI/DialogueProgress.cs` | 진행 규칙(현재 줄, 타이핑, 넘김, 완료·Skip). Unity 오브젝트 없이 EditMode에서 검증한다 |
+| `Assets/Scripts/Runtime/UI/DialoguePresenter.cs` | 진행 규칙을 화면에 연결하고, 열린 직후 입력을 무시하고, 완료 요청을 보낸다 |
+| `Assets/Scripts/Runtime/UI/DialogueView.cs` | 보이는 글자 수, 화자 강조, 넘김 표시, 전체 화면 클릭 영역(`AdvanceArea`, 실행 중 생성) |
+| `Assets/Scripts/Runtime/UI/UiLayer.cs` | Space·Enter 키. ESC와 같은 임시 키 처리 방식이다 |
+| `Assets/Editor/UiTheme/RebootUiThemeBuilder.cs` | 초상화·넘김 표시 배치. `Apply Theme`에 포함되고, 대화 프리팹만 적용하는 `ApplyDialogueLayoutBatch`도 있다 |
+| `Assets/Prefabs/UI/Dialogue.prefab` | `LeftPortrait`, `RightPortrait`, `DialogueBox/NextIndicator` 추가 |
+
+### 확인
+
+- EditMode 새 테스트 10개
+  - `DialogueProgressTests` 8개: 타이핑 속도, 줄 완성 후 넘김, 완료·Skip은 한 번만, 다시 시작, 빈 대사
+  - `DialogueSequenceDataTests` 2개: 대사가 비어 있지 않음, 인물마다 초상화 쪽이 한결같음
+- PlayMode `DialogueAdvancesSkipsAndRestartsAfterRetry`를 고쳤다. 열린 직후 입력 무시, `timeScale`이 0이어도 타이핑, 줄 완성 후 넘김, 넘김 표시, 초상화 강조와 전환, Retry 뒤 첫 줄부터 다시 타이핑, Skip, 마무리 대화 뒤 Result를 확인한다.
+- 전체 결과: EditMode 62/62, PlayMode 14개 중 13개 통과.
+  - 실패한 1개는 팀 테스트 `AcceptedHitUpdatesHudAndRetryClearsRound`(공격이 4초 안에 근처 적을 맞히는지)다. 대화는 요청으로 바로 건너뛰고 전투 구간만 보는 테스트다.
+  - 같은 시간대에 번갈아 4번씩 돌렸을 때 대화 작업 전 커밋(`472a98b`)은 2번, 이 브랜치는 1번 실패했다. 이날 돌린 것을 모두 합치면 8번 중 3번, 9번 중 5번이다. 실행 시점(시스템 부하)에 따라 흔들리는 기존 테스트로 본다.
+- 미리보기 `Previews/08_Dialogue.jpg`를 다시 찍었다(Edit Mode 렌더링, 노아가 말하는 장면).
+- 자동으로 확인하지 못한 것: 실제 Space·Enter 키 입력(입력 장치 시뮬레이션 테스트를 구성하지 않음), 타이핑 속도와 강조의 체감, 다른 해상도에서 초상화와 대사 상자의 겹침.
+- 초상화 이미지 두 장의 출처와 사용 조건은 확인되지 않았다(팀 원본 스프라이트 팩 `Assets/Sprites/UI/Dialogue`).
+- 수동 확인 절차: `Main.unity`에서 Play → Start → 대사가 한 글자씩 나오는지, Space·Enter·클릭으로 넘어가는지, 화자가 바뀔 때 초상화 밝기가 옮겨 가는지 본다. Skip을 누르고, Pause → Retry 뒤 다시 첫 줄부터 나오는지 본다.
+- 이번에 하지 않은 것: 점수별 노아 평가 대사(팀 합의 후), 대사 넘김 효과음(사운드 담당과 합의 후).
 
 ## 함께 발견한 적 시스템 문제(수정하지 않음)
 
