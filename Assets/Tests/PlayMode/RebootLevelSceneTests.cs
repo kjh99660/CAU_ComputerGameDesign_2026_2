@@ -38,9 +38,12 @@ public sealed class RebootLevelSceneTests
         Assert.AreEqual(0, env.GetComponentsInChildren<Collider>(true).Length, "Decoration must not add colliders to the combat space.");
 
         // 광장 반경 안에 들어오는 장식은 바닥에 붙은 평면(높이 0.1m 미만)뿐이어야 한다.
+        // 벽걸이 표지판은 아래에서 벽에 붙어 있는지 따로 확인한다.
         var plaza = new Vector2(-24f, 48.2f);
+        Transform signage = env.transform.Find("Signage");
         foreach (Renderer renderer in env.GetComponentsInChildren<Renderer>(true))
         {
+            if (signage != null && renderer.transform.IsChildOf(signage)) continue;
             Bounds b = renderer.bounds;
             bool overPlaza = Vector2.Distance(new Vector2(b.center.x, b.center.z), plaza) < 19f;
             // 1.9m 위(기존 기둥 꼭대기의 경고등 등)는 이동 공간을 막지 않는다.
@@ -48,6 +51,20 @@ public sealed class RebootLevelSceneTests
                 Assert.Less(b.max.y - floor.Value, 0.1f, $"{renderer.name} blocks the walkable plaza volume.");
         }
 
+        // 보안 표지판 뒷면(로컬 +z, 판 두께 0.1m) 바로 뒤에 맵 벽이 있어야 한다. 벽 속에 묻히거나 공중에 뜨면 실패한다.
+        Assert.IsNotNull(signage, "Signage group is missing.");
+        int signs = 0;
+        foreach (Transform sign in signage)
+        {
+            if (!sign.name.StartsWith("P_Reboot_SecuritySign", StringComparison.Ordinal)) continue;
+            signs++;
+            Vector3 face = sign.position + Vector3.up * 0.75f - sign.forward * 0.05f;
+            Assert.IsTrue(Physics.Raycast(face, sign.forward, out RaycastHit wall, 0.3f, ~0, QueryTriggerInteraction.Ignore),
+                $"{sign.name} at {sign.position} has no wall right behind it.");
+            Assert.IsFalse(Physics.CheckSphere(face, 0.04f, ~0, QueryTriggerInteraction.Ignore),
+                $"{sign.name} at {sign.position} is buried in geometry (wall at {wall.point}).");
+        }
+        Assert.AreEqual(2, signs);
         Assert.AreEqual(GameState.Ready, state.CurrentState);
     }
 
