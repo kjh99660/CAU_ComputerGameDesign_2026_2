@@ -1,0 +1,4 @@
+Ready: active=5, onPlazaFloor=5, offFloor=0, player=(-24.00, 0.00, 42.00)
+Battle 2.5s: active=15, onPlazaFloor=13, offFloor=2, player=(-24.00, 0.00, 42.00)
+Player after pushing east: (-3.88, 0.08, 42.00)
+After Retry: active=5, onPlazaFloor=3, offFloor=2, player=(-24.00, 0.00, 42.00)
