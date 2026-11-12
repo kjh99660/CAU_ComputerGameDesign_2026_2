@@ -66,7 +66,9 @@ public sealed class DialogueView : UIScreenView
     {
         if (dialogueFont == null)
         {
-            var source = Resources.Load<Font>("Fonts/NanumGothic-Regular");
+            // UI 테마의 한글 서체(IBM Plex Sans KR)를 우선 쓰고, 없으면 기존 나눔고딕으로 대체한다.
+            var source = Resources.Load<Font>("Fonts/IBMPlexSansKR-Regular");
+            if (source == null) source = Resources.Load<Font>("Fonts/NanumGothic-Regular");
             if (source != null) dialogueFont = TMP_FontAsset.CreateFontAsset(source);
             if (dialogueFont == null)
             {

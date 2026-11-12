@@ -13,7 +13,16 @@ public sealed class BattleView : UIScreenView
     [SerializeField, Min(0.05f)] private float scoreFeedbackDuration = 0.3f;
     [SerializeField, Min(0.05f)] private float hitFlashDuration = 0.35f;
     [SerializeField, Range(0f, 0.5f)] private float hitFlashOpacity = 0.18f;
+    [Header("Hit glitch - provisional (UI Lab H3 블록 깨짐)")]
+    [SerializeField, Min(0.05f)] private float hitGlitchDuration = 0.18f;
+    [SerializeField, Range(0f, 1.5f)] private float hitGlitchStrength = 1f;
+    [SerializeField, Min(0f)] private float hudShakePixels = 8f;
     private Image _hitFlash;
+    private Sprite _hitEdgeSprite;
+    private Texture2D _hitEdgeTexture;
+    private float _glitchRemaining;
+    private RectTransform _rect;
+    private Vector2 _restPosition;
     private float _scoreFeedbackRemaining;
     private float _hitFlashRemaining;
     private Color _scoreBaseColor;
@@ -40,6 +49,8 @@ public sealed class BattleView : UIScreenView
     private void OnEnable()
     {
         AutoBind();
+        _rect = (RectTransform)transform;
+        _restPosition = _rect.anchoredPosition;
         EnsureSpecialGauge();
         EnsureHitFlash();
         if (pauseButton != null) pauseButton.onClick.AddListener(HandlePauseClicked);
@@ -48,6 +59,7 @@ public sealed class BattleView : UIScreenView
     private void OnDisable()
     {
         if (pauseButton != null) pauseButton.onClick.RemoveListener(HandlePauseClicked);
+        StopGlitch();
     }
 
     public void Render(BattleUiModel model)
@@ -71,15 +83,17 @@ public sealed class BattleView : UIScreenView
         if (scoreValue == null || delta == 0) return;
         CacheScoreStyle();
         _scoreFeedbackRemaining = Mathf.Max(0.05f, scoreFeedbackDuration);
-        scoreValue.color = delta > 0 ? new Color(0.25f, 1f, 1f) : new Color(1f, 0.35f, 0.35f);
+        scoreValue.color = delta > 0 ? UiPalette.Accent : UiPalette.Alert;
         scoreValue.transform.localScale = _scoreBaseScale * 1.18f;
     }
 
+    // 피격: 화면 가장자리만 옅게 붉어지고(위험 신호), 짧은 블록 깨짐 글리치와 HUD 흔들림이 지나간다.
     public void PlayPlayerHitFeedback()
     {
         EnsureHitFlash();
         _hitFlashRemaining = Mathf.Max(0.05f, hitFlashDuration);
-        _hitFlash.color = new Color(1f, 0.08f, 0.08f, hitFlashOpacity);
+        _hitFlash.color = UiPalette.WithAlpha(UiPalette.Alert, hitFlashOpacity);
+        _glitchRemaining = Mathf.Max(0.05f, hitGlitchDuration);
     }
 
     public void UpdateFeedback(float deltaTime)
@@ -94,8 +108,33 @@ public sealed class BattleView : UIScreenView
         if (_hitFlashRemaining > 0f && _hitFlash != null)
         {
             _hitFlashRemaining = Mathf.Max(0f, _hitFlashRemaining - deltaTime);
-            _hitFlash.color = new Color(1f, 0.08f, 0.08f, hitFlashOpacity * _hitFlashRemaining / Mathf.Max(0.05f, hitFlashDuration));
+            _hitFlash.color = UiPalette.WithAlpha(UiPalette.Alert, hitFlashOpacity * _hitFlashRemaining / Mathf.Max(0.05f, hitFlashDuration));
         }
+        if (_glitchRemaining > 0f)
+        {
+            _glitchRemaining = Mathf.Max(0f, _glitchRemaining - deltaTime);
+            if (_glitchRemaining <= 0f)
+            {
+                StopGlitch();
+                return;
+            }
+            // 빠르게 올라갔다가(15%) 제곱 곡선으로 빠르게 사라진다.
+            float t = 1f - _glitchRemaining / Mathf.Max(0.05f, hitGlitchDuration);
+            float envelope = t < 0.15f ? t / 0.15f : Mathf.Pow(1f - (t - 0.15f) / 0.85f, 2f);
+            float amount = envelope * hitGlitchStrength;
+            ScreenGlitchState.Set(amount, UnityEngine.Random.Range(0f, 1000f));
+            if (_rect != null)
+                _rect.anchoredPosition = _restPosition + new Vector2(
+                    UnityEngine.Random.Range(-1f, 1f) * hudShakePixels * amount,
+                    UnityEngine.Random.Range(-1f, 1f) * hudShakePixels * 0.4f * amount);
+        }
+    }
+
+    private void StopGlitch()
+    {
+        _glitchRemaining = 0f;
+        ScreenGlitchState.Clear();
+        if (_rect != null) _rect.anchoredPosition = _restPosition;
     }
 
     private void CacheScoreStyle()
@@ -116,12 +155,33 @@ public sealed class BattleView : UIScreenView
         rect.anchorMax = Vector2.one;
         rect.offsetMin = rect.offsetMax = Vector2.zero;
         _hitFlash = go.GetComponent<Image>();
+        _hitFlash.sprite = CreateEdgeSprite();
         _hitFlash.color = Color.clear;
         _hitFlash.raycastTarget = false;
     }
 
+    // 가운데는 투명하고 가장자리로 갈수록 진해지는 테두리. 화면 전체를 빨갛게 덮지 않는다.
+    private Sprite CreateEdgeSprite()
+    {
+        const int width = 96, height = 54;
+        _hitEdgeTexture = new Texture2D(width, height, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var pixels = new Color32[width * height];
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            float dx = (x + 0.5f) / width * 2f - 1f, dy = (y + 0.5f) / height * 2f - 1f;
+            float edge = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1.25f, Mathf.Sqrt(dx * dx + dy * dy)));
+            pixels[y * width + x] = new Color32(255, 255, 255, (byte)(255f * edge));
+        }
+        _hitEdgeTexture.SetPixels32(pixels);
+        _hitEdgeTexture.Apply(false, true);
+        _hitEdgeSprite = Sprite.Create(_hitEdgeTexture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+        return _hitEdgeSprite;
+    }
+
     private void ClearFeedback()
     {
+        StopGlitch();
         _scoreFeedbackRemaining = _hitFlashRemaining = 0f;
         if (_hitFlash != null) _hitFlash.color = Color.clear;
         if (_scoreStyleCached && scoreValue != null)
@@ -144,18 +204,18 @@ public sealed class BattleView : UIScreenView
         if (specialGaugeFill != null)
         {
             specialGaugeFill.fillAmount = normalized;
-            specialGaugeFill.color = full ? new Color(1f, 0.78f, 0.24f) : new Color(0.12f, 0.92f, 1f);
+            specialGaugeFill.color = full ? UiPalette.Accent : UiPalette.Primary;
         }
         int percent = Mathf.FloorToInt(normalized * 100f);
         if (_gaugePercent != null && percent != _shownPercent)
         {
             _shownPercent = percent;
             _gaugePercent.SetText("{0:0}%", percent);
-            _gaugePercent.color = full ? new Color(1f, 0.85f, 0.4f) : Color.white;
+            _gaugePercent.color = full ? UiPalette.Accent : UiPalette.Ink;
         }
     }
 
-    // A neutral circular meter makes the unfilled portion and percentage readable.
+    // 통신 허브와 같은 육각 윤곽 게이지. 채워지지 않은 부분과 퍼센트를 함께 읽을 수 있게 한다.
     private void EnsureSpecialGauge()
     {
         if (specialGaugeFill != null) return;
@@ -165,8 +225,10 @@ public sealed class BattleView : UIScreenView
         for (int y = 0; y < size; y++)
         for (int x = 0; x < size; x++)
         {
-            float radius = new Vector2(x + 0.5f - size * 0.5f, y + 0.5f - size * 0.5f).magnitude;
-            byte alpha = (byte)(255f * Mathf.Clamp01(Mathf.Min(radius - 49f, 62f - radius)));
+            // 꼭짓점이 위아래인 육각형의 변까지 거리(apothem 기준)로 링 두께를 정한다.
+            float px = Mathf.Abs(x + 0.5f - size * 0.5f), py = Mathf.Abs(y + 0.5f - size * 0.5f);
+            float radius = Mathf.Max(px, px * 0.5f + py * 0.8660254f);
+            byte alpha = (byte)(255f * Mathf.Clamp01(Mathf.Min(radius - 45f, 54f - radius)));
             pixels[y * size + x] = new Color32(255, 255, 255, alpha);
         }
         _gaugeRingTexture.SetPixels32(pixels);
@@ -181,7 +243,7 @@ public sealed class BattleView : UIScreenView
         frameRect.sizeDelta = new Vector2(170f, 170f);
         Image frame = frameObject.GetComponent<Image>();
         frame.sprite = _gaugeRingSprite;
-        frame.color = new Color(0.06f, 0.19f, 0.25f, 0.95f);
+        frame.color = UiPalette.WithAlpha(UiPalette.Muted, 0.38f);
         frame.raycastTarget = false;
         var fillObject = new GameObject("SpecialGaugeFill", typeof(RectTransform), typeof(Image));
         var fillRect = (RectTransform)fillObject.transform;
@@ -195,7 +257,7 @@ public sealed class BattleView : UIScreenView
         specialGaugeFill.type = Image.Type.Filled;
         specialGaugeFill.fillMethod = Image.FillMethod.Radial360;
         specialGaugeFill.fillOrigin = (int)Image.Origin360.Top;
-        specialGaugeFill.color = new Color(0.12f, 0.92f, 1f);
+        specialGaugeFill.color = UiPalette.Primary;
         specialGaugeFill.raycastTarget = false;
         specialGaugeFill.fillAmount = 0f;
         var textObject = new GameObject("SpecialGaugePercent", typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -224,6 +286,8 @@ public sealed class BattleView : UIScreenView
     {
         if (_gaugeRingSprite != null) Destroy(_gaugeRingSprite);
         if (_gaugeRingTexture != null) Destroy(_gaugeRingTexture);
+        if (_hitEdgeSprite != null) Destroy(_hitEdgeSprite);
+        if (_hitEdgeTexture != null) Destroy(_hitEdgeTexture);
     }
 
     public void RenderTimer(float remainingSeconds)

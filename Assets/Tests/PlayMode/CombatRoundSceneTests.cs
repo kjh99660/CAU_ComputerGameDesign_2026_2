@@ -235,7 +235,8 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual("8%", percent.text);
         battle.RenderGauge(1f);
         Assert.AreEqual("100%", percent.text);
-        Assert.Greater(fill.color.r, fill.color.b);
+        // 가득 찬 게이지는 팔레트의 강조색(청록)으로 바뀐다.
+        Assert.AreEqual(UiPalette.Accent, fill.color);
 
         EnemyAgent attacker = null;
         foreach (var candidate in Object.FindObjectsByType<EnemyAgent>(FindObjectsSortMode.None))
