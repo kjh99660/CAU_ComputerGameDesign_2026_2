@@ -19,7 +19,7 @@ public static class RebootLevelDiagnostics
         : RebootHubEnvironmentBuilder.PreviewScenePath;
     private const string PlayerPrefabPath = "Assets/Prefabs/Character/Player.prefab";
 
-    // EnemyRuntime.SpawnOne과 같은 분포(플레이어 기준 반경 15~25m, 절대 높이 SpawnHeight)를 재현한다.
+    // EnemyRuntime.SpawnOne과 같은 분포(플레이어 기준 반경 15~25m, 높이 = 라운드 시작 플레이어 높이 + SpawnHeight)를 재현한다.
     private const int SpawnSamplesPerPosition = 64;
     private const float FloorTolerance = 0.35f;
     private const float EnemyRadius = 0.45f;
@@ -68,11 +68,13 @@ public static class RebootLevelDiagnostics
         var settings = FindEnemySettings();
         float minDistance = settings != null ? settings.MinimumSpawnDistance : 15f;
         float maxDistance = settings != null ? settings.MaximumSpawnDistance : 25f;
-        float spawnHeight = settings != null ? settings.SpawnHeight : 0f;
+        float spawnOffset = settings != null ? settings.SpawnHeight : 0f;
 
         if (spawn != null)
         {
-            report.AppendLine($"## Spawn analysis (enemy spawn {minDistance}-{maxDistance}m, absolute y={spawnHeight})");
+            // 플레이어는 PlayerSpawnPoint에서 라운드를 시작하므로 스폰 평면은 그 높이 + SpawnHeight다.
+            float spawnHeight = spawn.position.y + spawnOffset;
+            report.AppendLine($"## Spawn analysis (enemy spawn {minDistance}-{maxDistance}m, y = player start {spawn.position.y:0.##} + SpawnHeight {spawnOffset:0.##} = {spawnHeight:0.##})");
             report.AppendLine($"PlayerSpawnPoint world: {Fmt(spawn.position)} yaw {spawn.eulerAngles.y:0.#}");
             float? floor = FloorHeightAt(spawn.position + Vector3.up * 0.5f, 3f);
             report.AppendLine($"Floor under player spawn: {(floor.HasValue ? floor.Value.ToString("0.00") : "none")}");
@@ -113,7 +115,7 @@ public static class RebootLevelDiagnostics
         {
             Bounds? bounds = RendererBounds(root);
             report.AppendLine($"- {root.name} active={root.activeSelf} children={root.transform.childCount} renderers={root.GetComponentsInChildren<Renderer>(true).Length} colliders={root.GetComponentsInChildren<Collider>(true).Length} bounds={(bounds.HasValue ? Fmt(bounds.Value.min) + ".." + Fmt(bounds.Value.max) : "-")}");
-            if (root.name == "Map" || root.name.StartsWith("Env_", StringComparison.Ordinal))
+            if (root.name == "Map" || root.name == "MainMap" || root.name.StartsWith("Env_", StringComparison.Ordinal))
             {
                 foreach (Transform child in root.transform)
                 {
@@ -363,6 +365,7 @@ public static class RebootLevelDiagnostics
             player.transform.SetPositionAndRotation(center, Quaternion.Euler(0f, yaw, 0f));
         }
         var enemyRuntime = Object.FindFirstObjectByType<EnemyRuntime>();
+        float spawnPlane = center.y + (enemyRuntime != null ? enemyRuntime.Settings.SpawnHeight : 0f);
         GameObject enemyPrefab = null;
         if (enemyRuntime != null)
         {
@@ -379,7 +382,7 @@ public static class RebootLevelDiagnostics
                 float d = 4f + (float)random.NextDouble() * 12f;
                 var e = (GameObject)PrefabUtility.InstantiatePrefab(enemyPrefab);
                 Vector3 p = center + new Vector3(Mathf.Cos(a) * d, 0f, Mathf.Sin(a) * d);
-                p.y = 0f;
+                p.y = spawnPlane;
                 e.transform.SetPositionAndRotation(p, Quaternion.LookRotation(new Vector3(center.x - p.x, 0f, center.z - p.z)));
                 enemies.Add(e);
             }
