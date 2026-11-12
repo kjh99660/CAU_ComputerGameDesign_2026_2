@@ -1,6 +1,6 @@
 # REBOOT UI 테마: 고스트 + 사선 스트립
 
-작성일 2026-11-11. 작업 브랜치 `level-design/reboot-hub`(커밋 안 함). 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
+작성일 2026-11-11, 갱신 2026-11-13(`JH_Work` `8e88d9e` 병합 후 재검증). 작업 브랜치 `level-design/reboot-hub`(푸시 안 함). 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
 
 | 항목 | 선택 |
 | --- | --- |
@@ -54,6 +54,7 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 
 ## 검증
 
+- `JH_Work` `8e88d9e` 병합 후(2026-11-13): EditMode 52/52, PlayMode 14/14 통과. 아래의 판정 불가(적 원점 겹침)는 팀 수정으로 사라졌고, 팀 테스트 `AcceptedHitUpdatesHudAndRetryClearsRound`도 이번 실행에서 통과했다.
 - 서체·블러 제거 후: EditMode 42/42, PlayMode 8 통과 + 1 실패(아래 팀 테스트) + 1 판정 불가(아래 적 문제). 대화 한글 폰트 테스트 통과.
 - 서체 적용 전 기록: EditMode 42/42 통과.
 - PlayMode 2회 실행
@@ -61,7 +62,7 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
   - 2회차: 8 통과 + 1 실패 + 1 판정 불가.
   - 실패는 팀 테스트 `AcceptedHitUpdatesHudAndRetryClearsRound`. UI 변경 전 상태에서도 3회 중 2회 실패하고, 새 UI에서는 3회 모두 통과한 실행 순서·타이밍 의존 테스트다.
   - 판정 불가는 레벨 테스트가 아래 적 생성 경쟁 상태를 감지한 경우다.
-- 화면별 미리보기는 `Previews/`에 있다. 배경은 실제 Play Mode 캡처이고, Edit Mode 렌더링이라 일시정지 버튼은 비활성(흐린) 상태로 보인다.
+- 화면별 미리보기는 `Previews/`에 있다. 배경은 병합 전 맵의 실제 Play Mode 캡처이고(UI 확인용이라 다시 찍지 않음), Edit Mode 렌더링이라 일시정지 버튼은 비활성(흐린) 상태로 보인다.
 - 실제 Play에서 확인하지 못한 것: hover/press 색, 다른 해상도·Safe Area에서의 겹침, FPS.
 
 ## 피격 효과: H3 블록 깨짐 + 옅은 빨간 위험 신호
@@ -102,17 +103,13 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 - kinematic + **Interpolate**
 - `DynamicsManager.autoSyncTransforms = false`
 
-`EnemyAgent.Activate`와 `RunAI`는 Transform만 옮긴다. 그래서 고정 물리 스텝이 없는 프레임에서는 보간이 Rigidbody의 이전 위치로 Transform을 덮어쓴다.
+보간을 켠 Rigidbody는 물리 시스템이 Transform을 관리하므로, 스크립트가 Transform만 옮기면 고정 물리 스텝이 없는 프레임의 이동은 보간이 덮어쓴다.
 
-배치 테스트에서 관찰한 현상:
+**`JH_Work` `8e88d9e`에서 고쳐진 것**(이 브랜치에 병합): `EnemyAgent.Activate`가 Rigidbody의 위치·회전도 함께 옮겨, Ready 직후 초기 적이 `(0,0,0)`(풀 위치)에 겹치던 문제가 사라졌다. 스폰 높이도 "라운드 시작 플레이어 높이 + `spawnHeight`"로 바뀌었다(`Docs/EnemySpawnFixValidation.md`).
 
-- Ready 직후 초기 적 5명이 Transform과 Rigidbody 모두 `(0,0,0)`(풀 위치)에 겹쳐 있었다.
-- 전투 중 이동 속도가 설정값 3.5m/s의 약 1/7이었다.
-
-실제 플레이에서도 프레임 타이밍에 따라 생기거나, FPS가 높을수록 적이 느리거나 떨릴 수 있다.
+**남은 것**: 추적 이동(`EnemyAgent.RunAI`)은 이번 병합에서 바뀌지 않았고 여전히 Transform만 옮긴다. 병합 전 배치 테스트(수백 FPS)에서 이동 속도가 설정값 3.5m/s의 약 1/7로 관찰됐다. 실제 플레이에서도 FPS가 높을수록 적이 느리거나 떨릴 수 있다. 레벨 PlayMode 테스트는 실제 플레이에 가까운 60 FPS로 고정해 측정한다.
 
 해결 후보(적 담당):
 
-- `Activate`에서 `_body.position`·`_body.rotation`도 함께 설정한다.
-- 또는 kinematic 이동에는 보간을 끈다(`Interpolate None`).
+- kinematic 이동에는 보간을 끈다(`Interpolate None`).
 - 또는 이동을 `Rigidbody.MovePosition`으로 바꾼다.
