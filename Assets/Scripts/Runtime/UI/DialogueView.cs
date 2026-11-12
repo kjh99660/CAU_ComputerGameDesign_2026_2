@@ -12,13 +12,21 @@ public sealed class DialogueView : UIScreenView
     [SerializeField] private TMP_Text bodyText;
     [SerializeField] private Image leftPortrait;
     [SerializeField] private Image rightPortrait;
-    [SerializeField, Range(0f, 1f)] private float inactiveSpeakerAlpha = 0.45f;
+    // 화자 강조: 말하는 쪽은 원래 밝기·크기, 듣는 쪽은 어둡고 조금 작고 낮게. 전환은 unscaled time으로 부드럽게 한다.
+    [SerializeField, Min(0.01f)] private float speakerTransitionSeconds = 0.15f;
+    [SerializeField] private Color listenerTint = new Color(0.42f, 0.47f, 0.52f, 1f);
+    [SerializeField, Range(0.8f, 1f)] private float listenerScale = 0.96f;
+    [SerializeField] private float listenerOffsetY = -12f;
     // 타이핑 속도(초당 글자 수). 임시값이며 플레이 테스트로 조정한다. 0이면 줄 전체를 바로 보여 준다.
     [SerializeField, Min(0f)] private float charactersPerSecond = 40f;
     // 대화가 열린 직후 이 시간 동안은 진행 입력을 무시한다. 전투 끝까지 누르던 공격 클릭이나 키가
     // 첫 대사를 바로 넘기지 않게 하기 위한 임시값이다. Skip 버튼에는 적용하지 않는다.
     [SerializeField, Min(0f)] private float inputGraceSeconds = 0.35f;
     private TMP_FontAsset dialogueFont;
+    private float _leftEmphasis = 1f, _rightEmphasis, _leftTarget = 1f, _rightTarget;
+    private bool _snapEmphasis = true;
+    private bool _portraitBasesCaptured;
+    private Vector2 _leftBase, _rightBase;
 
     public event Action SkipClicked;
     public event Action ContinueClicked;
@@ -36,6 +44,13 @@ public sealed class DialogueView : UIScreenView
         if (bodyText == null) bodyText = FindNamed<TMP_Text>("BodyText");
         if (leftPortrait == null) leftPortrait = FindNamed<Image>("LeftPortrait");
         if (rightPortrait == null) rightPortrait = FindNamed<Image>("RightPortrait");
+        // 강조 연출이 위치를 옮기므로 처음 한 번만 기준 위치를 기억한다.
+        if (!_portraitBasesCaptured && (leftPortrait != null || rightPortrait != null))
+        {
+            if (leftPortrait != null) _leftBase = leftPortrait.rectTransform.anchoredPosition;
+            if (rightPortrait != null) _rightBase = rightPortrait.rectTransform.anchoredPosition;
+            _portraitBasesCaptured = true;
+        }
     }
 
     private void OnEnable()
@@ -122,7 +137,20 @@ public sealed class DialogueView : UIScreenView
     {
         SetText(speakerName, model.Speaker);
         SetText(bodyText, model.Body);
-        SetPortraitEmphasis(model.IsLeftSpeaker);
+        SetSpeaker(model.IsLeftSpeaker);
+    }
+
+    // 대화 묶음이 새로 시작될 때(도입·마무리 진입, Retry 후) 첫 화자 강조는 전환 없이 바로 적용한다.
+    public void BeginSequence() => _snapEmphasis = true;
+
+    // 화자 강조 전환을 unscaled time으로 진행한다. DialoguePresenter.Update가 대화 상태에서 매 프레임 부른다.
+    public void Animate(float unscaledDeltaTime)
+    {
+        if (_leftEmphasis == _leftTarget && _rightEmphasis == _rightTarget) return;
+        float step = unscaledDeltaTime / Mathf.Max(0.01f, speakerTransitionSeconds);
+        _leftEmphasis = Mathf.MoveTowards(_leftEmphasis, _leftTarget, step);
+        _rightEmphasis = Mathf.MoveTowards(_rightEmphasis, _rightTarget, step);
+        ApplyEmphasis();
     }
 
     // 타이핑: 문자열은 그대로 두고 TMP가 그리는 글자 수만 바꾼다.
@@ -136,15 +164,37 @@ public sealed class DialogueView : UIScreenView
         SetText(speakerName, string.Empty);
         SetText(bodyText, string.Empty);
         SetVisibleCharacters(int.MaxValue);
+        _snapEmphasis = true;
     }
 
-    private void SetPortraitEmphasis(bool leftIsSpeaking)
+    private void SetSpeaker(bool leftIsSpeaking)
     {
-        if (leftPortrait != null) leftPortrait.color = WithAlpha(leftPortrait.color, leftIsSpeaking ? 1f : inactiveSpeakerAlpha);
-        if (rightPortrait != null) rightPortrait.color = WithAlpha(rightPortrait.color, leftIsSpeaking ? inactiveSpeakerAlpha : 1f);
+        _leftTarget = leftIsSpeaking ? 1f : 0f;
+        _rightTarget = leftIsSpeaking ? 0f : 1f;
+        if (!_snapEmphasis) return;
+        _snapEmphasis = false;
+        _leftEmphasis = _leftTarget;
+        _rightEmphasis = _rightTarget;
+        ApplyEmphasis();
     }
 
-    private static Color WithAlpha(Color color, float alpha) { color.a = alpha; return color; }
+    private void ApplyEmphasis()
+    {
+        ApplyPortrait(leftPortrait, _leftEmphasis, _leftBase);
+        ApplyPortrait(rightPortrait, _rightEmphasis, _rightBase);
+    }
+
+    // emphasis 1 = 말하는 쪽(원래 밝기·크기·위치), 0 = 듣는 쪽(어둡게, 작게, 낮게).
+    private void ApplyPortrait(Image portrait, float emphasis, Vector2 basePosition)
+    {
+        if (portrait == null) return;
+        portrait.color = Color.Lerp(listenerTint, Color.white, emphasis);
+        float scale = Mathf.Lerp(listenerScale, 1f, emphasis);
+        RectTransform rect = portrait.rectTransform;
+        rect.localScale = new Vector3(scale, scale, 1f);
+        rect.anchoredPosition = basePosition + new Vector2(0f, Mathf.Lerp(listenerOffsetY, 0f, emphasis));
+    }
+
     private void HandleSkipClicked() => SkipClicked?.Invoke();
     private void HandleContinueClicked() => ContinueClicked?.Invoke();
 }

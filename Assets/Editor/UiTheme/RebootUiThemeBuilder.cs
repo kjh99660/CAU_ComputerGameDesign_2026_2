@@ -23,6 +23,9 @@ public static class RebootUiThemeBuilder
     // 영문 UI 문구와 숫자만 쓰므로 정적 문자셋으로 굽는다(편집 중 동적 아틀라스가 에셋을 더럽히지 않게).
     private const string FontCharacters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·×—…";
     private static readonly string[] Prefabs = { "Start", "Dialogue", "Countdown", "Battle", "Pause", "RetryConfirmation", "Finishing", "Result" };
+    // 대화 초상화: 노아(왼쪽), K-7(오른쪽). 원본 스프라이트 팩의 이미지를 그대로 쓴다.
+    private const string LeftPortraitPath = "Assets/Sprites/UI/Dialogue/Dialogue_LeftCharacterPortrait.png";
+    private const string RightPortraitPath = "Assets/Sprites/UI/Dialogue/Dialogue_RightCharacterPortrait.png";
 
     private const float SkewTan = 0.249f;   // tan(14°)
     private const float MaxSkewSmall = 14f; // 높이 200 이하(HUD 패널, 버튼, 타일): 글자와 겹치지 않게 얕게
@@ -139,6 +142,8 @@ public static class RebootUiThemeBuilder
         GameObject root = PrefabUtility.LoadPrefabContents(path);
         try
         {
+            if (prefabName == "Dialogue")
+                EnsureDialogueLayout(root);
             TMP_FontAsset legacyFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(LegacyFontPath);
             foreach (Image image in root.GetComponentsInChildren<Image>(true))
             {
@@ -207,6 +212,74 @@ public static class RebootUiThemeBuilder
         {
             PrefabUtility.UnloadPrefabContents(root);
         }
+    }
+
+    // 대화 프리팹에만 대화 화면 배치를 적용한다. 스프라이트·서체·다른 프리팹은 다시 만들지 않는다.
+    // 실행: -executeMethod RebootUiThemeBuilder.ApplyDialogueLayoutBatch
+    public static void ApplyDialogueLayoutBatch()
+    {
+        try
+        {
+            string path = PrefabRoot + "Dialogue.prefab";
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                EnsureDialogueLayout(root);
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+            Debug.Log("[RebootUI] Dialogue layout applied.");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
+    }
+
+    // 대화 화면의 노아(왼쪽)·K-7(오른쪽) 초상화. 위치와 크기는 팀 원래 빌더(GameDemoUiPrefabBuilder.BuildDialogue)의 값이다.
+    // 대사 상자 뒤에 그려지고 클릭은 가로채지 않는다. 이미 있으면 배치만 다시 맞춘다(여러 번 실행해도 같다).
+    private static void EnsureDialogueLayout(GameObject root)
+    {
+        Image left = EnsurePortrait(root.transform, "LeftPortrait", LeftPortraitPath, new Vector2(0f, 0f), new Vector2(54f, 238f));
+        Image right = EnsurePortrait(root.transform, "RightPortrait", RightPortraitPath, new Vector2(1f, 0f), new Vector2(-54f, 238f));
+        Transform box = root.transform.Find("DialogueBox");
+        if (box == null) return;
+        // 대사 상자 바로 앞(먼저 그려지는 쪽)에 왼쪽, 오른쪽 순서로 둔다. 둘 다 뒤로 보낸 뒤 끼워 넣어 재실행해도 순서가 같다.
+        left.transform.SetAsLastSibling();
+        right.transform.SetAsLastSibling();
+        left.transform.SetSiblingIndex(box.GetSiblingIndex());
+        right.transform.SetSiblingIndex(box.GetSiblingIndex());
+
+        // View가 이름으로 찾지 않아도 되게 직렬화 참조를 연결한다.
+        var view = root.GetComponent<DialogueView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("leftPortrait").objectReferenceValue = left;
+        so.FindProperty("rightPortrait").objectReferenceValue = right;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static Image EnsurePortrait(Transform parent, string name, string spritePath, Vector2 corner, Vector2 position)
+    {
+        Transform existing = parent.Find(name);
+        GameObject go = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(Image));
+        go.layer = parent.gameObject.layer;
+        var rect = (RectTransform)go.transform;
+        if (existing == null) rect.SetParent(parent, false);
+        rect.anchorMin = corner;
+        rect.anchorMax = corner;
+        rect.pivot = corner;
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(420f, 630f);
+        rect.localScale = Vector3.one;
+        var image = go.GetComponent<Image>();
+        image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(spritePath)
+                       ?? throw new InvalidOperationException("Portrait sprite missing: " + spritePath);
+        image.preserveAspect = true;
+        image.raycastTarget = false;
+        image.color = Color.white;
+        return image;
     }
 
     private static Color TextColor(string prefab, TMP_Text tmp)

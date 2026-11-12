@@ -36,6 +36,14 @@ public sealed class CombatRoundSceneTests
         var advanceArea = Find<Button>(view.transform, "AdvanceArea");
         Assert.AreEqual(0, advanceArea.transform.GetSiblingIndex());
 
+        // 노아(왼쪽)·K-7(오른쪽) 초상화가 있고, 클릭을 가로채지 않으며, 첫 화자가 바로 강조된다.
+        var leftPortrait = Find<Image>(view.transform, "LeftPortrait");
+        var rightPortrait = Find<Image>(view.transform, "RightPortrait");
+        Assert.IsNotNull(leftPortrait.sprite);
+        Assert.IsNotNull(rightPortrait.sprite);
+        Assert.IsFalse(leftPortrait.raycastTarget || rightPortrait.raycastTarget, "Portraits must not block dialogue clicks.");
+        AssertSpeakerEmphasis(leftPortrait, rightPortrait, data.intro[0].leftSpeaker);
+
         // 대화가 열린 직후의 입력은 무시한다(전투 끝까지 누르던 클릭이 첫 대사를 넘기지 않게).
         advanceArea.onClick.Invoke();
         Assert.AreEqual(data.intro[0].text, text.text);
@@ -50,8 +58,12 @@ public sealed class CombatRoundSceneTests
         Assert.Greater(text.maxVisibleCharacters, typedBefore, "Dialogue typing must use unscaled time.");
         yield return new WaitForSecondsRealtime(0.25f);
 
-        foreach (DialogueLine line in data.intro)
-            AdvanceLine(advanceArea, text, speaker, line);
+        AdvanceLine(advanceArea, text, speaker, data.intro[0]);
+        // 화자가 바뀌면 강조가 0.15초 동안 다음 화자 쪽으로 옮겨 간다.
+        yield return new WaitForSecondsRealtime(0.3f);
+        AssertSpeakerEmphasis(leftPortrait, rightPortrait, data.intro[1].leftSpeaker);
+        for (int i = 1; i < data.intro.Length; i++)
+            AdvanceLine(advanceArea, text, speaker, data.intro[i]);
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
@@ -63,6 +75,7 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.IntroDialogue);
         Assert.AreEqual(data.intro[0].text, text.text);
         Assert.Less(text.maxVisibleCharacters, data.intro[0].text.Length, "Retry must restart typing from the first line.");
+        AssertSpeakerEmphasis(leftPortrait, rightPortrait, data.intro[0].leftSpeaker);
         Assert.AreSame(dialogueFont, text.font);
         Find<Button>(view.transform, "SkipButton").onClick.Invoke();
         yield return WaitFor(state, GameState.Countdown);
@@ -77,6 +90,15 @@ public sealed class CombatRoundSceneTests
             AdvanceLine(box, text, speaker, line);
         yield return WaitFor(state, GameState.Result);
         Assert.AreEqual(1f, Time.timeScale);
+    }
+
+    // 말하는 쪽 초상화가 듣는 쪽보다 밝고 크다.
+    private static void AssertSpeakerEmphasis(Image left, Image right, bool leftSpeaking)
+    {
+        Image speaking = leftSpeaking ? left : right;
+        Image listening = leftSpeaking ? right : left;
+        Assert.Greater(speaking.color.r, listening.color.r + 0.2f, "The speaking portrait must be brighter than the listener.");
+        Assert.Greater(speaking.rectTransform.localScale.x, listening.rectTransform.localScale.x);
     }
 
     // 타이핑 중인 줄은 첫 입력에 완성되고, 다 보인 줄은 다음 입력에 다음 줄(또는 대화 완료)로 넘어간다.

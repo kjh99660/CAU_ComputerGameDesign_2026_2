@@ -32,12 +32,15 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         _progress.Begin(_data == null ? null : notification.Current == GameState.IntroDialogue ? _data.intro : _data.outro);
         _completionRequested = false;
         _inputLockRemaining = View.InputGraceSeconds;
+        View.BeginSequence();
         ShowCurrentLine();
     }
 
     public override void Update(float deltaTime, float unscaledDeltaTime)
     {
-        if (!IsVisibleIn(CurrentState) || _completionRequested) return;
+        if (!IsVisibleIn(CurrentState)) return;
+        View.Animate(unscaledDeltaTime);
+        if (_completionRequested) return;
         if (_inputLockRemaining > 0f) _inputLockRemaining -= unscaledDeltaTime;
         _progress.Tick(unscaledDeltaTime, View.CharactersPerSecond);
         RefreshVisibleCharacters();
