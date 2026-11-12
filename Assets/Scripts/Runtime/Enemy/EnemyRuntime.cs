@@ -29,6 +29,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public int ActiveEnemyCount => _registry?.Count ?? 0;
     public Transform TargetTransform => target;
     public event Action<int, bool> HitAccepted;
+    public event Action<Vector3, Vector3, int> HitPresented;
     public event Action<int> PlayerHit;
 
     public void SetTarget(Transform value)
@@ -150,7 +151,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         impulse.y = settings.KnockbackUpwardForce * Mathf.Max(0f, forceMultiplier);
         bool accepted = enemy.ApplyHit(impulse, settings, tick);
         if (accepted)
+        {
             HitAccepted?.Invoke(tick, chargeGauge);
+            HitPresented?.Invoke(enemy.transform.position, horizontal, tick);
+        }
         return accepted;
     }
 

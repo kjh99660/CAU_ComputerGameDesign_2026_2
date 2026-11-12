@@ -14,6 +14,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
     private EnemyRuntime _enemies;
     private GameStateManager _state;
     private PlayerChargeTracker _charge;
+    private CombatVfxRuntime _vfx;
     private int _attackTick = -1;
 
     // ── 디버그용 기록 ──
@@ -27,6 +28,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         _enemies = FindFirstObjectByType<EnemyRuntime>();
         _state = FindFirstObjectByType<GameStateManager>();
         _charge = GetComponent<PlayerChargeTracker>();   // 없으면 차지 배율 없이 1배
+        _vfx = FindFirstObjectByType<CombatVfxRuntime>();
     }
 
     // ── 애니메이션 이벤트 ──
@@ -38,6 +40,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         _current = data;
         _scale = (data != null && _charge != null) ? data.GetChargeScale(_charge.ChargeTime) : 1f;
         _hitThisSwing.Clear();
+        if (data != null) _vfx?.PlaySlash(transform, _scale, _attackTick);
 
         if (debugLog)
         {
