@@ -12,10 +12,14 @@ public sealed class DialogueView : UIScreenView
     [SerializeField] private Image leftPortrait;
     [SerializeField] private Image rightPortrait;
     [SerializeField, Range(0f, 1f)] private float inactiveSpeakerAlpha = 0.45f;
+    // 타이핑 속도(초당 글자 수). 임시값이며 플레이 테스트로 조정한다. 0이면 줄 전체를 바로 보여 준다.
+    [SerializeField, Min(0f)] private float charactersPerSecond = 40f;
     private TMP_FontAsset dialogueFont;
 
     public event Action SkipClicked;
     public event Action ContinueClicked;
+
+    public float CharactersPerSecond => charactersPerSecond;
 
     public override void AutoBind()
     {
@@ -86,30 +90,25 @@ public sealed class DialogueView : UIScreenView
         SetText(speakerName, model.Speaker);
         SetText(bodyText, model.Body);
         SetPortraitEmphasis(model.IsLeftSpeaker);
-        PlayDialogueTextAnimation();
+    }
+
+    // 타이핑: 문자열은 그대로 두고 TMP가 그리는 글자 수만 바꾼다.
+    public void SetVisibleCharacters(int count)
+    {
+        if (bodyText != null) bodyText.maxVisibleCharacters = count;
     }
 
     public override void ResetView()
     {
         SetText(speakerName, string.Empty);
         SetText(bodyText, string.Empty);
-        StopDialogueAnimations();
+        SetVisibleCharacters(int.MaxValue);
     }
 
     private void SetPortraitEmphasis(bool leftIsSpeaking)
     {
         if (leftPortrait != null) leftPortrait.color = WithAlpha(leftPortrait.color, leftIsSpeaking ? 1f : inactiveSpeakerAlpha);
         if (rightPortrait != null) rightPortrait.color = WithAlpha(rightPortrait.color, leftIsSpeaking ? inactiveSpeakerAlpha : 1f);
-    }
-
-    private void PlayDialogueTextAnimation()
-    {
-        //TOOD : unscaled time 기반 타이핑 및 화자 전환 연출을 연결한다.
-    }
-
-    private void StopDialogueAnimations()
-    {
-        //TOOD : 진행 중인 Tween, Coroutine과 지연 Callback을 취소한다.
     }
 
     private static Color WithAlpha(Color color, float alpha) { color.a = alpha; return color; }

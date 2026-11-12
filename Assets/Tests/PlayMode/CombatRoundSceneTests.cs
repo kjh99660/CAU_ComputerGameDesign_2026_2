@@ -32,12 +32,18 @@ public sealed class CombatRoundSceneTests
         Assert.IsTrue(text.font.HasCharacter('글', false, true));
         var dialogueFont = text.font;
         var next = Find<Button>(view.transform, "DialogueBox");
-        for (int i = 0; i < data.intro.Length; i++)
-        {
-            Assert.AreEqual(data.intro[i].text, text.text);
-            Assert.AreEqual(data.intro[i].speaker, speaker.text);
-            next.onClick.Invoke();
-        }
+
+        // 첫 줄은 한 번에 나타나지 않고 타이핑된다. 타이핑은 unscaled time이라 timeScale이 0이어도 진행한다.
+        int typedBefore = text.maxVisibleCharacters;
+        Assert.Less(typedBefore, data.intro[0].text.Length, "The first line should start typing instead of appearing at once.");
+        float previousTimeScale = Time.timeScale;
+        Time.timeScale = 0f;
+        try { yield return new WaitForSecondsRealtime(0.2f); }
+        finally { Time.timeScale = previousTimeScale; }
+        Assert.Greater(text.maxVisibleCharacters, typedBefore, "Dialogue typing must use unscaled time.");
+
+        foreach (DialogueLine line in data.intro)
+            AdvanceLine(next, text, speaker, line);
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
@@ -48,6 +54,7 @@ public sealed class CombatRoundSceneTests
         events.EnqueueRequest(new StartRequest(state.Tick));
         yield return WaitFor(state, GameState.IntroDialogue);
         Assert.AreEqual(data.intro[0].text, text.text);
+        Assert.Less(text.maxVisibleCharacters, data.intro[0].text.Length, "Retry must restart typing from the first line.");
         Assert.AreSame(dialogueFont, text.font);
         Find<Button>(view.transform, "SkipButton").onClick.Invoke();
         yield return WaitFor(state, GameState.Countdown);
@@ -57,13 +64,24 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.Finishing);
         events.EnqueueRequest(new FinishingCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.OutroDialogue);
-        for (int i = 0; i < data.outro.Length; i++)
-        {
-            Assert.AreEqual(data.outro[i].text, text.text);
-            next.onClick.Invoke();
-        }
+        foreach (DialogueLine line in data.outro)
+            AdvanceLine(next, text, speaker, line);
         yield return WaitFor(state, GameState.Result);
         Assert.AreEqual(1f, Time.timeScale);
+    }
+
+    // 타이핑 중인 줄은 첫 입력에 완성되고, 다 보인 줄은 다음 입력에 다음 줄(또는 대화 완료)로 넘어간다.
+    private static void AdvanceLine(Button next, TMP_Text text, TMP_Text speaker, DialogueLine line)
+    {
+        Assert.AreEqual(line.text, text.text);
+        Assert.AreEqual(line.speaker, speaker.text);
+        if (text.maxVisibleCharacters < line.text.Length)
+        {
+            next.onClick.Invoke();
+            Assert.AreEqual(line.text, text.text, "The first input must finish the typing line, not skip it.");
+            Assert.GreaterOrEqual(text.maxVisibleCharacters, line.text.Length);
+        }
+        next.onClick.Invoke();
     }
 
     [UnityTest]
