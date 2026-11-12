@@ -22,6 +22,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private GameState _state = GameState.Initializing;
     private int _tick;
     private float _spawnElapsed;
+    private float _roundSpawnY;
     private bool _stopRequested;
     private bool _configured;
 
@@ -29,6 +30,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public int ActiveEnemyCount => _registry?.Count ?? 0;
     public Transform TargetTransform => target;
     public event Action<int, bool> HitAccepted;
+    public event Action<Vector3, Vector3, int> HitPresented;
     public event Action<int> PlayerHit;
 
     public void SetTarget(Transform value)
@@ -150,7 +152,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         impulse.y = settings.KnockbackUpwardForce * Mathf.Max(0f, forceMultiplier);
         bool accepted = enemy.ApplyHit(impulse, settings, tick);
         if (accepted)
+        {
             HitAccepted?.Invoke(tick, chargeGauge);
+            HitPresented?.Invoke(enemy.transform.position, horizontal, tick);
+        }
         return accepted;
     }
 
@@ -205,6 +210,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _spawnElapsed = 0f;
         _stopRequested = false;
         _random = new System.Random(unchecked(7919 + tick * 104729));
+        // Movement AI is planar and enemies stay kinematic until hit. Inherit only
+        // the player's restored starting height, never a later jump/step elevation.
+        _roundSpawnY = TargetPosition.y + settings.SpawnHeight;
         int initialCount = Mathf.Min(settings.InitialEnemyCount, settings.MaximumEnemyCount);
         for (int i = 0; i < initialCount; i++)
             SpawnOne(tick);
@@ -219,10 +227,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         float distance = Mathf.Lerp(settings.MinimumSpawnDistance, settings.MaximumSpawnDistance,
             (float)_random.NextDouble());
         Vector3 center = TargetPosition;
-        Vector3 position = center + new Vector3(
-            Mathf.Cos((float)angle) * distance,
-            settings.SpawnHeight,
-            Mathf.Sin((float)angle) * distance);
+        Vector3 position = new Vector3(
+            center.x + Mathf.Cos((float)angle) * distance,
+            _roundSpawnY,
+            center.z + Mathf.Sin((float)angle) * distance);
 
         EnemyAgent enemy = _pool.Get();
         enemy.Activate(position, tick);

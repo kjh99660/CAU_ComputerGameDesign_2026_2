@@ -76,6 +76,11 @@ public sealed class EnemyAgent : MonoBehaviour
         _stateTime = 0f;
         _body.isKinematic = true;
         _body.useGravity = true;
+        // An interpolated Rigidbody owns its physics pose independently of the
+        // Transform. Teleport both on spawn/reuse so interpolation cannot restore
+        // the prefab origin or the previous death/knockback position next frame.
+        _body.position = position;
+        _body.rotation = Quaternion.identity;
         SetColor(new Color(0.9f, 0.22f, 0.18f, 1f));
     }
 
