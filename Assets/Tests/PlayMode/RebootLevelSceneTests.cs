@@ -9,7 +9,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
-// 레벨 디자인(Env_RebootHub, 광장 높이 정렬)이 기존 게임 흐름과 충돌하지 않는지 확인한다.
+// 레벨 디자인(Env_RebootHub)이 기존 게임 흐름과 충돌하지 않는지 확인한다.
+// 적 생성 높이는 JH_Work의 수정 이후 "라운드 시작 시 플레이어 높이 + EnemySettings.SpawnHeight"다.
 // REBOOT_CAPTURE_DIR 환경 변수가 있으면 실제 런타임 카메라 화면과 적 위치 요약을 저장한다.
 public sealed class RebootLevelSceneTests
 {
@@ -18,7 +19,7 @@ public sealed class RebootLevelSceneTests
     private const float FloorTolerance = 0.3f;
 
     [UnityTest]
-    public IEnumerator PlazaFloorMatchesSpawnHeightAndEnvironmentAddsNoObstacles()
+    public IEnumerator PlayerStartsOnPlazaFloorAndEnvironmentAddsNoObstacles()
     {
         yield return LoadAndWaitReady();
         var state = Object.FindFirstObjectByType<GameStateManager>();
@@ -27,8 +28,10 @@ public sealed class RebootLevelSceneTests
 
         float? floor = FloorBelow(player.transform.position);
         Assert.IsTrue(floor.HasValue, "No floor under the player start.");
-        Assert.AreEqual(enemies.Settings.SpawnHeight, floor.Value, 0.05f, "Plaza floor must match EnemySettings.SpawnHeight.");
         Assert.AreEqual(floor.Value, player.transform.position.y, 0.1f, "Player must start on the plaza floor.");
+        float spawnPlane = player.transform.position.y + enemies.Settings.SpawnHeight;
+        foreach (EnemyAgent enemy in Active())
+            Assert.AreEqual(spawnPlane, enemy.transform.position.y, 0.05f, $"{enemy.name} is not on the round spawn plane.");
 
         var env = GameObject.Find("Env_RebootHub");
         Assert.IsNotNull(env, "Env_RebootHub root is missing.");
@@ -44,17 +47,18 @@ public sealed class RebootLevelSceneTests
             if (overPlaza && b.min.y < floor.Value + 1.9f)
                 Assert.Less(b.max.y - floor.Value, 0.1f, $"{renderer.name} blocks the walkable plaza volume.");
         }
+
         Assert.AreEqual(GameState.Ready, state.CurrentState);
     }
 
     [UnityTest]
-    public IEnumerator BattleEnemiesStayOnSpawnHeightApproachAndRetryRestoresLayout()
+    public IEnumerator BattleEnemiesStayOnSpawnPlaneApproachAndRetryRestoresLayout()
     {
-        // 적 Rigidbody는 kinematic + Interpolate이고 autoSyncTransforms가 꺼져 있어, 고정 스텝이 없는 프레임에서
-        // 보간이 스크립트 이동을 덮어쓴다(적 시스템의 알려진 문제, 문서 참고). batchmode의 무제한 프레임 대신
-        // 실제 플레이와 같은 60 FPS 조건에서 레벨 동작을 검증한다.
-        int previousFrameRate = Application.targetFrameRate;
+        // 적 이동(EnemyAgent.RunAI)은 보간(Interpolate) Rigidbody의 Transform을 직접 옮긴다. 고정 물리 스텝이 없는 프레임의
+        // 이동은 보간이 덮어쓰므로 batchmode의 수백 FPS에서는 이동 속도가 설정값의 일부로 떨어진다.
+        // 레벨 배치를 검사하는 테스트라 실제 플레이에 가까운 60 FPS로 고정한다(적 시스템 문제는 Docs/UiTheme/README.md 참고).
         int previousVSync = QualitySettings.vSyncCount;
+        int previousTargetFrameRate = Application.targetFrameRate;
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
         try
@@ -63,12 +67,12 @@ public sealed class RebootLevelSceneTests
         }
         finally
         {
-            Application.targetFrameRate = previousFrameRate;
             QualitySettings.vSyncCount = previousVSync;
+            Application.targetFrameRate = previousTargetFrameRate;
         }
     }
 
-    private IEnumerator BattleScenario()
+    private static IEnumerator BattleScenario()
     {
         yield return LoadAndWaitReady();
         var state = Object.FindFirstObjectByType<GameStateManager>();
@@ -78,9 +82,10 @@ public sealed class RebootLevelSceneTests
         var camera = Camera.main;
         var log = new StringBuilder();
         Vector3 playerStart = player.transform.position;
+        float spawnPlane = playerStart.y + runtime.Settings.SpawnHeight;
 
         Capture(camera, "runtime_ready");
-        log.AppendLine("Ready: " + Summarize(Active(), player.transform.position, runtime.Settings.SpawnHeight));
+        log.AppendLine("Ready: " + Summarize(Active(), player.transform.position, spawnPlane));
 
         events.EnqueueRequest(new StartRequest(state.Tick));
         yield return WaitFor(state, GameState.IntroDialogue);
@@ -93,19 +98,8 @@ public sealed class RebootLevelSceneTests
         foreach (EnemyAgent enemy in Active())
             firstDistances[enemy] = Horizontal(enemy.transform.position, player.transform.position);
 
-        // 적 시스템의 알려진 경쟁 상태: EnemyAgent.Activate가 Transform만 옮기고, kinematic + Interpolate Rigidbody가
-        // 다음 고정 스텝 전에 이전 위치(풀 원점)로 Transform을 덮어쓰면 초기 적이 모두 원점에 겹친다.
-        // 레벨 문제가 아니므로 실패 대신 판정 불가로 남긴다(Docs/LevelDesign 문서 6절).
-        int collapsed = 0;
-        Vector3 poolOrigin = runtime.transform.position;
-        foreach (EnemyAgent enemy in Active())
-            if (Horizontal(enemy.transform.position, poolOrigin) < 0.6f) collapsed++;
-        if (collapsed >= 2 && collapsed == firstDistances.Count)
-            Assert.Inconclusive($"Initial enemies collapsed to the pool origin ({collapsed}). Known EnemyAgent spawn/interpolation race; level checks skipped.");
-
         // 첫 추가 생성(1초) 전에 접근을 판정한다. 이후에는 새 적과의 분리(Separation) 때문에 옆으로 밀릴 수 있다.
-        // 적 Animator는 렌더링 여부에 따라 갱신이 달라지므로(CullUpdateTransforms), 실제 플레이처럼 매 프레임 카메라를 렌더링한다.
-        yield return RenderFor(camera, 0.8f);
+        yield return new WaitForSeconds(0.8f);
         int approached = 0, measured = 0;
         var notApproached = new StringBuilder();
         foreach (EnemyAgent enemy in Active())
@@ -117,17 +111,17 @@ public sealed class RebootLevelSceneTests
             else notApproached.Append($" {enemy.name}@{enemy.transform.position}:{before:0.0}->{after:0.0}({enemy.State})");
         }
         Assert.Greater(measured, 0);
-        Assert.AreEqual(measured, approached, $"Every initial enemy should move toward the player. player={player.transform.position} timeScale={Time.timeScale} state={state.CurrentState}" + notApproached);
+        Assert.AreEqual(measured, approached, $"Every initial enemy should move toward the player. player={player.transform.position}" + notApproached);
 
-        yield return RenderFor(camera, 1.7f);
+        yield return new WaitForSeconds(1.7f);
         Capture(camera, "runtime_battle_2s");
         List<EnemyAgent> active = Active();
-        log.AppendLine("Battle 2.5s: " + Summarize(active, player.transform.position, runtime.Settings.SpawnHeight));
+        log.AppendLine("Battle 2.5s: " + Summarize(active, player.transform.position, spawnPlane));
         foreach (EnemyAgent enemy in active)
-            Assert.AreEqual(runtime.Settings.SpawnHeight, enemy.transform.position.y, 0.05f, $"{enemy.name} left the spawn height while chasing.");
+            Assert.AreEqual(spawnPlane, enemy.transform.position.y, 0.05f, $"{enemy.name} left the spawn plane while chasing.");
 
         // 플레이어를 동쪽 벽으로 이동시켜 벽 충돌로 광장 안에 머무는지 확인한다(입력 대신 CharacterController 직접 이동).
-        // 북쪽은 Area_B로 이어지는 열린 통로라 벽 검사 대상이 아니다.
+        // 남·북은 다른 높이로 이어지는 계단이라 벽 검사 대상이 아니다.
         var controller = player.GetComponent<CharacterController>();
         for (int i = 0; i < 90; i++)
         {
@@ -156,34 +150,8 @@ public sealed class RebootLevelSceneTests
         Assert.AreEqual(playerStart.y, player.transform.position.y, 0.01f);
         Assert.AreEqual(playerStart.z, player.transform.position.z, 0.01f);
         Assert.IsTrue(GameObject.Find("Env_RebootHub").activeInHierarchy);
-        log.AppendLine("After Retry: " + Summarize(Active(), player.transform.position, runtime.Settings.SpawnHeight));
+        log.AppendLine("After Retry: " + Summarize(Active(), player.transform.position, spawnPlane));
         WriteLog(log.ToString());
-    }
-
-    // batchmode에서는 화면 렌더링이 없으므로 작은 RenderTexture로 카메라를 매 프레임 렌더링해 실제 플레이와 같은 가시성 조건을 만든다.
-    private static IEnumerator RenderFor(Camera camera, float seconds)
-    {
-        var rt = new RenderTexture(160, 90, 16);
-        float end = Time.time + seconds;
-        try
-        {
-            while (Time.time < end)
-            {
-                if (camera != null)
-                {
-                    RenderTexture previous = camera.targetTexture;
-                    camera.targetTexture = rt;
-                    camera.Render();
-                    camera.targetTexture = previous;
-                }
-                yield return null;
-            }
-        }
-        finally
-        {
-            rt.Release();
-            Object.Destroy(rt);
-        }
     }
 
     private static IEnumerator LoadAndWaitReady()
@@ -217,14 +185,15 @@ public sealed class RebootLevelSceneTests
         return result;
     }
 
-    // 적 위치를 "광장 바닥 위"와 "바닥 밖(공중/다른 층)"으로 나눈다. 바닥 밖은 현재 스폰 코드의 알려진 한계다.
-    private static string Summarize(List<EnemyAgent> enemies, Vector3 player, float spawnHeight)
+    // 적 위치를 "광장 바닥 위"와 "바닥 밖(공중/다른 층)"으로 나눈다. 바닥 밖은 현재 스폰 코드의 알려진 한계다
+    // (플레이어 기준 15~25m 원이 광장 반경 약 20m보다 넓다).
+    private static string Summarize(List<EnemyAgent> enemies, Vector3 player, float spawnPlane)
     {
         int onFloor = 0, offFloor = 0;
         foreach (EnemyAgent enemy in enemies)
         {
             float? floor = FloorBelow(enemy.transform.position);
-            if (floor.HasValue && Mathf.Abs(floor.Value - spawnHeight) <= FloorTolerance) onFloor++;
+            if (floor.HasValue && Mathf.Abs(floor.Value - spawnPlane) <= FloorTolerance) onFloor++;
             else offFloor++;
         }
         return $"active={enemies.Count}, onPlazaFloor={onFloor}, offFloor={offFloor}, player={player}";
