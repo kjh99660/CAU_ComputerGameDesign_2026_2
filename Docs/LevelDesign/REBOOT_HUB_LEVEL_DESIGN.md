@@ -116,7 +116,7 @@
 5. **중앙 안테나 기둥 2개**: `96dd8bc`에서 BoxCollider 큐브가 붙어 플레이어는 막힌다. 적은 Transform으로 이동하고 회피 로직이 없어 여전히 통과한다.
 6. **적 이동 보간** (`EnemyAgent.RunAI`, `EnemyPrototype.prefab`)
    - 고쳐진 것: 초기 적이 풀 원점 `(0,0,0)`에 겹치던 경쟁 상태는 `8e88d9e`에서 수정됐다(`Activate`가 Rigidbody 위치도 설정).
-   - 남은 것: 추적 이동은 이번 병합에서 바뀌지 않았고, 보간(Interpolate)을 켠 kinematic Rigidbody의 Transform을 직접 옮긴다. FPS가 높을수록 이동이 느려질 수 있다. 레벨 테스트는 60 FPS로 고정해 측정한다. 자세한 내용은 `Docs/UiTheme/README.md` 마지막 절.
+   - 남은 것: 추적 이동은 이번 병합에서 바뀌지 않았고, 보간(Interpolate)을 켠 kinematic Rigidbody의 Transform을 직접 옮긴다. FPS가 높을수록 이동이 느려질 수 있다. 레벨 테스트는 60 FPS로 고정해 측정한다. 일시정지 직후에도 보간이 한 프레임 동안 1cm 안팎 따라잡아, 레벨 테스트의 정지 확인은 5cm 오차를 허용한다. 자세한 내용은 `Docs/UiTheme/README.md` 마지막 절.
 
 ## 7. 팀 검토 요청
 

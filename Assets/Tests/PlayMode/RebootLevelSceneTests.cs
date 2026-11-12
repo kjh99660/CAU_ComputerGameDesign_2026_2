@@ -153,8 +153,11 @@ public sealed class RebootLevelSceneTests
         yield return WaitFor(state, GameState.Paused);
         Vector3 pausedEnemy = active.Count > 0 ? active[0].transform.position : Vector3.zero;
         yield return new WaitForSecondsRealtime(0.3f);
+        // 적은 보간(Interpolate) Rigidbody라 정지 직후 한 프레임 동안 1cm 안팎 따라잡을 수 있다(적 이동 보간 문제, 문서 참고).
+        // 추적 속도(3.5m/s)라면 0.3초에 1m가량 움직이므로 5cm 허용으로도 "정지 중 이동"은 잡힌다.
         if (active.Count > 0 && active[0] != null && active[0].gameObject.activeInHierarchy)
-            Assert.AreEqual(pausedEnemy, active[0].transform.position, "Enemy moved while paused.");
+            Assert.Less(Vector3.Distance(pausedEnemy, active[0].transform.position), 0.05f,
+                $"Enemy moved while paused: {pausedEnemy} -> {active[0].transform.position}");
         events.EnqueueRequest(new ResumeRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
         events.EnqueueRequest(new PauseRequest(state.Tick));
