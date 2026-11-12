@@ -151,6 +151,55 @@ public static class RebootLevelDiagnostics
         int colliders = env.GetComponentsInChildren<Collider>(true).Length;
         report.AppendLine($"## Env_RebootHub static cost: renderers {renderers} (shadow casters {shadowCasters}), mesh triangles {triangles} (TMP text excluded), unique materials {materials.Count}, realtime lights {lights} (no shadows), colliders {colliders}");
         report.AppendLine();
+        DumpSignageCheck(env.transform.Find("Signage"), report);
+    }
+
+    // 맵이 바뀌어 장식이 벽에 묻히거나 가려지는지 확인한다.
+    // - 홀로그램 광고판: 시작 위치 카메라(거리 4m, pitch는 -20까지)에서 판 위 35개 점 중 보이는 비율, 판 틀이 맵 충돌체와 겹치는지.
+    // - 보안 표지판: 판 뒤 0.3m 안에 벽이 있는지.
+    private static void DumpSignageCheck(Transform signage, StringBuilder report)
+    {
+        Transform spawn = FindSpawnPoint();
+        if (signage == null || spawn == null) return;
+        Vector3 target = spawn.position + Vector3.up * 1.5f;
+        report.AppendLine("## Signage check");
+        foreach (Transform sign in signage)
+        {
+            if (sign.name.StartsWith("P_Reboot_HoloBillboard", StringComparison.Ordinal))
+            {
+                Vector3 look = sign.position - target;
+                float yaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+                float pitch = Mathf.Max(-20f, -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg);
+                Vector3 camera = target - Quaternion.Euler(pitch, yaw, 0f) * Vector3.forward * 4f;
+                int visible = 0, total = 0;
+                for (float x = -4.5f; x <= 4.6f; x += 1.5f)
+                for (float y = -2f; y <= 2.1f; y += 1f)
+                {
+                    Vector3 point = sign.TransformPoint(new Vector3(x, y, -0.05f));
+                    total++;
+                    if (!IsPathBlocked3D(camera, point)) visible++;
+                }
+                bool frameOverlaps = false;
+                foreach (Collider c in Physics.OverlapBox(sign.TransformPoint(new Vector3(0f, 0f, 0.2f)), new Vector3(5.3f, 2.8f, 0.15f), sign.rotation, ~0, QueryTriggerInteraction.Ignore))
+                    if (!IsActorCollider(c)) { frameOverlaps = true; break; }
+                report.AppendLine($"- {sign.name} at {Fmt(sign.position)}: visible from start camera {Pct(visible, total)}, frame overlaps map collider: {frameOverlaps}");
+            }
+            else if (sign.name.StartsWith("P_Reboot_SecuritySign", StringComparison.Ordinal))
+            {
+                Vector3 face = sign.position + Vector3.up * 0.75f - sign.forward * 0.05f;
+                bool backed = Physics.Raycast(face, sign.forward, 0.3f, ~0, QueryTriggerInteraction.Ignore);
+                report.AppendLine($"- {sign.name} at {Fmt(sign.position)}: wall right behind: {backed}");
+            }
+        }
+        report.AppendLine();
+    }
+
+    private static bool IsPathBlocked3D(Vector3 from, Vector3 to)
+    {
+        Vector3 d = to - from;
+        foreach (RaycastHit hit in Physics.RaycastAll(from, d.normalized, d.magnitude - 0.1f, ~0, QueryTriggerInteraction.Ignore))
+            if (!IsActorCollider(hit.collider)) return true;
+        return false;
     }
 
     private static void DumpRendering(StringBuilder report)
@@ -424,6 +473,26 @@ public static class RebootLevelDiagnostics
             camera.transform.rotation = rotation;
             camera.fieldOfView = mainCamera != null ? mainCamera.fieldOfView : 60f;
             Render(camera, Path.Combine(outputDirectory, $"{tag}_landmark_view.png"), 1920, 1080);
+        }
+
+        // 시작 위치에서 각 홀로그램 광고판 쪽으로 돌려 올려다본 구도(앞 건물에 가리는지 확인). pitch는 -20까지만.
+        GameObject envRoot = GameObject.Find("Env_RebootHub");
+        Transform signage = envRoot != null ? envRoot.transform.Find("Signage") : null;
+        if (signage != null)
+        {
+            int index = 0;
+            foreach (Transform sign in signage)
+            {
+                if (!sign.name.StartsWith("P_Reboot_HoloBillboard", StringComparison.Ordinal)) continue;
+                Vector3 look = sign.position - target;
+                float lookYaw = Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+                float pitch = Mathf.Max(-20f, -Mathf.Atan2(look.y, new Vector2(look.x, look.z).magnitude) * Mathf.Rad2Deg);
+                Quaternion rotation = Quaternion.Euler(pitch, lookYaw, 0f);
+                camera.transform.position = target - rotation * Vector3.forward * 4f;
+                camera.transform.rotation = rotation;
+                camera.fieldOfView = mainCamera != null ? mainCamera.fieldOfView : 60f;
+                Render(camera, Path.Combine(outputDirectory, $"{tag}_billboard_view_{index++}.png"), 1920, 1080);
+            }
         }
 
         // 서쪽 벽에 붙은 플레이어를 동쪽으로 바라볼 때: 현재 카메라는 충돌 처리가 없어 벽 밖에 위치한다.
