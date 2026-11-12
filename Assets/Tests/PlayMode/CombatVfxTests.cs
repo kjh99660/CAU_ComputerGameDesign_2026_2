@@ -81,7 +81,10 @@ public sealed class CombatVfxTests
         Assert.IsTrue(impact.gameObject.activeSelf);
         Assert.Less(Vector3.Distance(position, impact.position), 0.001f);
         Assert.IsFalse(enemies.TryApplyHit(enemy, Vector3.forward, 1f, state.Tick));
-        Assert.AreEqual(1, vfx.transform.childCount);
+        int impacts = 0;
+        foreach (Transform child in vfx.transform)
+            if (child.name == "Impact(Clone)") impacts++;
+        Assert.AreEqual(1, impacts, "Count only Impact instances; the shared bootstrap also owns other pools.");
         events.EnqueueRequest(new PauseRequest(state.Tick));
         yield return WaitFor(state, GameState.Paused);
         events.EnqueueRequest(new RestartRequest(state.Tick));

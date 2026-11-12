@@ -17,6 +17,11 @@ public static class GameDemoEnemyPrefabBuilder
     [MenuItem("Tools/Game Demo Enemy/Build Prototype Enemy")]
     public static void BuildAll()
     {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(GameDemoHumanoidEnemyBuilder.ModelPath) != null)
+        {
+            GameDemoHumanoidEnemyBuilder.BuildAll();
+            return;
+        }
         if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Enemy/MechaRobot/MechaRobot.fbx") != null)
         {
             GameDemoMechaEnemyBuilder.BuildAll();
@@ -38,6 +43,11 @@ public static class GameDemoEnemyPrefabBuilder
     [MenuItem("Tools/Game Demo Enemy/Validate Prototype Enemy")]
     public static void ValidateAll()
     {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(GameDemoHumanoidEnemyBuilder.ModelPath) != null)
+        {
+            GameDemoHumanoidEnemyBuilder.ValidateAll();
+            return;
+        }
         if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Enemy/MechaRobot/MechaRobot.fbx") != null)
         {
             GameDemoMechaEnemyBuilder.ValidateAll();
