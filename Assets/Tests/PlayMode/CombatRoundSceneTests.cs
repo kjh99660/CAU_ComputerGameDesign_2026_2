@@ -32,12 +32,12 @@ public sealed class CombatRoundSceneTests
         Assert.IsTrue(text.font.HasCharacter('글', false, true));
         var dialogueFont = text.font;
         var next = Find<Button>(view.transform, "DialogueBox");
-        Assert.AreEqual(data.intro[0].text, text.text);
-        Assert.AreEqual(data.intro[0].speaker, Find<TMP_Text>(view.transform, "SpeakerName").text);
-        next.onClick.Invoke();
-        Assert.AreEqual(data.intro[1].text, text.text);
-        Assert.AreEqual(data.intro[1].speaker, Find<TMP_Text>(view.transform, "SpeakerName").text);
-        next.onClick.Invoke();
+        for (int i = 0; i < data.intro.Length; i++)
+        {
+            Assert.AreEqual(data.intro[i].text, text.text);
+            Assert.AreEqual(data.intro[i].speaker, speaker.text);
+            next.onClick.Invoke();
+        }
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
@@ -57,8 +57,11 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.Finishing);
         events.EnqueueRequest(new FinishingCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.OutroDialogue);
-        Assert.AreEqual(data.outro[0].text, text.text);
-        next.onClick.Invoke();
+        for (int i = 0; i < data.outro.Length; i++)
+        {
+            Assert.AreEqual(data.outro[i].text, text.text);
+            next.onClick.Invoke();
+        }
         yield return WaitFor(state, GameState.Result);
         Assert.AreEqual(1f, Time.timeScale);
     }
