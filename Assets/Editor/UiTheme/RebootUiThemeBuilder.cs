@@ -746,13 +746,21 @@ public static class RebootUiThemeBuilder
                 break;
             case "Dialogue":
                 var dialogue = root.GetComponent<DialogueView>();
+                const string sampleLine = "네 식별 정보가 수배 명단에 남아 있어. 초기화까지 100초가 필요해.";
                 if (dialogue != null)
                 {
                     dialogue.AutoBind();
                     typeof(DialogueView).GetMethod("ApplyDialogueFont", Any)?.Invoke(dialogue, null);
+                    // 실제 실행과 같은 경로로 노아(왼쪽) 강조와 넘김 표시를 그린다.
+                    dialogue.BeginSequence();
+                    dialogue.Render(new DialogueUiModel("노아", sampleLine, true));
+                    dialogue.UpdateNextIndicator(true, 0f);
                 }
-                Set("SpeakerName", "노아");
-                Set("BodyText", "네 식별 정보가 수배 명단에 남아 있어. 초기화까지 100초가 필요해.");
+                else
+                {
+                    Set("SpeakerName", "노아");
+                    Set("BodyText", sampleLine);
+                }
                 break;
             case "Finishing":
                 Set("ScoreValue", "012540");
