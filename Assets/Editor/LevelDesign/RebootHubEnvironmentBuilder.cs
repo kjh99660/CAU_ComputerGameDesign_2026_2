@@ -68,13 +68,16 @@ public static class RebootHubEnvironmentBuilder
         ApplyToScene(MainScenePath);
     }
 
-    // 배치 실행 인자: -rebootScene preview|main (기본 preview), -rebootRefreshPreview (Main.unity에서 미리보기를 다시 복사)
+    // 배치 실행 인자: -rebootScene preview|main (기본 preview), -rebootRefreshPreview (Main.unity에서 미리보기를 다시 복사),
+    // -rebootSkipAssets (에셋은 다시 만들지 않고 Scene에만 적용. 허브 프리팹·볼륨 프로필은 다시 만들 때마다 내용이 같아도
+    // 내부 ID가 바뀌므로, 에셋 코드를 고치지 않았다면 이 인자로 불필요한 diff를 막는다)
     public static void BuildBatch()
     {
         try
         {
             string target = GetArg("-rebootScene") == "main" ? MainScenePath : PreviewScenePath;
-            BuildAssets();
+            if (!HasArg("-rebootSkipAssets"))
+                BuildAssets();
             if (target == PreviewScenePath && (HasArg("-rebootRefreshPreview") || !File.Exists(PreviewScenePath)))
                 RefreshPreviewFromMain();
             ApplyToScene(target);
