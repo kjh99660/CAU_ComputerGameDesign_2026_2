@@ -11,8 +11,10 @@ using Object = UnityEngine.Object;
 
 // REBOOT 통신 허브 광장의 환경 에셋을 생성하고 Main Scene에 배치한다.
 // - 새 에셋은 Assets/LevelDesign/RebootHub 아래에만 만든다. 다시 실행해도 같은 경로를 덮어써 GUID를 유지한다.
-// - 기존 Prefab, Material, 게임 시스템 코드는 수정하지 않는다. Scene에서는 높이 정렬, Renderer 머티리얼 교체,
-//   조명/안개 설정, Env_RebootHub 루트 추가만 수행한다.
+// - 기존 Prefab, Material, 게임 시스템 코드는 수정하지 않는다. Scene에서는 Renderer 머티리얼 교체,
+//   조명/안개 설정, Env_RebootHub 루트 추가만 수행한다. 맵·플레이어 위치는 옮기지 않는다
+//   (JH_Work 수정 이후 적은 "라운드 시작 플레이어 높이 + SpawnHeight"에 생성되므로 높이 정렬이 필요 없다).
+// - 장식은 측정한 광장 바닥 높이를 기준으로 배치한다. 맵 루트는 MainMap(JH_Work 이후) 또는 Map(이전 맵)이다.
 // - 기본 대상은 미리보기 씬(Main_RebootHub.unity)이다. 팀 공용 Main.unity는 채택이 결정됐을 때만
 //   "Adopt" 메뉴나 -rebootScene main 인자로 적용한다. 미리보기 씬은 Main.unity를 파일 그대로 복사해 만들므로
 //   내부 fileID가 Main과 같고, 두 씬의 diff에는 이 빌더가 만든 변경만 남는다.
@@ -26,8 +28,9 @@ public static class RebootHubEnvironmentBuilder
     private const string KitPalettePath = "Assets/SciFi_Modular_Kit_Demo/Materials/Palette_00.png";
     private const string SourceVolumePath = "Assets/Settings/SampleSceneProfile.asset";
 
-    // 기존 맵 기준 측정값(정렬 전): 광장 바닥 상단 y=-2, 광장 중심 (-24, 48.2), 반경 약 20m.
+    // 맵 측정값: 광장 중심 (-24, 48.2), 반경 약 20m, 바닥 상단 y=-2(실행 시 다시 측정한다).
     private static readonly Vector2 PlazaCenterXZ = new Vector2(-24f, 48.2f);
+    private static readonly string[] MapRootNames = { "MainMap", "Map" };
     private const float HubCenterZ = 80f;
 
     private static Material _darkMetal, _steel, _steelTwoSided, _glowTeal, _glowMagenta, _alertRed, _hubScreen, _hazard, _floorGuide, _holoPanel, _kitNight;
@@ -56,7 +59,7 @@ public static class RebootHubEnvironmentBuilder
     public static void AdoptFromMenu()
     {
         if (!EditorUtility.DisplayDialog("REBOOT Level",
-                "팀 공용 Main.unity에 레벨 디자인(높이 +2m 정렬, 머티리얼 교체, 조명, Env_RebootHub)을 적용합니다. 팀 합의 후에만 실행하세요.",
+                "팀 공용 Main.unity에 레벨 디자인(머티리얼 교체, 조명, Env_RebootHub)을 적용합니다. 팀 합의 후에만 실행하세요.",
                 "적용", "취소"))
             return;
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -661,23 +664,11 @@ public static class RebootHubEnvironmentBuilder
         var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
         LoadBuiltMaterials();
 
-        GameObject map = Required("Map");
-        GameObject background = Required("BackGround");
-        GameObject player = GameObject.Find("Player");
+        GameObject map = FindMapRoot();
 
-        // 1) 높이 정렬: EnemySettings.SpawnHeight(0)과 광장 바닥을 맞춘다. 이미 맞으면 아무것도 하지 않는다.
+        // 1) 광장 바닥 높이 측정. 모든 장식은 이 높이를 기준(floor)으로 배치한다.
         Physics.SyncTransforms();
-        float floor = MeasurePlazaFloor();
-        float delta = -floor;
-        if (Mathf.Abs(delta) > 0.01f)
-        {
-            Vector3 shift = Vector3.up * delta;
-            map.transform.position += shift;
-            background.transform.position += shift;
-            if (player != null) player.transform.position += shift;
-            Debug.Log($"[RebootHub] Shifted Map/BackGround/Player by {delta:0.###}m so the plaza floor is at y=0.");
-            Physics.SyncTransforms();
-        }
+        float floor = MeasurePlazaFloor(map.transform);
 
         // 2) 맵 머티리얼: Scene의 Renderer에서만 야간 팔레트 변형으로 교체한다(원본 에셋은 그대로).
         var kitSource = AssetDatabase.LoadAssetAtPath<Material>(KitMaterialPath);
@@ -705,22 +696,32 @@ public static class RebootHubEnvironmentBuilder
         GameObject old = GameObject.Find(EnvRootName);
         if (old != null) Object.DestroyImmediate(old);
         var env = new GameObject(EnvRootName);
-        Vector3 c = new Vector3(PlazaCenterXZ.x, 0f, PlazaCenterXZ.y);
+        Vector3 c = new Vector3(PlazaCenterXZ.x, floor, PlazaCenterXZ.y);
+        Vector3 At(float x, float up, float z) => new Vector3(x, floor + up, z);
 
         var landmark = Group(env, "Landmark");
-        Place("P_Reboot_CommHub", landmark, new Vector3(c.x, 0f, HubCenterZ), 0f);
+        Place("P_Reboot_CommHub", landmark, At(c.x, 0f, HubCenterZ), 0f);
+
+        // 출입구(적이 들어오는 축): 광장 중심선에서 남·북으로 바닥이 처음 높아지는 곳(계단 첫 단)을 맵에서 잰다.
+        float southGateZ = GateZ(c, -1f, 29.3f);
+        float northGateZ = GateZ(c, 1f, 66.9f);
 
         var signage = Group(env, "Signage");
-        // 남쪽 계단 입구 양옆 벽면(광장 쪽을 향함), 북쪽 통로 입구 위.
-        Place("P_Reboot_SecuritySign", signage, new Vector3(c.x - 6.6f, 0.35f, 28.3f), 180f);
-        Place("P_Reboot_SecuritySign", signage, new Vector3(c.x + 6.6f, 0.35f, 28.3f), 180f);
-        Place("P_Reboot_HoloBillboard", signage, new Vector3(c.x - 31f, 11f, c.z + 6f), -70f);
-        Place("P_Reboot_HoloBillboard", signage, new Vector3(c.x + 31f, 13f, c.z - 4f), 70f);
+        // 남쪽 계단 입구 양옆 벽면(광장 쪽을 향함). 판 뒷면(두께 0.1m)이 벽면에 닿도록 벽 위치를 잰다.
+        foreach (float side in new[] { -1f, 1f })
+        {
+            float x = c.x + side * 6.6f;
+            float wallZ = WallFaceZ(new Vector3(x, floor, southGateZ + 3f), Vector3.back, floor, 28.2f);
+            Place("P_Reboot_SecuritySign", signage, At(x, 0.35f, wallZ + 0.11f), 180f);
+        }
+        Place("P_Reboot_HoloBillboard", signage, At(c.x - 31f, 11f, c.z + 6f), -70f);
+        Place("P_Reboot_HoloBillboard", signage, At(c.x + 31f, 13f, c.z - 4f), 70f);
 
         var floorGuides = Group(env, "FloorGuides");
-        Place("P_Reboot_FloorStartMark", floorGuides, new Vector3(c.x, 0.02f, 42f), 0f);
-        Place("P_Reboot_FloorChevrons", floorGuides, new Vector3(c.x, 0.02f, 29.6f), 0f);
-        Place("P_Reboot_FloorChevrons", floorGuides, new Vector3(c.x, 0.02f, 66.6f), 180f);
+        Place("P_Reboot_FloorStartMark", floorGuides, At(c.x, 0.02f, 42f), 0f);
+        // 쉐브론 3개(길이 약 3.1m)가 계단 첫 단 0.3m 앞에서 광장 쪽을 가리킨다.
+        Place("P_Reboot_FloorChevrons", floorGuides, At(c.x, 0.02f, southGateZ + 0.3f), 0f);
+        Place("P_Reboot_FloorChevrons", floorGuides, At(c.x, 0.02f, northGateZ - 0.3f), 180f);
 
         var beacons = Group(env, "PerimeterBeacons");
         int beaconCount = 0;
@@ -739,19 +740,19 @@ public static class RebootHubEnvironmentBuilder
             }
 
         var lighting = Group(env, "Lighting");
-        AddLight(lighting, "HubKey_Teal", LightType.Spot, new Color(0.15f, 0.95f, 0.9f), 9f, 46f, new Vector3(c.x, 9f, 71f), new Vector3(28f, 180f, 0f), 75f);
-        AddLight(lighting, "Fill_NW_Teal", LightType.Point, new Color(0.2f, 0.9f, 1f), 6f, 18f, new Vector3(c.x - 14f, 5f, c.z + 11f), Vector3.zero);
-        AddLight(lighting, "Fill_NE_Magenta", LightType.Point, new Color(1f, 0.25f, 0.8f), 6f, 18f, new Vector3(c.x + 14f, 5f, c.z + 11f), Vector3.zero);
-        AddLight(lighting, "Fill_SW_Magenta", LightType.Point, new Color(1f, 0.25f, 0.8f), 5f, 17f, new Vector3(c.x - 14f, 5f, c.z - 12f), Vector3.zero);
-        AddLight(lighting, "Fill_SE_Teal", LightType.Point, new Color(0.2f, 0.9f, 1f), 5f, 17f, new Vector3(c.x + 14f, 5f, c.z - 12f), Vector3.zero);
-        AddLight(lighting, "Alert_SouthGate", LightType.Point, new Color(1f, 0.12f, 0.08f), 3f, 9f, new Vector3(c.x, 3.2f, 29f), Vector3.zero);
-        AddLight(lighting, "Alert_NorthGate", LightType.Point, new Color(1f, 0.12f, 0.08f), 2.2f, 7f, new Vector3(c.x, 2.8f, 68f), Vector3.zero);
+        AddLight(lighting, "HubKey_Teal", LightType.Spot, new Color(0.15f, 0.95f, 0.9f), 9f, 46f, At(c.x, 9f, 71f), new Vector3(28f, 180f, 0f), 75f);
+        AddLight(lighting, "Fill_NW_Teal", LightType.Point, new Color(0.2f, 0.9f, 1f), 6f, 18f, At(c.x - 14f, 5f, c.z + 11f), Vector3.zero);
+        AddLight(lighting, "Fill_NE_Magenta", LightType.Point, new Color(1f, 0.25f, 0.8f), 6f, 18f, At(c.x + 14f, 5f, c.z + 11f), Vector3.zero);
+        AddLight(lighting, "Fill_SW_Magenta", LightType.Point, new Color(1f, 0.25f, 0.8f), 5f, 17f, At(c.x - 14f, 5f, c.z - 12f), Vector3.zero);
+        AddLight(lighting, "Fill_SE_Teal", LightType.Point, new Color(0.2f, 0.9f, 1f), 5f, 17f, At(c.x + 14f, 5f, c.z - 12f), Vector3.zero);
+        AddLight(lighting, "Alert_SouthGate", LightType.Point, new Color(1f, 0.12f, 0.08f), 3f, 9f, At(c.x, 3.2f, southGateZ - 0.3f), Vector3.zero);
+        AddLight(lighting, "Alert_NorthGate", LightType.Point, new Color(1f, 0.12f, 0.08f), 2.2f, 7f, At(c.x, 2.8f, northGateZ + 1.1f), Vector3.zero);
 
         // 미래 스폰 보정 후보(보고서 참고)를 위한 기준점. 현재 런타임 코드는 사용하지 않는다.
         var gameplay = Group(env, "DesignReference_NotUsedByRuntime");
         Marker(gameplay, "PlazaCenter_r20", c);
-        Marker(gameplay, "EntryGate_North", new Vector3(c.x, 0f, 66.5f));
-        Marker(gameplay, "EntryGate_South", new Vector3(c.x, 0f, 30f));
+        Marker(gameplay, "EntryGate_North", At(c.x, 0f, northGateZ - 0.4f));
+        Marker(gameplay, "EntryGate_South", At(c.x, 0f, southGateZ + 0.7f));
 
         foreach (Transform t in env.GetComponentsInChildren<Transform>(true))
             if (t.GetComponent<Light>() == null)
@@ -784,7 +785,7 @@ public static class RebootHubEnvironmentBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        Debug.Log($"[RebootHub] Applied to {scenePath}: floor was {floor:0.###}, swapped {swapped} renderers, {beaconCount} beacons.");
+        Debug.Log($"[RebootHub] Applied to {scenePath} on {map.name}: plaza floor y={floor:0.###}, swapped {swapped} renderers, {beaconCount} beacons.");
     }
 
     private static void LoadBuiltMaterials()
@@ -796,7 +797,7 @@ public static class RebootHubEnvironmentBuilder
             throw new InvalidOperationException("Build assets first.");
     }
 
-    private static float MeasurePlazaFloor()
+    private static float MeasurePlazaFloor(Transform mapRoot)
     {
         var origin = new Vector3(PlazaCenterXZ.x, 60f, PlazaCenterXZ.y - 8f);
         RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 120f, ~0, QueryTriggerInteraction.Ignore);
@@ -804,7 +805,7 @@ public static class RebootHubEnvironmentBuilder
         foreach (RaycastHit hit in hits)
         {
             if (hit.collider.GetComponentInParent<CharacterController>() != null) continue;
-            if (hit.transform.root.name != "Map") continue;
+            if (!hit.transform.IsChildOf(mapRoot)) continue;
             best = Mathf.Max(best, hit.point.y);
         }
         if (float.IsNegativeInfinity(best))
@@ -812,8 +813,69 @@ public static class RebootHubEnvironmentBuilder
         return best;
     }
 
-    private static GameObject Required(string name) =>
-        GameObject.Find(name) ?? throw new InvalidOperationException($"Scene object '{name}' not found.");
+    // 광장 중심에서 남(-1)/북(+1)으로 0.25m씩 나아가며 바닥이 처음 높아지는 곳(계단 첫 단)의 z를 잰다.
+    // 중앙 소품(벤치·기둥)을 피하려고 중심에서 8m 떨어진 곳부터 찾는다. 못 찾으면 이전 맵 값으로 둔다.
+    private static float GateZ(Vector3 center, float side, float fallbackZ)
+    {
+        const float skip = 8f;
+        for (float d = 0f; d <= 24f; d += 0.25f)
+        {
+            float z = center.z + side * (skip + d);
+            if (FirstHit(new Vector3(center.x, center.y + 1.2f, z), Vector3.down, 2f, out RaycastHit hit) && hit.point.y > center.y + 0.08f)
+            {
+                Debug.Log($"[RebootHub] {(side < 0 ? "South" : "North")} gate (first step) at z={z:0.##}");
+                return z;
+            }
+        }
+        Debug.LogWarning($"[RebootHub] {(side < 0 ? "South" : "North")} gate not found; using z={fallbackZ}.");
+        return fallbackZ;
+    }
+
+    // start에서 dir 방향의 벽면 z를 잰다. 세 높이(0.5/1.0/1.5m)가 모두 맞아야 벽으로 보고, 가장 가까운 면을 쓴다.
+    private static float WallFaceZ(Vector3 start, Vector3 dir, float floor, float fallbackZ)
+    {
+        float nearest = float.PositiveInfinity;
+        foreach (float h in new[] { 0.5f, 1f, 1.5f })
+        {
+            if (!FirstHit(new Vector3(start.x, floor + h, start.z), dir, 10f, out RaycastHit hit))
+            {
+                Debug.LogWarning($"[RebootHub] No wall from {start} at +{h}m; using z={fallbackZ}.");
+                return fallbackZ;
+            }
+            nearest = Mathf.Min(nearest, hit.distance);
+        }
+        float z = start.z + dir.z * nearest;
+        Debug.Log($"[RebootHub] Wall face for x={start.x:0.##} at z={z:0.##}");
+        return z;
+    }
+
+    // 플레이어·적 캡슐을 제외한 가장 가까운 충돌체.
+    private static bool FirstHit(Vector3 origin, Vector3 dir, float maxDistance, out RaycastHit best)
+    {
+        best = default;
+        bool found = false;
+        foreach (RaycastHit hit in Physics.RaycastAll(origin, dir, maxDistance, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.collider.GetComponentInParent<CharacterController>() != null || hit.collider.GetComponentInParent<EnemyAgent>() != null)
+                continue;
+            if (!found || hit.distance < best.distance)
+            {
+                best = hit;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    private static GameObject FindMapRoot()
+    {
+        foreach (string name in MapRootNames)
+        {
+            GameObject found = GameObject.Find(name);
+            if (found != null) return found;
+        }
+        throw new InvalidOperationException($"Map root not found (tried {string.Join(", ", MapRootNames)}).");
+    }
 
     private static Transform Group(GameObject parent, string name)
     {
