@@ -43,6 +43,8 @@ public sealed class CombatRoundSceneTests
         Assert.IsNotNull(rightPortrait.sprite);
         Assert.IsFalse(leftPortrait.raycastTarget || rightPortrait.raycastTarget, "Portraits must not block dialogue clicks.");
         AssertSpeakerEmphasis(leftPortrait, rightPortrait, data.intro[0].leftSpeaker);
+        var nextIndicator = Find<Image>(view.transform, "NextIndicator");
+        Assert.IsFalse(nextIndicator.raycastTarget);
 
         // 대화가 열린 직후의 입력은 무시한다(전투 끝까지 누르던 클릭이 첫 대사를 넘기지 않게).
         advanceArea.onClick.Invoke();
@@ -58,12 +60,12 @@ public sealed class CombatRoundSceneTests
         Assert.Greater(text.maxVisibleCharacters, typedBefore, "Dialogue typing must use unscaled time.");
         yield return new WaitForSecondsRealtime(0.25f);
 
-        AdvanceLine(advanceArea, text, speaker, data.intro[0]);
+        AdvanceLine(advanceArea, text, speaker, data.intro[0], nextIndicator);
         // 화자가 바뀌면 강조가 0.15초 동안 다음 화자 쪽으로 옮겨 간다.
         yield return new WaitForSecondsRealtime(0.3f);
         AssertSpeakerEmphasis(leftPortrait, rightPortrait, data.intro[1].leftSpeaker);
         for (int i = 1; i < data.intro.Length; i++)
-            AdvanceLine(advanceArea, text, speaker, data.intro[i]);
+            AdvanceLine(advanceArea, text, speaker, data.intro[i], nextIndicator);
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
@@ -87,7 +89,7 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.OutroDialogue);
         yield return new WaitForSecondsRealtime(0.4f);
         foreach (DialogueLine line in data.outro)
-            AdvanceLine(box, text, speaker, line);
+            AdvanceLine(box, text, speaker, line, nextIndicator);
         yield return WaitFor(state, GameState.Result);
         Assert.AreEqual(1f, Time.timeScale);
     }
@@ -102,16 +104,19 @@ public sealed class CombatRoundSceneTests
     }
 
     // 타이핑 중인 줄은 첫 입력에 완성되고, 다 보인 줄은 다음 입력에 다음 줄(또는 대화 완료)로 넘어간다.
-    private static void AdvanceLine(Button next, TMP_Text text, TMP_Text speaker, DialogueLine line)
+    // 넘김 표시는 타이핑 중에는 숨고, 줄이 다 보이면 나타난다.
+    private static void AdvanceLine(Button next, TMP_Text text, TMP_Text speaker, DialogueLine line, Graphic nextIndicator)
     {
         Assert.AreEqual(line.text, text.text);
         Assert.AreEqual(line.speaker, speaker.text);
         if (text.maxVisibleCharacters < line.text.Length)
         {
+            Assert.IsFalse(nextIndicator.enabled, "The next indicator must stay hidden while the line is typing.");
             next.onClick.Invoke();
             Assert.AreEqual(line.text, text.text, "The first input must finish the typing line, not skip it.");
             Assert.GreaterOrEqual(text.maxVisibleCharacters, line.text.Length);
         }
+        Assert.IsTrue(nextIndicator.enabled, "The next indicator must appear once the line is complete.");
         next.onClick.Invoke();
     }
 

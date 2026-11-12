@@ -12,6 +12,9 @@ public sealed class DialogueView : UIScreenView
     [SerializeField] private TMP_Text bodyText;
     [SerializeField] private Image leftPortrait;
     [SerializeField] private Image rightPortrait;
+    // 줄이 다 보였을 때만 깜빡이는 넘김 표시(unscaled time).
+    [SerializeField] private Graphic nextIndicator;
+    [SerializeField, Min(0.1f)] private float nextIndicatorBlinkHz = 1.2f;
     // 화자 강조: 말하는 쪽은 원래 밝기·크기, 듣는 쪽은 어둡고 조금 작고 낮게. 전환은 unscaled time으로 부드럽게 한다.
     [SerializeField, Min(0.01f)] private float speakerTransitionSeconds = 0.15f;
     [SerializeField] private Color listenerTint = new Color(0.42f, 0.47f, 0.52f, 1f);
@@ -27,6 +30,8 @@ public sealed class DialogueView : UIScreenView
     private bool _snapEmphasis = true;
     private bool _portraitBasesCaptured;
     private Vector2 _leftBase, _rightBase;
+    private bool _nextShown;
+    private float _blinkTime;
 
     public event Action SkipClicked;
     public event Action ContinueClicked;
@@ -44,6 +49,8 @@ public sealed class DialogueView : UIScreenView
         if (bodyText == null) bodyText = FindNamed<TMP_Text>("BodyText");
         if (leftPortrait == null) leftPortrait = FindNamed<Image>("LeftPortrait");
         if (rightPortrait == null) rightPortrait = FindNamed<Image>("RightPortrait");
+        if (nextIndicator == null) nextIndicator = FindNamed<Graphic>("NextIndicator");
+        _nextShown = nextIndicator != null && nextIndicator.enabled;
         // 강조 연출이 위치를 옮기므로 처음 한 번만 기준 위치를 기억한다.
         if (!_portraitBasesCaptured && (leftPortrait != null || rightPortrait != null))
         {
@@ -159,11 +166,34 @@ public sealed class DialogueView : UIScreenView
         if (bodyText != null) bodyText.maxVisibleCharacters = count;
     }
 
+    // 줄이 다 보였을 때만 넘김 표시를 켜고 unscaled time으로 깜빡인다. 켜고 끌 때는 Graphic만 끄므로 레이아웃을 다시 계산하지 않는다.
+    public void UpdateNextIndicator(bool visible, float unscaledDeltaTime)
+    {
+        if (nextIndicator == null) return;
+        if (!visible)
+        {
+            if (!_nextShown) return;
+            _nextShown = false;
+            nextIndicator.enabled = false;
+            return;
+        }
+        if (!_nextShown)
+        {
+            _nextShown = true;
+            _blinkTime = 0f;
+            nextIndicator.enabled = true;
+        }
+        _blinkTime += unscaledDeltaTime;
+        float wave = 0.5f + 0.5f * Mathf.Cos(_blinkTime * nextIndicatorBlinkHz * 2f * Mathf.PI);
+        nextIndicator.canvasRenderer.SetAlpha(Mathf.Lerp(0.3f, 1f, wave));
+    }
+
     public override void ResetView()
     {
         SetText(speakerName, string.Empty);
         SetText(bodyText, string.Empty);
         SetVisibleCharacters(int.MaxValue);
+        UpdateNextIndicator(false, 0f);
         _snapEmphasis = true;
     }
 

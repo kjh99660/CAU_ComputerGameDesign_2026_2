@@ -44,6 +44,7 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         if (_inputLockRemaining > 0f) _inputLockRemaining -= unscaledDeltaTime;
         _progress.Tick(unscaledDeltaTime, View.CharactersPerSecond);
         RefreshVisibleCharacters();
+        RefreshNextIndicator(unscaledDeltaTime);
     }
 
     // 키보드(Space·Enter)와 화면 클릭이 함께 쓰는 진행 입력.
@@ -56,6 +57,7 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         {
             case DialogueProgress.AdvanceResult.RevealedLine:
                 RefreshVisibleCharacters();
+                RefreshNextIndicator(0f);
                 break;
             case DialogueProgress.AdvanceResult.NextLine:
                 ShowCurrentLine();
@@ -87,12 +89,18 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
             string placeholder = CurrentState == GameState.IntroDialogue ? "도입 대사를 입력해 주세요." : "종료 대사를 입력해 주세요.";
             View.Render(new DialogueUiModel("임시 대사", placeholder, true));
             View.SetVisibleCharacters(int.MaxValue);
+            RefreshNextIndicator(0f);
             return;
         }
         DialogueLine line = _progress.CurrentLine;
         View.Render(new DialogueUiModel(line.speaker, line.text, line.leftSpeaker));
         RefreshVisibleCharacters();
+        RefreshNextIndicator(0f);
     }
+
+    // 넘김 표시는 줄이 다 보였고 대화가 아직 끝나지 않았을 때만 보인다.
+    private void RefreshNextIndicator(float unscaledDeltaTime) =>
+        View.UpdateNextIndicator(_progress.IsLineComplete && !_progress.IsFinished, unscaledDeltaTime);
 
     // 보이는 글자 수가 바뀐 프레임에만 TMP에 반영한다. 문자열은 그대로 두므로 매 프레임 할당이 없다.
     private void RefreshVisibleCharacters()

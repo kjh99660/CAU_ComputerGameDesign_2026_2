@@ -250,6 +250,7 @@ public static class RebootUiThemeBuilder
         right.transform.SetAsLastSibling();
         left.transform.SetSiblingIndex(box.GetSiblingIndex());
         right.transform.SetSiblingIndex(box.GetSiblingIndex());
+        Image next = EnsureNextIndicator(box);
 
         // View가 이름으로 찾지 않아도 되게 직렬화 참조를 연결한다.
         var view = root.GetComponent<DialogueView>();
@@ -257,7 +258,31 @@ public static class RebootUiThemeBuilder
         var so = new SerializedObject(view);
         so.FindProperty("leftPortrait").objectReferenceValue = left;
         so.FindProperty("rightPortrait").objectReferenceValue = right;
+        so.FindProperty("nextIndicator").objectReferenceValue = next;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 줄이 다 보이면 깜빡이는 넘김 표시. 글꼴에 기대지 않도록 45도 돌린 작은 사각형(마름모)으로 그린다.
+    // 대사 상자 오른쪽 아래 안쪽에 두며, 클릭은 가로채지 않는다.
+    private static Image EnsureNextIndicator(Transform box)
+    {
+        Transform existing = box.Find("NextIndicator");
+        GameObject go = existing != null ? existing.gameObject : new GameObject("NextIndicator", typeof(RectTransform), typeof(Image));
+        go.layer = box.gameObject.layer;
+        var rect = (RectTransform)go.transform;
+        if (existing == null) rect.SetParent(box, false);
+        rect.anchorMin = new Vector2(1f, 0f);
+        rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(-64f, 46f);
+        rect.sizeDelta = new Vector2(16f, 16f);
+        rect.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        rect.localScale = Vector3.one;
+        var image = go.GetComponent<Image>();
+        image.sprite = null;
+        image.color = UiPalette.Accent;
+        image.raycastTarget = false;
+        return image;
     }
 
     private static Image EnsurePortrait(Transform parent, string name, string spritePath, Vector2 corner, Vector2 position)
