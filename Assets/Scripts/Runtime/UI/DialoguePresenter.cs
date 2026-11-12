@@ -7,6 +7,7 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
     private readonly DialogueProgress _progress = new DialogueProgress();
     private bool _completionRequested;
     private int _shownCharacters = -1;
+    private float _inputLockRemaining;
 
     public DialoguePresenter(DialogueView view, IUIRequestDispatcher requests, DialogueSequenceData data = null) : base(view, requests)
     {
@@ -30,19 +31,24 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         if (!IsVisibleIn(notification.Current)) return;
         _progress.Begin(_data == null ? null : notification.Current == GameState.IntroDialogue ? _data.intro : _data.outro);
         _completionRequested = false;
+        _inputLockRemaining = View.InputGraceSeconds;
         ShowCurrentLine();
     }
 
     public override void Update(float deltaTime, float unscaledDeltaTime)
     {
         if (!IsVisibleIn(CurrentState) || _completionRequested) return;
+        if (_inputLockRemaining > 0f) _inputLockRemaining -= unscaledDeltaTime;
         _progress.Tick(unscaledDeltaTime, View.CharactersPerSecond);
         RefreshVisibleCharacters();
     }
 
+    // 키보드(Space·Enter)와 화면 클릭이 함께 쓰는 진행 입력.
+    public void AdvanceFromInput() => Advance();
+
     private void Advance()
     {
-        if (!IsVisibleIn(CurrentState) || _completionRequested) return;
+        if (!IsVisibleIn(CurrentState) || _completionRequested || _inputLockRemaining > 0f) return;
         switch (_progress.Advance())
         {
             case DialogueProgress.AdvanceResult.RevealedLine:

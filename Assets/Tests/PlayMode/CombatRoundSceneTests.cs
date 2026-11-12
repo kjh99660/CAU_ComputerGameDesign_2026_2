@@ -31,19 +31,27 @@ public sealed class CombatRoundSceneTests
         Assert.IsTrue(text.font.HasCharacter('한', false, true));
         Assert.IsTrue(text.font.HasCharacter('글', false, true));
         var dialogueFont = text.font;
-        var next = Find<Button>(view.transform, "DialogueBox");
+        var box = Find<Button>(view.transform, "DialogueBox");
+        // 화면 아무 곳 클릭은 다른 대화 요소 뒤의 투명한 전체 화면 버튼이 받는다.
+        var advanceArea = Find<Button>(view.transform, "AdvanceArea");
+        Assert.AreEqual(0, advanceArea.transform.GetSiblingIndex());
+
+        // 대화가 열린 직후의 입력은 무시한다(전투 끝까지 누르던 클릭이 첫 대사를 넘기지 않게).
+        advanceArea.onClick.Invoke();
+        Assert.AreEqual(data.intro[0].text, text.text);
+        Assert.Less(text.maxVisibleCharacters, data.intro[0].text.Length, "Input right after the dialogue opens must be ignored.");
 
         // 첫 줄은 한 번에 나타나지 않고 타이핑된다. 타이핑은 unscaled time이라 timeScale이 0이어도 진행한다.
         int typedBefore = text.maxVisibleCharacters;
-        Assert.Less(typedBefore, data.intro[0].text.Length, "The first line should start typing instead of appearing at once.");
         float previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
         try { yield return new WaitForSecondsRealtime(0.2f); }
         finally { Time.timeScale = previousTimeScale; }
         Assert.Greater(text.maxVisibleCharacters, typedBefore, "Dialogue typing must use unscaled time.");
+        yield return new WaitForSecondsRealtime(0.25f);
 
         foreach (DialogueLine line in data.intro)
-            AdvanceLine(next, text, speaker, line);
+            AdvanceLine(advanceArea, text, speaker, line);
         yield return WaitFor(state, GameState.Countdown);
         events.EnqueueRequest(new CountdownCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.Battle);
@@ -64,8 +72,9 @@ public sealed class CombatRoundSceneTests
         yield return WaitFor(state, GameState.Finishing);
         events.EnqueueRequest(new FinishingCompleteRequest(state.Tick));
         yield return WaitFor(state, GameState.OutroDialogue);
+        yield return new WaitForSecondsRealtime(0.4f);
         foreach (DialogueLine line in data.outro)
-            AdvanceLine(next, text, speaker, line);
+            AdvanceLine(box, text, speaker, line);
         yield return WaitFor(state, GameState.Result);
         Assert.AreEqual(1f, Time.timeScale);
     }

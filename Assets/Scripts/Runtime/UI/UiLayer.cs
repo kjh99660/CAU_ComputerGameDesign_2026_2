@@ -64,9 +64,23 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
     public void Update(float deltaTime, float unscaledDeltaTime)
     {
         // Provisional keyboard binding. UI buttons and keyboard share the same request path.
-        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            HandleEscape();
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            if (keyboard.escapeKey.wasPressedThisFrame)
+                HandleEscape();
+            if (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+                HandleDialogueAdvance();
+        }
         foreach (IGameLoopSystem presenter in _presenters) presenter.Update(deltaTime, unscaledDeltaTime);
+    }
+
+    // Space·Enter는 대화의 진행 입력이다. 화면 클릭과 같은 DialoguePresenter 경로를 쓴다.
+    private void HandleDialogueAdvance()
+    {
+        if (!_hasState || !_requests.IsInputEnabled) return;
+        if (_currentState == GameState.IntroDialogue || _currentState == GameState.OutroDialogue)
+            Dialogue.AdvanceFromInput();
     }
 
     private void HandleEscape()
