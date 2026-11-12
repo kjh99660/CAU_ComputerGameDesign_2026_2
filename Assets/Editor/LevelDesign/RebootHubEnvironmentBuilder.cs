@@ -714,7 +714,8 @@ public static class RebootHubEnvironmentBuilder
             float wallZ = WallFaceZ(new Vector3(x, floor, southGateZ + 3f), Vector3.back, floor, 28.2f);
             Place("P_Reboot_SecuritySign", signage, At(x, 0.35f, wallZ + 0.11f), 180f);
         }
-        Place("P_Reboot_HoloBillboard", signage, At(c.x - 31f, 11f, c.z + 6f), -70f);
+        // 광고판 위치는 시작 카메라에서 가리지 않고 건물과 겹치지 않는 곳으로 골랐다(진단 보고서의 Signage check로 확인).
+        Place("P_Reboot_HoloBillboard", signage, At(c.x - 27.9f, 11f, c.z + 2.4f), -85f);
         Place("P_Reboot_HoloBillboard", signage, At(c.x + 31f, 13f, c.z - 4f), 70f);
 
         var floorGuides = Group(env, "FloorGuides");
