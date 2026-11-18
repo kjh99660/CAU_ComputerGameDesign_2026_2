@@ -90,6 +90,8 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
 
     private void RecordPlayerHit(int tick)
     {
+        // [WH] 회피 무적 중이면 피격으로 치지 않는다. (점수 차감, 게이지 증가, 피격 후 무적 시작 모두 없음)
+        if (_player != null && _player.IsInvulnerable) return;
         int previous = _stats.Score;
         if (!_stats.RecordPlayerHit(tick, _combatTime) || _state != GameState.Battle) return;
         _ui.PresentScoreChange(_stats.Score - previous);

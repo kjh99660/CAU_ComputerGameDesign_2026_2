@@ -28944,7 +28944,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3095740588053158663, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: debugLog
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5565483986518594555, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: spawnPoint
@@ -28997,6 +28997,10 @@ PrefabInstance:
     - target: {fileID: 7872109362996020534, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9115505955110292297, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
+      propertyPath: debugLog
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

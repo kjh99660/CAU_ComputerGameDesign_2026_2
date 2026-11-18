@@ -14,3 +14,17 @@ public interface IPlayerCancelGate
 {
     bool IsCancelOpen { get; }
 }
+
+// [WH] Reports that the player currently ignores enemy hits (e.g. dodge i-frames).
+// PlayerRuntime aggregates these; CombatRoundRuntime skips RecordPlayerHit while invulnerable.
+public interface IPlayerInvulnerability
+{
+    bool IsInvulnerable { get; }
+}
+
+// [WH] Lets future actions (special, skills) forbid starting a dodge during all or part of their state.
+// PlayerDodge checks these before triggering a dodge.
+public interface IPlayerDodgeBlocker
+{
+    bool BlocksDodge { get; }
+}
