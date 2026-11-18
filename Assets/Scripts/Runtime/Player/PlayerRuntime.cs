@@ -11,6 +11,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private static readonly int IsRunningHash = Animator.StringToHash("isRunning");
     private static readonly int AttackHash = Animator.StringToHash("Attack");
     private static readonly int IsHoldingHash = Animator.StringToHash("IsHolding");
+    private static readonly int AttackRestartHash = Animator.StringToHash("AttackRestart");   // [WH] 후딜 캔슬 → Attack1 재시작
 
     [Header("References")]
     [SerializeField] private Animator animator;
@@ -63,6 +64,9 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private bool _referencesCached;
     private float _animationSpeed;
     private readonly List<IPlayerPresentation> _presentations = new List<IPlayerPresentation>();
+    private readonly List<IPlayerCancelGate> _cancelGates = new List<IPlayerCancelGate>();   // [WH] 후딜 캔슬 가능 여부를 알려주는 컴포넌트
+    private bool _hasAttackRestartParam;   // [WH] Animator에 AttackRestart 파라미터가 없으면 경고가 매 프레임 찍히지 않도록 건너뜀
+    private bool _attackRestartParamChecked;
     private readonly Collider[] _attackResults = new Collider[512];
     private EnemyRuntime _combatEnemies;
     private CombatSettings _combatSettings;
@@ -177,8 +181,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         {
             if (_specialPressed)
                 _combatRound?.TryUseSpecial(_tick, transform.position);
-            UpdateAttack(stateInfo);
-            UpdateMovement(deltaTime, !attackState);
+            // [WH] 후딜 캔슬 구간이면 공격 상태여도 이동과 재공격(AttackRestart)을 허용한다.
+            bool cancelOpen = IsCancelOpen();
+            UpdateAttack(stateInfo, cancelOpen);
+            UpdateMovement(deltaTime, !attackState || cancelOpen);
         }
         else
         {
@@ -232,7 +238,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     }
 
     // Animator에 실제 존재하는 Attack1 -> Attack2 -> Charge 상태 전이만 구동한다.
-    private void UpdateAttack(AnimatorStateInfo stateInfo)
+    private void UpdateAttack(AnimatorStateInfo stateInfo, bool cancelOpen)
     {
         float normalizedTime = stateInfo.normalizedTime % 1f;
         if (_attackPressed)
@@ -248,7 +254,16 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
                 _attackStartedInBattle = true;
                 animator.SetTrigger(AttackHash);
             }
+            // [WH] 콤보 구간 밖이지만 후딜 캔슬 구간이면 Attack1부터 다시 시작한다. (Attack1/Attack2/Charge_Release → Attack1 트랜지션)
+            else if (cancelOpen && HasAttackRestartParam() && IsAttackState(stateInfo))
+            {
+                _attackStartedInBattle = true;
+                animator.SetTrigger(AttackRestartHash);
+            }
         }
+        // [WH] 캔슬 구간이 아니면 쓰이지 않은 재시작 트리거가 남아 나중에 발동하지 않도록 지운다.
+        if (!cancelOpen && HasAttackRestartParam())
+            animator.ResetTrigger(AttackRestartHash);
 
         if (stateInfo.IsName("Charge_Windup") || stateInfo.IsName("Charge_Hold"))
             animator.SetBool(IsHoldingHash, _attackHeld && !_attackReleased);
@@ -297,6 +312,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         if (animator != null)
         {
             animator.ResetTrigger(AttackHash);
+            if (HasAttackRestartParam()) animator.ResetTrigger(AttackRestartHash);   // [WH]
             animator.SetBool(IsHoldingHash, false);
             animator.SetBool(IsRunningHash, false);
             animator.Rebind();
@@ -329,6 +345,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         {
             if (component is IPlayerPresentation presentation)
                 _presentations.Add(presentation);
+            if (component is IPlayerCancelGate cancelGate)   // [WH]
+                _cancelGates.Add(cancelGate);
             // Bootstrap can cache these references before the scene object becomes active.
             if (component is IPlayerAttackHitSource && component.enabled)
                 _hasAttackHitSource = true;
@@ -391,6 +409,33 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     {
         if (animator != null)
             animator.SetBool(IsRunningHash, value);
+    }
+
+    // [WH] Animator에 AttackRestart 트리거가 있는지 한 번만 확인한다. (없으면 재시작 기능만 꺼지고 나머지는 그대로)
+    private bool HasAttackRestartParam()
+    {
+        if (_attackRestartParamChecked)
+            return _hasAttackRestartParam;
+        if (animator == null || !animator.isInitialized)
+            return false;
+        _attackRestartParamChecked = true;
+        foreach (AnimatorControllerParameter parameter in animator.parameters)
+            if (parameter.nameHash == AttackRestartHash && parameter.type == AnimatorControllerParameterType.Trigger)
+                _hasAttackRestartParam = true;
+        return _hasAttackRestartParam;
+    }
+
+    // [WH] 켜져 있는 캔슬 게이트 중 하나라도 "캔슬 가능"이면 true.
+    private bool IsCancelOpen()
+    {
+        foreach (IPlayerCancelGate gate in _cancelGates)
+        {
+            if (gate is Behaviour behaviour && !behaviour.isActiveAndEnabled)
+                continue;
+            if (gate.IsCancelOpen)
+                return true;
+        }
+        return false;
     }
 
     private static bool IsAttackState(AnimatorStateInfo stateInfo) =>

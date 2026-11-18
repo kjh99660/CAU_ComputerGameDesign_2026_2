@@ -17,6 +17,7 @@ public class PlayerAttackAim : MonoBehaviour, IPlayerPresentation
     private InputActionMap _map;
     private InputAction _move;
     private int _aimedState;          // 이미 방향을 정한 공격 상태 (0이면 없음)
+    private float _lastElapsed;       // 지난 프레임의 경과 시간 (줄어들면 같은 공격이 다시 시작된 것)
     private bool _turning;            // turnSpeed > 0일 때 회전 중인지
     private Quaternion _targetRotation;
     private bool _allowed = true;     // 팀원 구조가 없는 씬(CharacterTest)에서는 항상 허용
@@ -59,7 +60,11 @@ public class PlayerAttackAim : MonoBehaviour, IPlayerPresentation
         }
 
         // 새 공격이 막 시작됨 → 방향 다시 정하기
-        if (info.fullPathHash != _aimedState)
+        // (Attack1 → Attack1 재시작은 상태 이름이 같으므로 경과 시간이 줄어든 것으로 판단)
+        float elapsed = info.normalizedTime * info.length;
+        bool restarted = info.fullPathHash == _aimedState && elapsed < _lastElapsed;
+        _lastElapsed = elapsed;
+        if (info.fullPathHash != _aimedState || restarted)
         {
             _aimedState = info.fullPathHash;
             if (TryGetInputDirection(out Vector3 dir))
@@ -126,6 +131,7 @@ public class PlayerAttackAim : MonoBehaviour, IPlayerPresentation
     public void ResetPresentation()
     {
         _aimedState = 0;
+        _lastElapsed = 0f;
         _turning = false;
     }
 }

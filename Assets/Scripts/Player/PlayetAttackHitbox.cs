@@ -16,6 +16,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
     private PlayerChargeTracker _charge;
     private CombatVfxRuntime _vfx;
     private int _attackTick = -1;
+    private Animator _animator;
+    private int _hitStateHash;              // 이번 판정이 시작된 Animator 상태 (안전장치용)
 
     // ── 디버그용 기록 ──
     private int _dbgSphere, _dbgHeight, _dbgAngle;   // 마지막 검사의 단계별 통과 수
@@ -29,6 +31,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         _state = FindFirstObjectByType<GameStateManager>();
         _charge = GetComponent<PlayerChargeTracker>();   // 없으면 차지 배율 없이 1배
         _vfx = FindFirstObjectByType<CombatVfxRuntime>();
+        _animator = GetComponent<Animator>();
     }
 
     // ── 애니메이션 이벤트 ──
@@ -38,6 +41,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
             _state.CurrentState != GameState.Finishing)) return;
         _attackTick = _state.Tick;
         _current = data;
+        _hitStateHash = CurrentAttackStateHash();
         _scale = (data != null && _charge != null) ? data.GetChargeScale(_charge.ChargeTime) : 1f;
         _hitThisSwing.Clear();
         if (data != null) _vfx?.PlaySlash(transform, _scale, _attackTick);
@@ -74,7 +78,41 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
 
     private void LateUpdate()
     {
-        if (_current != null) CheckHits();
+        if (_current == null) return;
+
+        // 안전장치: 판정을 시작한 공격 상태를 벗어났으면 자동 종료.
+        // (후딜 캔슬로 클립을 일찍 빠져나가면 HitEnd 이벤트가 불리지 않을 수 있음)
+        if (!StillInHitState())
+        {
+            if (debugLog)
+                Debug.Log($"[Hitbox] 안전장치: 공격 상태를 벗어나 {_current.name} 판정 자동 종료", this);
+            HitEnd();
+            return;
+        }
+
+        CheckHits();
+    }
+
+    // 판정 시작 상태: 공격 상태로 넘어가는 중이면 넘어가는 쪽 (Charge_Release의 0초 이벤트 등), 아니면 현재 상태.
+    private int CurrentAttackStateHash()
+    {
+        if (_animator == null) return 0;
+        if (_animator.IsInTransition(0))
+        {
+            AnimatorStateInfo next = _animator.GetNextAnimatorStateInfo(0);
+            if (next.IsName("Attack1") || next.IsName("Attack2") || next.IsName("Charge_Release"))
+                return next.fullPathHash;
+        }
+        return _animator.GetCurrentAnimatorStateInfo(0).fullPathHash;
+    }
+
+    // 현재 상태 또는 넘어가는 중인 상태가 판정을 시작한 상태와 같은지.
+    private bool StillInHitState()
+    {
+        if (_animator == null || _hitStateHash == 0) return true;   // 판단할 수 없으면 기존 동작 유지
+        if (_animator.GetCurrentAnimatorStateInfo(0).fullPathHash == _hitStateHash) return true;
+        return _animator.IsInTransition(0) &&
+               _animator.GetNextAnimatorStateInfo(0).fullPathHash == _hitStateHash;
     }
 
     private void CheckHits()
@@ -173,7 +211,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
 
     // ── 팀원 구조가 보내 주는 알림 (PlayerRuntime이 자동으로 찾아서 호출) ──
     public void ApplyState(GameState state) { }    // Pause 중에는 Animator가 멈추니 따로 할 일 없음
-    public void ResetPresentation() { _current = null; _attackTick = -1; _scale = 1f; _hitThisSwing.Clear(); }
+    public void ResetPresentation() { _current = null; _attackTick = -1; _hitStateHash = 0; _scale = 1f; _hitThisSwing.Clear(); }
 
     private void OnDrawGizmosSelected()
     {
