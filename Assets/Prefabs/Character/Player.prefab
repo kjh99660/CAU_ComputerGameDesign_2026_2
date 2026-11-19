@@ -4303,6 +4303,7 @@ GameObject:
   - component: {fileID: 9052220544642676946}
   - component: {fileID: 3095740588053158663}
   - component: {fileID: 9115505955110292297}
+  - component: {fileID: 7819075557148611132}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -4580,6 +4581,26 @@ MonoBehaviour:
   moveActionName: Move
   dodgeActionName: Sprint
   cameraTransform: {fileID: 0}
+  debugLog: 0
+--- !u!114 &7819075557148611132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7382676792506048396}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b9bde16121326b4dba54db15a013273, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSkill
+  skills:
+  - {fileID: 11400000, guid: 891270654c452c047ba85e0e3369e0b1, type: 2}
+  inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  actionMapName: Player
+  moveActionName: Move
+  cameraTransform: {fileID: 0}
+  fallbackKey: 31
   debugLog: 0
 --- !u!1 &7409351387047053508
 GameObject:

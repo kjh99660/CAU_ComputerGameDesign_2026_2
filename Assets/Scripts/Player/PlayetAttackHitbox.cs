@@ -35,7 +35,10 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
     }
 
     // ── 애니메이션 이벤트 ──
-    public void HitStart(AttackHitData data)
+    public void HitStart(AttackHitData data) => BeginHit(data, true);
+
+    // 코드에서 판정을 시작할 때 사용 (예: 스킬). playVfx=false면 기본 베기 이펙트(CombatVfxRuntime)를 재생하지 않음.
+    public void BeginHit(AttackHitData data, bool playVfx)
     {
         if (_state == null || (_state.CurrentState != GameState.Battle &&
             _state.CurrentState != GameState.Finishing)) return;
@@ -44,7 +47,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         _hitStateHash = CurrentAttackStateHash();
         _scale = (data != null && _charge != null) ? data.GetChargeScale(_charge.ChargeTime) : 1f;
         _hitThisSwing.Clear();
-        if (data != null) _vfx?.PlaySlash(transform, _scale, _attackTick);
+        if (data != null && playVfx) _vfx?.PlaySlash(transform, _scale, _attackTick);
 
         if (debugLog)
         {
@@ -100,7 +103,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         if (_animator.IsInTransition(0))
         {
             AnimatorStateInfo next = _animator.GetNextAnimatorStateInfo(0);
-            if (next.IsName("Attack1") || next.IsName("Attack2") || next.IsName("Charge_Release"))
+            // 공격 상태 또는 "Action" 태그 상태(스킬 등)로 넘어가는 중이면 그쪽을 판정 시작 상태로 기억
+            if (next.IsName("Attack1") || next.IsName("Attack2") || next.IsName("Charge_Release") || next.IsTag("Action"))
                 return next.fullPathHash;
         }
         return _animator.GetCurrentAnimatorStateInfo(0).fullPathHash;
