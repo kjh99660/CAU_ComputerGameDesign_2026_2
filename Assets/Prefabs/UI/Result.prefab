@@ -1384,6 +1384,12 @@ MonoBehaviour:
   maxComboValue: {fileID: 7597460135950172119}
   hitsTakenValue: {fileID: 5162181605013457128}
   specialUsesValue: {fileID: 2548844997051738718}
+  scoreCountSeconds: 0.8
+  statCountSeconds: 0.45
+  statDelaySeconds: 0.4
+  statStaggerSeconds: 0.12
+  retryPulseHz: 1.2
+  retryPulseScale: 1.04
 --- !u!1 &6234234122107377510
 GameObject:
   m_ObjectHideFlags: 0
