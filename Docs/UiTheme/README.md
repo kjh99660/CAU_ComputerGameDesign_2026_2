@@ -1,6 +1,6 @@
 # REBOOT UI 테마: 고스트 + 사선 스트립
 
-작성일 2026-11-11, 갱신 2026-11-13(`JH_Work` `8e88d9e` 병합 후 재검증, 대화 연출 추가). 테마는 브랜치 `level-design/reboot-hub`(원격에 올림), 대화 연출은 그 위의 `ui/dialogue`. 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
+작성일 2026-11-11, 갱신 2026-11-22(화면 연출 추가). 테마는 브랜치 `level-design/reboot-hub`(원격에 올림), 대화 연출은 그 위의 `ui/dialogue`(원격에 올림), 화면 연출은 그 위의 `ui/screen-effects`. 시안 페이지 [REBOOT UI Lab](https://claude.ai/artifact/PQfu9NxqnQmRtRztFZVjea)에서 저장한 조합을 적용했다.
 
 | 항목 | 선택 |
 | --- | --- |
@@ -36,7 +36,8 @@
 ## 다시 만들기와 되돌리기
 
 - Editor 메뉴 `Tools/REBOOT UI/Apply Theme (Ghost Skew)` 또는 `-executeMethod RebootUiThemeBuilder.ApplyBatch`. 같은 경로를 덮어써 GUID를 유지한다.
-- 미리보기: `-executeMethod RebootUiThemeBuilder.CapturePreviews -rebootOut <dir> -rebootBackdrop <png>` (결과는 `Previews/`).
+- 미리보기: `-executeMethod RebootUiThemeBuilder.CapturePreviews -rebootOut <dir> -rebootBackdrop <png>` (결과는 `Previews/`). 화면별 기본 모습 8장에 이어 연출 도중의 한 순간 4장(`ui_Countdown_Pop` 등)도 찍는다.
+- 연출 조절값을 프리팹에 다시 적기: `-executeMethod RebootUiThemeBuilder.SaveViewSettingsBatch` (Countdown·Battle·Result 프리팹만 저장한다).
 - 되돌리기: `git checkout -- Assets/Prefabs/UI Assets/Scripts/Runtime/UI/BattleView.cs Assets/Tests/PlayMode/CombatRoundSceneTests.cs` 후 `Assets/Sprites/UI_Reboot` 삭제.
 - 팀 빌더 `Tools/Game Demo UI/Build All UI Prefabs`를 실행하면 원본 스프라이트로 프리팹을 새로 만들어 이 테마가 사라진다. 그 경우 이 테마 메뉴를 다시 실행하면 된다.
 
@@ -149,6 +150,72 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 - 초상화 이미지 두 장의 출처와 사용 조건은 확인되지 않았다(팀 원본 스프라이트 팩 `Assets/Sprites/UI/Dialogue`).
 - 수동 확인 절차: `Main.unity`에서 Play → Start → 대사가 한 글자씩 나오는지, Space·Enter·클릭으로 넘어가는지, 화자가 바뀔 때 초상화 밝기가 옮겨 가는지 본다. Skip을 누르고, Pause → Retry 뒤 다시 첫 줄부터 나오는지 본다.
 - 이번에 하지 않은 것: 점수별 노아 평가 대사(팀 합의 후), 대사 넘김 효과음(사운드 담당과 합의 후).
+
+## 화면 연출: 카운트다운, HUD 강조, 결과 숫자
+
+2026-11-22. UI 설계(`Docs/Design/02_UI_AND_SCREEN_FLOW.md`) 7·8·10·15절의 연출 가운데 다른 담당의 결정 없이 할 수 있는 네 가지를 넣었다. 코드에 TODO로만 남아 있던 부분이다.
+
+- **카운트다운(7절 "숫자는 확대 후 축소")**
+  - 숫자: 1.55배로 나타나 0.22초 동안 제자리 크기로 줄어든다. 단계가 끝나기 0.22초 전부터 옅어지며 0.9배로 조금 더 작아진다. 육각 틀도 숫자가 바뀔 때마다 살짝(1.06배) 튄다.
+  - START: 글자가 1.5배에서 튀어나오고, 육각 틀은 1.35배로 커지며 사라지고, 화면 전체에 청록색이 0.35초 동안 옅게 번쩍인다.
+  - 번쩍임 세기는 0.06이다. 처음에 0.2로 두었더니 화면 전체가 청록으로 덮였다(Linear 색공간에서는 어두운 화면 위의 밝은 색이 수치보다 훨씬 강하게 보인다). 0으로 두면 번쩍임을 끈다.
+  - START가 끝나는 프레임에 완료 요청을 보내는 흐름과 단계 시간(0.8초, START 0.55초)은 그대로다.
+- **타이머 경고(8절 "10초 이하 Warning Color")**: 표시되는 남은 시간이 10초 이하가 되면 숫자가 경고 빨강으로 바뀌고, 초가 바뀔 때마다 1.14배에서 0.25초 동안 줄어들며 한 번 튄다. 초가 바뀔 때만 계산하므로 평소 프레임 비용은 없다.
+- **게이지 준비 표시(10절 "Ready 시 Glow/Pulse")**: 게이지가 가득 차 있는 동안 육각 틀이 초당 1.4회, 최대 1.08배로 맥동한다. 게이지 틀만 움직여 화면 전체가 번쩍이지 않는다. 쓰거나 초기화되면 바로 원래 크기로 돌아간다. 맥동이 가운데를 기준으로 커지도록 게이지 틀의 기준점을 아래에서 중앙으로 옮겼다(화면에서의 위치는 같다).
+- **결과 화면(15절)**: 최종 점수가 0에서 0.8초 동안 올라가고, 통계 네 칸은 0.4초 뒤부터 왼쪽부터 0.12초 간격으로 0.45초씩 따라 오른다(전체 약 1.2초). 처음에 빠르고 끝에서 느려진다. 값 자체는 고정이고 표시만 올라간다. 다 오르면 Retry 버튼이 초당 1.2회, 최대 1.04배로 맥동한다. Retry는 숫자가 오르는 중에도 눌린다.
+- **공통**
+  - 모두 unscaled time으로 재생한다. 코루틴 없이 기존 UI 갱신 루프(Presenter의 `Update`)에서 처리해 Reset 뒤에 남는 연출이 없다.
+  - HUD 강조는 Battle에서만 갱신되어 Paused에서는 그 모습 그대로 멈춘다.
+  - 크기는 Transform으로, 불투명도는 CanvasRenderer로 바꿔 글자 메시를 다시 만들지 않는다.
+  - 결과 화면이 보이지 않는 동안에는 통계가 바뀌어도 글자를 다시 만들지 않는다(이전에는 적을 잡을 때마다 숨은 결과 화면의 글자 다섯 칸을 새로 만들었다).
+  - 상태 전환은 건드리지 않았다. UI는 지금처럼 요청만 보낸다.
+
+### 조절값(모두 임시값, 프리팹에 기록)
+
+| View(프리팹) | 값 | 기본 | 뜻 |
+| --- | --- | --- | --- |
+| `CountdownView` | `numberPopScale`, `numberPopSeconds` | 1.55, 0.22 | 숫자가 나타날 때의 크기와 제자리로 줄어드는 시간 |
+| | `numberFadeOutSeconds`, `numberEndAlpha` | 0.22, 0.2 | 단계 끝에서 옅어지는 시간과 마지막 불투명도 |
+| | `startPopScale`, `startPopSeconds` | 1.5, 0.2 | START 글자가 나타날 때의 크기와 시간 |
+| | `startFlashSeconds`, `startFlashOpacity` | 0.35, 0.06 | 화면 번쩍임의 시간과 세기. 세기가 0이면 끈다 |
+| `BattleView` | `timerWarningSeconds` | 10 | 이 초 이하로 표시되면 경고색. 0이면 끈다 |
+| | `timerTickScale`, `timerTickSeconds` | 1.14, 0.25 | 경고 중 초마다 튀는 크기와 시간 |
+| | `gaugePulseHz`, `gaugePulseScale` | 1.4, 1.08 | 가득 찬 게이지의 맥동 횟수(초당)와 최대 크기 |
+| `ResultView` | `scoreCountSeconds` | 0.8 | 최종 점수가 오르는 시간. 0이면 바로 보여 준다 |
+| | `statCountSeconds`, `statDelaySeconds`, `statStaggerSeconds` | 0.45, 0.4, 0.12 | 통계 한 칸이 오르는 시간, 시작 지연, 칸 사이 간격 |
+| | `retryPulseHz`, `retryPulseScale` | 1.2, 1.04 | Retry 버튼의 맥동 횟수(초당)와 최대 크기 |
+
+값은 `Countdown.prefab`, `Battle.prefab`, `Result.prefab`에 적혀 있다. **조절은 프리팹(Inspector)에서 한다.** 프리팹에 값이 없으면 Unity는 그 프리팹을 가져온 시점의 코드 기본값을 쓰고, 나중에 코드 기본값만 바꿔도 이미 가져온 컴퓨터에는 반영되지 않는다(이번에 번쩍임 세기를 낮췄을 때 실제로 겪었다). 그래서 값을 프리팹에 적었다. 이때 이전부터 있던 피격 글리치 값 3개(`hitGlitchDuration` 등)도 같은 값으로 함께 적혔다.
+
+### 구성
+
+| 파일 | 내용 |
+| --- | --- |
+| `Assets/Scripts/Runtime/UI/UiMotion.cs` | 연출 계산식(튀어나오기, 사라지기, 맥동 등). Unity 오브젝트 없이 EditMode에서 검증한다 |
+| `Assets/Scripts/Runtime/UI/ResultCountUp.cs` | 결과 숫자 올리기의 진행 규칙(순서, 최종값 도착, 다시 시작) |
+| `CountdownView.cs`, `CountdownPresenter.cs` | 단계가 시작된 뒤 지난 시간으로 자세를 정한다. 번쩍임 이미지(`StartFlash`)는 실행 중에 만들고 입력을 막지 않는다 |
+| `BattleView.cs`, `BattlePresenter.cs` | 타이머 경고와 게이지 맥동(`UpdateHud`). 기존 피격·점수 피드백 경로는 그대로다 |
+| `ResultView.cs`, `ResultPresenter.cs` | 결과 화면이 열릴 때 0부터 올리기 시작하고, 값이 바뀐 칸만 글자를 다시 만든다 |
+| `Assets/Prefabs/UI/Countdown.prefab`, `Battle.prefab`, `Result.prefab` | 조절값 추가(줄 추가만 23개). `Countdown`은 육각 틀 참조(`numberFrame`)도 연결했다 |
+| `Assets/Editor/UiTheme/RebootUiThemeBuilder.cs` | 연출 미리보기 4장과 `SaveViewSettingsBatch` |
+
+### 확인
+
+- EditMode 새 테스트 14개
+  - `UiMotionTests` 6개: 시작값과 끝값, 범위 밖 입력, 한 방향으로만 변하는지
+  - `ResultCountUpTests` 8개: 0에서 시작, 줄어들지 않고 최종값에 정확히 도착, 점수 먼저·통계는 왼쪽부터, 시간 0이면 즉시, 도중에 값이 바뀌는 경우, 다시 시작
+- PlayMode 새 테스트 4개(`UiEffectsSceneTests`, 실제 `Main.unity`)
+  - 카운트다운: `timeScale`이 0이어도 3 → 2 → 1로 넘어가며 숫자가 움직이고, START에서 번쩍임이 켜졌다 꺼지고, Battle로 넘어간다. Retry 뒤에는 3부터 다시 시작하고 이전 START 자세가 남지 않는다.
+  - 타이머: 11초는 보통 색, 10초부터 경고색이고 초마다 튄다. 12초 라운드에서 실제 시계가 10초에 닿으면 바뀌고, Pause 동안 유지되며, Retry로 100초 라운드가 시작하면 보통 색으로 돌아간다.
+  - 게이지: 가득 차면 맥동하고, Pause에서 멈추고, 특수 공격으로 쓰면 바로 원래 크기가 되며, 가득 찬 채 Retry해도 남지 않는다.
+  - 결과: `timeScale`이 0이어도 0에서 최종값까지 줄어들지 않고 오른다. 다 오르면 Retry가 맥동한다. Retry는 확인 없이 Ready로 가고 숫자와 강조가 초기화된다.
+- 전체 결과(2026-11-22): EditMode 76/76. PlayMode는 두 번 돌려 18/18, 17/18이었다.
+  - 실패한 1개는 팀 테스트 `AcceptedHitUpdatesHudAndRetryClearsRound`로, HUD를 보기 전 단계인 "공격이 4초 안에 근처 적을 맞히는지"에서 실패했다. 이 테스트만 네 번 다시 돌리면 세 번 통과했다. 이전부터 흔들리던 테스트다(위 "대화 연출"의 확인 참고).
+  - 컴파일 오류와 경고는 0이다.
+- 미리보기(Edit Mode 렌더링, 실제 실행과 같은 View 메서드로 만든 한 순간): `Previews/10_Countdown_Pop.jpg`, `11_Countdown_Start.jpg`, `12_Battle_Warning.jpg`, `13_Result_Counting.jpg`. 배경은 미리보기 씬의 편집 시점 캡처다.
+- 확인하지 못한 것: 실제 Play에서의 움직임과 체감(크기, 속도, 번쩍임 세기), 다른 해상도에서의 겹침, FPS.
+- 수동 확인 절차: `Main.unity`에서 Play → Start → Skip → 숫자가 커졌다 줄어드는지와 START에서 화면이 한 번 옅게 번쩍이는지 본다. 전투에서 적을 13번 잡아 게이지를 채우고 육각 틀이 맥동하는지, E로 쓰면 멈추는지 본다. 남은 시간이 10초가 되면 타이머가 빨갛게 바뀌는지 본다(기다리기 어려우면 `CombatSettings`의 `roundDuration`을 15로 줄인다). 결과 화면에서 숫자가 오른 뒤 Retry가 맥동하는지 본다.
+- 이번에 하지 않은 것: 게이지의 키 안내(8절 "Skill Input Icon 또는 Label"). 특수 공격 키가 정해지지 않았다. 지금 코드는 E(범위 공격, 게이지 소모)이고, `WH_Dodge` 브랜치의 Q 스킬은 게이지를 쓰지 않는다. 키와 게이지 연결이 정해진 뒤에 넣는다.
 
 ## 함께 발견한 적 시스템 문제(수정하지 않음)
 
