@@ -68,8 +68,17 @@ MonoBehaviour:
   canvasGroup: {fileID: 275404426810695724}
   numberText: {fileID: 6461203148932980483}
   readyText: {fileID: 840089649051941584}
+  numberFrame: {fileID: 1443479066011673010}
   stepDuration: 0.8
   startDuration: 0.55
+  numberPopScale: 1.55
+  numberPopSeconds: 0.22
+  numberFadeOutSeconds: 0.22
+  numberEndAlpha: 0.2
+  startPopScale: 1.5
+  startPopSeconds: 0.2
+  startFlashSeconds: 0.35
+  startFlashOpacity: 0.06
 --- !u!1 &3083089030097443128
 GameObject:
   m_ObjectHideFlags: 0
