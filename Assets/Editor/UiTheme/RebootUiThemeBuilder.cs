@@ -237,6 +237,36 @@ public static class RebootUiThemeBuilder
         catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
     }
 
+    // 연출 조절값(카운트다운·HUD·결과 View에 새로 생긴 필드)을 프리팹에 적는다. 다른 내용은 바꾸지 않는다.
+    // 프리팹에 값이 적혀 있지 않으면 Unity는 그 프리팹을 가져온 시점의 코드 기본값을 쓴다. 그래서 나중에 코드의
+    // 기본값만 바꾸면 이미 가져온 컴퓨터에는 반영되지 않아 컴퓨터마다 값이 달라진다. 값은 프리팹에 두고 Inspector에서 조절한다.
+    // 실행: -executeMethod RebootUiThemeBuilder.SaveViewSettingsBatch
+    public static void SaveViewSettingsBatch()
+    {
+        try
+        {
+            foreach (string name in new[] { "Countdown", "Battle", "Result" })
+            {
+                string path = PrefabRoot + name + ".prefab";
+                // 이전에 가져올 때 굳은 기본값이 섞이지 않도록 먼저 다시 가져온다.
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                GameObject root = PrefabUtility.LoadPrefabContents(path);
+                try
+                {
+                    root.GetComponent<UIScreenView>()?.AutoBind();
+                    PrefabUtility.SaveAsPrefabAsset(root, path);
+                }
+                finally
+                {
+                    PrefabUtility.UnloadPrefabContents(root);
+                }
+            }
+            Debug.Log("[RebootUI] View settings saved into Countdown, Battle and Result prefabs.");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
+    }
+
     // 대화 화면의 노아(왼쪽)·K-7(오른쪽) 초상화. 위치와 크기는 팀 원래 빌더(GameDemoUiPrefabBuilder.BuildDialogue)의 값이다.
     // 대사 상자 뒤에 그려지고 클릭은 가로채지 않는다. 이미 있으면 배치만 다시 맞춘다(여러 번 실행해도 같다).
     private static void EnsureDialogueLayout(GameObject root)
@@ -700,17 +730,21 @@ public static class RebootUiThemeBuilder
                 bg.GetComponent<RawImage>().texture = backdrop;
             }
 
-            foreach (string name in Prefabs)
+            // 화면별 기본 모습에 이어, 연출 도중의 한 순간(EffectFrames)도 같은 방식으로 찍는다.
+            var shots = new List<(string prefab, string sample)>();
+            foreach (string name in Prefabs) shots.Add((name, name));
+            shots.AddRange(EffectFrames);
+            foreach ((string prefabName, string sample) in shots)
             {
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabRoot + name + ".prefab");
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabRoot + prefabName + ".prefab");
                 var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvasGo.transform);
                 var rect = (RectTransform)instance.transform;
                 rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = rect.offsetMax = Vector2.zero;
                 instance.SetActive(true);
-                FillSample(name, instance);
+                FillSample(sample, instance);
                 Canvas.ForceUpdateCanvases();
                 cam.Render();
-                SavePng(rt, Path.Combine(dir, $"ui_{name}.png"));
+                SavePng(rt, Path.Combine(dir, $"ui_{sample}.png"));
                 Object.DestroyImmediate(instance);
             }
             cam.targetTexture = null;
@@ -768,8 +802,49 @@ public static class RebootUiThemeBuilder
             case "Result":
                 Set("FinalScoreValue", "012540"); Set("KillsValue", "78"); Set("MaxComboValue", "24"); Set("HitsTakenValue", "3"); Set("SpecialUsesValue", "4");
                 break;
+
+            // 아래는 연출 도중의 한 순간이다. 실제 실행과 같은 View 메서드로 자세를 만든다.
+            case "Countdown_Pop":
+                var pop = root.GetComponent<CountdownView>();
+                pop.AutoBind();
+                pop.ShowNumber(2);
+                pop.AnimateNumber(0.05f);
+                break;
+            case "Countdown_Start":
+                var start = root.GetComponent<CountdownView>();
+                start.AutoBind();
+                typeof(CountdownView).GetMethod("EnsureFlash", Any)?.Invoke(start, null);
+                start.ShowStart();
+                start.AnimateStart(0.05f);
+                break;
+            case "Battle_Warning":
+                var warning = root.GetComponent<BattleView>();
+                warning.AutoBind();
+                typeof(BattleView).GetMethod("EnsureSpecialGauge", Any)?.Invoke(warning, null);
+                warning.RenderScore(12540);
+                warning.RenderTimer(7f);
+                warning.UpdateHud(0.03f);   // 초가 바뀐 직후: 타이머가 살짝 커져 있다
+                warning.RenderGauge(1f);
+                warning.UpdateHud(0.33f);   // 게이지 맥동이 가장 커진 순간에 가깝다
+                break;
+            case "Result_Counting":
+                var counting = root.GetComponent<ResultView>();
+                counting.AutoBind();
+                var countUp = new ResultCountUp();
+                countUp.Begin(new ResultUiModel(12540, 78, 24, 3, 4), counting.ScoreCountSeconds, counting.StatCountSeconds,
+                    counting.StatDelaySeconds, counting.StatStaggerSeconds);
+                countUp.Tick(0.55f);
+                for (int field = 0; field < ResultCountUp.FieldCount; field++)
+                    counting.RenderValue(field, countUp.Shown(field));
+                break;
         }
     }
+
+    // 연출 미리보기: (프리팹, 예시 이름). 결과 파일은 ui_<예시 이름>.png다.
+    private static readonly (string prefab, string sample)[] EffectFrames =
+    {
+        ("Countdown", "Countdown_Pop"), ("Countdown", "Countdown_Start"), ("Battle", "Battle_Warning"), ("Result", "Result_Counting"),
+    };
 
     private static void SavePng(RenderTexture rt, string path)
     {
