@@ -17,6 +17,24 @@ public sealed class BattleView : UIScreenView
     [SerializeField, Min(0.05f)] private float hitGlitchDuration = 0.18f;
     [SerializeField, Range(0f, 1.5f)] private float hitGlitchStrength = 1f;
     [SerializeField, Min(0f)] private float hudShakePixels = 8f;
+    // 남은 시간과 준비된 게이지를 눈에 띄게 하는 강조. 모두 임시값이며 unscaled time으로 재생한다.
+    [Header("HUD emphasis - provisional")]
+    // 남은 시간이 이 값(초) 이하로 표시되면 타이머를 경고색으로 바꾼다. 0이면 쓰지 않는다.
+    [SerializeField, Min(0f)] private float timerWarningSeconds = 10f;
+    [SerializeField, Min(1f)] private float timerTickScale = 1.14f;
+    [SerializeField, Min(0f)] private float timerTickSeconds = 0.25f;
+    // 게이지가 가득 찬 동안의 맥동. 속도가 0이거나 크기가 1이면 쓰지 않는다.
+    [SerializeField, Min(0f)] private float gaugePulseHz = 1.4f;
+    [SerializeField, Min(1f)] private float gaugePulseScale = 1.08f;
+    private Color _timerBaseColor;
+    private Vector3 _timerBaseScale;
+    private bool _timerStyleCached;
+    private bool _timerWarning;
+    private float _timerTickElapsed = -1f;
+    private RectTransform _gaugePulseTarget;
+    private Vector3 _gaugeBaseScale;
+    private bool _gaugeFull;
+    private float _gaugePulsePhase;
     private Image _hitFlash;
     private Sprite _hitEdgeSprite;
     private Texture2D _hitEdgeTexture;
@@ -130,6 +148,23 @@ public sealed class BattleView : UIScreenView
         }
     }
 
+    // 타이머 경고의 초 단위 튐과 가득 찬 게이지의 맥동. Battle에서만 호출되므로 Paused에서는 그대로 멈춘다.
+    public void UpdateHud(float unscaledDeltaTime)
+    {
+        if (_timerTickElapsed >= 0f && timerValue != null)
+        {
+            _timerTickElapsed += unscaledDeltaTime;
+            timerValue.rectTransform.localScale = _timerBaseScale * UiMotion.Pop(_timerTickElapsed, timerTickSeconds, timerTickScale);
+            if (_timerTickElapsed >= timerTickSeconds) _timerTickElapsed = -1f;
+        }
+        if (_gaugeFull && _gaugePulseTarget != null && gaugePulseHz > 0f && gaugePulseScale > 1f)
+        {
+            _gaugePulsePhase += unscaledDeltaTime * gaugePulseHz;
+            if (_gaugePulsePhase >= 1f) _gaugePulsePhase -= Mathf.Floor(_gaugePulsePhase);
+            _gaugePulseTarget.localScale = _gaugeBaseScale * (1f + (gaugePulseScale - 1f) * UiMotion.Pulse01(_gaugePulsePhase));
+        }
+    }
+
     private void StopGlitch()
     {
         _glitchRemaining = 0f;
@@ -213,12 +248,31 @@ public sealed class BattleView : UIScreenView
             _gaugePercent.SetText("{0:0}%", percent);
             _gaugePercent.color = full ? UiPalette.Accent : UiPalette.Ink;
         }
+        if (full != _gaugeFull)
+        {
+            // 가득 차면 UpdateHud가 맥동을 시작하고, 쓰거나 초기화되면 원래 크기로 돌아간다.
+            _gaugeFull = full;
+            _gaugePulsePhase = 0f;
+            if (_gaugePulseTarget != null) _gaugePulseTarget.localScale = _gaugeBaseScale;
+        }
+    }
+
+    // 맥동할 대상을 한 번만 정한다(코드로 만든 게이지는 틀 전체, 프리팹에 놓인 게이지는 채움 이미지).
+    private void BindGaugePulseTarget(RectTransform target)
+    {
+        if (_gaugePulseTarget != null || target == null) return;
+        _gaugePulseTarget = target;
+        _gaugeBaseScale = target.localScale;
     }
 
     // 통신 허브와 같은 육각 윤곽 게이지. 채워지지 않은 부분과 퍼센트를 함께 읽을 수 있게 한다.
     private void EnsureSpecialGauge()
     {
-        if (specialGaugeFill != null) return;
+        if (specialGaugeFill != null)
+        {
+            BindGaugePulseTarget(specialGaugeFill.rectTransform);
+            return;
+        }
         const int size = 128;
         _gaugeRingTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
         var pixels = new Color32[size * size];
@@ -237,10 +291,12 @@ public sealed class BattleView : UIScreenView
         var frameObject = new GameObject("SpecialGaugeFrame", typeof(RectTransform), typeof(Image));
         var frameRect = (RectTransform)frameObject.transform;
         frameRect.SetParent(transform, false);
+        // 화면 아래에서 35px 띄운 170px 틀. 맥동이 가운데를 기준으로 커지도록 기준점을 중앙에 둔다.
         frameRect.anchorMin = frameRect.anchorMax = new Vector2(0.5f, 0f);
-        frameRect.pivot = new Vector2(0.5f, 0f);
-        frameRect.anchoredPosition = new Vector2(0f, 35f);
+        frameRect.pivot = new Vector2(0.5f, 0.5f);
+        frameRect.anchoredPosition = new Vector2(0f, 35f + 85f);
         frameRect.sizeDelta = new Vector2(170f, 170f);
+        BindGaugePulseTarget(frameRect);
         Image frame = frameObject.GetComponent<Image>();
         frame.sprite = _gaugeRingSprite;
         frame.color = UiPalette.WithAlpha(UiPalette.Muted, 0.38f);
@@ -297,6 +353,31 @@ public sealed class BattleView : UIScreenView
         if (second == _lastRenderedSecond) return;
         _lastRenderedSecond = second;
         SetText(timerValue, FormatTime(_lastRemainingSeconds));
+        ApplyTimerWarning(timerWarningSeconds > 0f && second <= timerWarningSeconds);
+    }
+
+    // 표시되는 초가 바뀔 때만 불린다. 경고 구간에서는 색을 바꾸고 초마다 한 번 튀게 한다.
+    private void ApplyTimerWarning(bool warning)
+    {
+        if (timerValue == null) return;
+        if (!_timerStyleCached)
+        {
+            _timerBaseColor = timerValue.color;
+            _timerBaseScale = timerValue.rectTransform.localScale;
+            _timerStyleCached = true;
+        }
+        if (warning != _timerWarning)
+        {
+            _timerWarning = warning;
+            timerValue.color = warning ? UiPalette.Alert : _timerBaseColor;
+        }
+        if (warning && timerTickSeconds > 0f && timerTickScale > 1f)
+            _timerTickElapsed = 0f;
+        else
+        {
+            _timerTickElapsed = -1f;
+            timerValue.rectTransform.localScale = _timerBaseScale;
+        }
     }
 
     public float GetRemainingSeconds()

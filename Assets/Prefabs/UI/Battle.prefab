@@ -423,6 +423,14 @@ MonoBehaviour:
   scoreFeedbackDuration: 0.3
   hitFlashDuration: 0.35
   hitFlashOpacity: 0.18
+  hitGlitchDuration: 0.18
+  hitGlitchStrength: 1
+  hudShakePixels: 8
+  timerWarningSeconds: 10
+  timerTickScale: 1.14
+  timerTickSeconds: 0.25
+  gaugePulseHz: 1.4
+  gaugePulseScale: 1.08
 --- !u!1 &7033980877563908675
 GameObject:
   m_ObjectHideFlags: 0

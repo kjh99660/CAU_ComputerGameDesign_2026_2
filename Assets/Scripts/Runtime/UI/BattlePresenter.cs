@@ -27,8 +27,10 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
 
     public override void Update(float deltaTime, float unscaledDeltaTime)
     {
-        if (CurrentState == GameState.Battle)
-            View.UpdateFeedback(deltaTime);
+        if (CurrentState != GameState.Battle)
+            return;
+        View.UpdateFeedback(deltaTime);
+        View.UpdateHud(unscaledDeltaTime);
     }
 
 }
