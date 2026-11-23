@@ -15,6 +15,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private readonly List<EnemyAgent> _specialCandidates = new();
     private EnemyRegistry _registry;
     private EnemySpatialGrid _grid;
+    private EnemyPerfProbe _probe;
     private EnemyPool _pool;
     private PhysicsPauseManager _physics;
     private System.Random _random;
@@ -28,6 +29,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
     public EnemySettings Settings => settings;
     public int ActiveEnemyCount => _registry?.Count ?? 0;
+    // 성능 비교용 창구(공간 분할 켜기·끄기, 후보 수, 시간). 구성 전에는 null이다. 기본은 공간 분할이고 측정은 꺼져 있다.
+    public EnemyPerfProbe Perf => _probe;
+    // 활성 Enemy 상한. 일반 플레이에서는 설정값이고, 성능 실험 중에만 측정기가 더 큰 값을 건다.
+    private int MaximumEnemies => _probe != null ? _probe.MaximumEnemies(settings.MaximumEnemyCount) : settings.MaximumEnemyCount;
     public Transform TargetTransform => target;
     public event Action<int, bool> HitAccepted;
     public event Action<Vector3, Vector3, int> HitPresented;
@@ -87,14 +92,14 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
     public void UpdateSpawning(float deltaTime, int tick)
     {
-        if (_stopRequested || _state != GameState.Battle || tick != _tick || _registry.Count >= settings.MaximumEnemyCount)
+        if (_stopRequested || _state != GameState.Battle || tick != _tick || _registry.Count >= MaximumEnemies)
             return;
 
         _spawnElapsed += deltaTime;
-        while (_spawnElapsed >= settings.SpawnInterval && _registry.Count < settings.MaximumEnemyCount)
+        while (_spawnElapsed >= settings.SpawnInterval && _registry.Count < MaximumEnemies)
         {
             _spawnElapsed -= settings.SpawnInterval;
-            int count = Mathf.Min(settings.SpawnCountPerWave, settings.MaximumEnemyCount - _registry.Count);
+            int count = Mathf.Min(settings.SpawnCountPerWave, MaximumEnemies - _registry.Count);
             for (int i = 0; i < count; i++)
                 SpawnOne(tick);
         }
@@ -105,6 +110,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         if (_stopRequested || _state != GameState.Battle || tick != _tick)
             return;
 
+        long started = _probe.BeginTiming();
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         Vector3 targetPosition = TargetPosition;
         for (int i = 0; i < active.Count; i++)
@@ -113,10 +119,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             if (enemy == null || enemy.ActiveTick != tick)
                 continue;
 
-            _grid.Query(enemy.transform.position, settings.SeparationDistance, _candidates);
-            enemy.RunAI(targetPosition, _candidates, settings, deltaTime, tick);
-            _grid.AddOrUpdate(enemy);
+            IReadOnlyList<EnemyAgent> neighbours = _probe.Collect(enemy.transform.position, settings.SeparationDistance, _candidates);
+            enemy.RunAI(targetPosition, neighbours, settings, deltaTime, tick);
+            _probe.Track(enemy);
         }
+        _probe.EndAiTiming(started);
     }
 
     public void UpdateActions(float deltaTime, int tick)
@@ -162,12 +169,13 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public int ApplySpecial(Vector3 center, float radius, float forceMultiplier, int tick, bool chargeGauge)
     {
         if (_state != GameState.Battle || _stopRequested || tick != _tick || _grid == null) return 0;
+        long started = _probe.BeginTiming();
         float safeRadius = Mathf.Max(0f, radius);
-        _grid.Query(center, safeRadius, _specialCandidates);
+        IReadOnlyList<EnemyAgent> candidates = _probe.Collect(center, safeRadius, _specialCandidates, special: true);
         int hits = 0;
-        for (int i = 0; i < _specialCandidates.Count; i++)
+        for (int i = 0; i < candidates.Count; i++)
         {
-            EnemyAgent enemy = _specialCandidates[i];
+            EnemyAgent enemy = candidates[i];
             if (enemy == null) continue;
             Vector3 offset = enemy.transform.position - center;
             offset.y = 0f;
@@ -175,6 +183,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
                 hits++;
         }
         _specialCandidates.Clear();
+        _probe.EndSpecialTiming(started);
         return hits;
     }
 
@@ -200,6 +209,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _poolRoot.SetParent(transform, false);
         _registry = new EnemyRegistry();
         _grid = new EnemySpatialGrid(settings.SpatialCellSize);
+        _probe = new EnemyPerfProbe(_registry, _grid);
         _pool = new EnemyPool(enemyPrefab, this, _poolRoot);
         _configured = true;
     }
@@ -220,7 +230,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
     private void SpawnOne(int tick)
     {
-        if (_registry.Count >= settings.MaximumEnemyCount)
+        if (_registry.Count >= MaximumEnemies)
             return;
 
         double angle = _random.NextDouble() * Math.PI * 2d;
@@ -235,14 +245,14 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         EnemyAgent enemy = _pool.Get();
         enemy.Activate(position, tick);
         _registry.Add(enemy);
-        _grid.AddOrUpdate(enemy);
+        _probe.Track(enemy);
         _physics.Register(enemy.Body, tick);
     }
 
     private void Release(EnemyAgent enemy)
     {
         _physics.Unregister(enemy.Body);
-        _grid.Remove(enemy);
+        _probe.Untrack(enemy);
         _registry.Remove(enemy);
         _pool.Release(enemy);
     }
@@ -254,7 +264,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         for (int i = active.Count - 1; i >= 0; i--)
             Release(active[i]);
-        _grid.Clear();
+        _probe.Clear();
     }
 
     private void SetAllIdle(int tick)
