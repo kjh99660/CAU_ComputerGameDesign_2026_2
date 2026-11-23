@@ -1,0 +1,39 @@
+key,value
+label,mac-player-windowed-sweep
+captured_at_utc,2026-11-23T12:38:17Z
+environment_class,player-release
+unity_version,6000.3.24f1
+platform,OSXPlayer
+operating_system,Mac OS X 26.6.2
+device_model,"Mac17,9"
+processor,Apple M5 Pro
+processor_count,15
+system_memory_mb,24576
+graphics_device,Apple M5 Pro
+graphics_api,Metal
+graphics_memory_mb,18186
+quality_level,PC
+is_editor,0
+is_batchmode,0
+is_development_build,0
+scripting_backend,Mono
+screen,1280x720
+stopwatch_high_resolution,1
+stopwatch_frequency_hz,10000000
+candidate_counts_valid,1
+cpu_time_valid,1
+cpu_time_note,Stopwatch wall time of the measured code on this machine only
+frame_metrics_valid,1
+frame_metrics_note,
+measurement_kind,round (actual round in the game scene)
+scene,Assets/Scenes/Main.unity
+capture_framerate,60
+target_enemies,200
+enemy_cap_in_settings,100
+experiment_enemy_cap,200
+experiment_enemy_cap_note,performance experiment only: more active enemies than the game allows in normal play
+window_frames,900
+special_frames,300 500 700
+unity_random_seed,20261123
+succeeded,1
+error,

@@ -1,0 +1,36 @@
+key,value
+label,mac-editor-batch-sweep
+captured_at_utc,2026-11-23T12:37:16Z
+environment_class,editor-batchmode
+unity_version,6000.3.24f1
+platform,OSXEditor
+operating_system,Mac OS X 26.6.2
+device_model,"Mac17,9"
+processor,Apple M5 Pro
+processor_count,15
+system_memory_mb,24576
+graphics_device,Apple M5 Pro
+graphics_api,Metal
+graphics_memory_mb,18186
+quality_level,PC
+is_editor,1
+is_batchmode,1
+is_development_build,1
+scripting_backend,Mono
+screen,640x480
+stopwatch_high_resolution,1
+stopwatch_frequency_hz,10000000
+candidate_counts_valid,1
+cpu_time_valid,1
+cpu_time_note,Stopwatch wall time of the measured code on this machine only
+frame_metrics_valid,0
+frame_metrics_note,batchmode: frames are not presented to a display; frame time / FPS / render counters are not recorded
+measurement_kind,micro (isolated candidate search on a fixed trace; no game loop or rendering)
+trace_file,Docs/Perf/EnemyAb/trace/round300.trace.txt
+trace_source,recorded round: scene=Assets/Scenes/Main.unity tick=1 spawnSeed=112648 pass=verify-grid enemies=300
+cell_size,4
+separation_distance,2
+special_radius,6
+special_frames,75 150 225
+repeats,21
+results_equal_between_modes,1
