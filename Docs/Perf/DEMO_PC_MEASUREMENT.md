@@ -145,9 +145,15 @@ PC마다 아래를 적는다. 요약 파일(`round_*.txt`)에 대부분 들어 �
 
 - 자동 테스트: EditMode(통계 정의, 글 버퍼, 기록 파일 모양, 인자, 실행 파일 내용, 오버레이의 AI 시간 측정 스위치, 빌드 메뉴 경로)와 PlayMode(실제 씬에서 오버레이, F3~F5 키 입력, 검색 방식 전환과 Reset, 상한 순환과 Reset, 라운드 기록 쓰기와 버리기, 기록을 끈 실행, 쓰지 못한 기록의 표시, 벤치마크 한 판). PlayMode 테스트의 벤치마크는 라운드 길이를 줄여 Editor에서 돌린 것이다. 오버레이와 벤치마크가 A/B 측정 판 표시(`MeasureTime`, `ShadowVerify`)와 실험용 상한을 켜지 않는다는 것도 확인한다.
 - `run_benchmark.command`의 "이번 실행이 새로 쓴 요약만 보여 주기"는 가짜 `open`과 임시 홈 폴더로 세 경우(결과 폴더가 없음, 예전 요약만 있고 새 기록이 없음, 새 기록이 생김)를 돌려 봤다. 게임은 실행하지 않았다. `run_benchmark.bat`는 Windows가 없어 내용만 확인했다.
-- `RebootBuild.BuildMacBatch`로 Mac 플레이어(Intel과 Apple silicon 공용 앱, 약 236MB)와 `run_benchmark.command`가 만들어지는 것. 만든 앱과 `run_benchmark.command`는 실행해 보지 않았다.
-- `RebootBuild.BuildWindowsBatch`로 Windows 플레이어(`REBOOT.exe`와 같은 폴더의 파일들, 약 219MB)와 CRLF 줄 끝의 `run_benchmark.bat`가 만들어지는 것. 모듈이 없을 때의 경로(설치 방법을 알리고 아무것도 빌드하지 않은 채 실패로 끝남)는 모듈이 없다고 가정한 확인용 코드로 따로 돌려 봤다.
+- `RebootBuild.BuildMacBatch`로 Mac 플레이어(Intel과 Apple silicon 공용 앱)와 `run_benchmark.command`가 만들어지는 것. 2026-11-25에는 Neon City만 넣은 빌드(240.9MB)를 `run_benchmark.command`로 한 판 돌려, 라운드가 저절로 시작해 결과 화면까지 가고 기록을 쓴 뒤 앱이 닫히는 것까지 확인했다(아래 참고 측정).
+- `RebootBuild.BuildWindowsBatch`로 Windows 플레이어(`REBOOT.exe`와 같은 폴더의 파일들, Neon City 빌드 222.7MB)와 CRLF 줄 끝의 `run_benchmark.bat`가 만들어지는 것. 모듈이 없을 때의 경로(설치 방법을 알리고 아무것도 빌드하지 않은 채 실패로 끝남)는 모듈이 없다고 가정한 확인용 코드로 따로 돌려 봤다.
 - **Windows에서 `REBOOT.exe`와 `run_benchmark.bat`를 실행해 보지는 못했다.** 시연 PC에서 처음 실행할 때 결과 폴더에 `round_*.txt`가 생기는지 먼저 확인한다.
+
+### Mac 참고 측정 (시연 PC 값이 아니다)
+
+- 2026-11-25, `Builds/Mac/REBOOT.app`(Neon City 한 무대, release)을 `./run_benchmark.command -screen-fullscreen 0 -screen-width 1920 -screen-height 1080`으로 한 판 돌렸다. Apple M5 Pro(Mac17,9), macOS 26.6.2, 1920x1080 창 모드, 120Hz, vSync 꺼짐, 품질 PC.
+- 결과: 평균 208.3 FPS, 1% low 142.9 FPS, 최저 20.9 FPS(가장 느린 한 프레임 47.90ms). Battle·Finishing 102.51초 동안 21,357프레임. 적 평균 62명, 최대 100명, 격자 탐색.
+- 한계: 아무도 조작하지 않은 판이라 공격·타격 효과·부서진 파츠가 거의 없었다. Mac이고 창 모드다. 그래서 시연 PC 판정(20fps 이상)에는 쓰지 않는다. 최저 FPS는 한 프레임의 값이고, 그 프레임이 언제 왜 느렸는지(셰이더 첫 컴파일 등)는 확인하지 않았다.
 
 ## 9. 관련 코드
 
