@@ -31,6 +31,15 @@ public sealed class BattleView : UIScreenView
     // 게이지가 가득 찬 동안의 맥동. 속도가 0이거나 크기가 1이면 쓰지 않는다.
     [SerializeField, Min(0f)] private float gaugePulseHz = 1.4f;
     [SerializeField, Min(1f)] private float gaugePulseScale = 1.08f;
+    // 콤보 표시, 전투 중 무전 자막, 게이지 옆 키 표시(E 특수 공격, Q 스킬). 프리팹의 같은 이름 요소를 쓴다.
+    [Header("HUD additions")]
+    [SerializeField] private HudComboCounter comboCounter;
+    [SerializeField] private HudRadioSubtitle radioSubtitle;
+    [SerializeField] private HudKeyBadge specialKeyBadge;
+    [SerializeField] private HudKeyBadge skillKeyBadge;
+    private TMP_FontAsset _radioFont;
+    private bool _radioFontAcquired;
+    private string _radioPrewarmText;
     private Color _timerBaseColor;
     private Vector3 _timerBaseScale;
     private bool _timerStyleCached;
@@ -68,6 +77,10 @@ public sealed class BattleView : UIScreenView
         if (scoreValue == null) scoreValue = FindNamed<TMP_Text>("ScoreValue");
         if (timerValue == null) timerValue = FindNamed<TMP_Text>("TimerValue");
         if (specialGaugeFill == null) specialGaugeFill = FindNamed<Image>("SpecialGaugeFill");
+        if (comboCounter == null) comboCounter = FindNamed<HudComboCounter>("ComboCounter");
+        if (radioSubtitle == null) radioSubtitle = FindNamed<HudRadioSubtitle>("RadioSubtitle");
+        if (specialKeyBadge == null) specialKeyBadge = FindNamed<HudKeyBadge>("SpecialKeyBadge");
+        if (skillKeyBadge == null) skillKeyBadge = FindNamed<HudKeyBadge>("SkillKeyBadge");
     }
 
     private void OnEnable()
@@ -77,7 +90,47 @@ public sealed class BattleView : UIScreenView
         _restPosition = _rect.anchoredPosition;
         EnsureSpecialGauge();
         EnsureHitFlash();
+        EnsureRadioFont();
         if (pauseButton != null) pauseButton.onClick.AddListener(HandlePauseClicked);
+    }
+
+    // 콤보: 보이는 동안에만 튀고 사라지는 연출을 한다(Pause에서는 UpdateHud가 불리지 않아 그대로 멈춘다).
+    public void RenderCombo(in ComboUiModel model)
+    {
+        if (comboCounter != null) comboCounter.Render(model, isActiveAndEnabled);
+    }
+
+    // 전투 중 무전 한 줄. 정해진 시간 동안 보였다가 사라진다(UpdateHud).
+    public void ShowRadio(string speaker, string text, bool leftSpeaker)
+    {
+        if (radioSubtitle == null) return;
+        EnsureRadioFont();
+        radioSubtitle.Show(speaker, text, leftSpeaker);
+    }
+
+    // 무전 대사에 쓰일 글자. 폰트를 빌릴 때 미리 아틀라스에 넣어 자막이 뜨는 순간 글자를 굽지 않게 한다.
+    public void PrepareRadioText(string characters)
+    {
+        _radioPrewarmText = characters;
+        if (_radioFont != null && !string.IsNullOrEmpty(characters))
+            _radioFont.TryAddCharacters(characters, out string _);
+    }
+
+    // 스킬(Q) 재사용 대기(0 = 준비됨). 지금 스킬에는 대기 시간이 없어 Q는 늘 준비된 모습이다.
+    public void RenderSkillCooldown(float remainingNormalized)
+    {
+        if (skillKeyBadge != null) skillKeyBadge.SetCooldown(remainingNormalized);
+    }
+
+    private void EnsureRadioFont()
+    {
+        if (_radioFont != null || radioSubtitle == null) return;
+        _radioFont = UiDialogueFont.Acquire();
+        _radioFontAcquired = _radioFont != null;
+        if (_radioFont == null) return;
+        radioSubtitle.SetFont(_radioFont);
+        if (!string.IsNullOrEmpty(_radioPrewarmText))
+            _radioFont.TryAddCharacters(_radioPrewarmText, out string _);
     }
 
     private void OnDisable()
@@ -101,6 +154,10 @@ public sealed class BattleView : UIScreenView
     {
         ClearFeedback();
         Render(new BattleUiModel(0, 100f, 0f));
+        // 이전 판의 콤보와 무전이 남지 않는다. Q는 준비된 모습으로 돌아간다(E는 위 게이지 0으로 흐려진다).
+        if (comboCounter != null) comboCounter.Clear();
+        if (radioSubtitle != null) radioSubtitle.Clear();
+        if (skillKeyBadge != null) skillKeyBadge.SetCooldown(0f);
     }
 
     public void PlayScoreFeedback(int delta)
@@ -187,6 +244,13 @@ public sealed class BattleView : UIScreenView
             if (_gaugePulsePhase >= 1f) _gaugePulsePhase -= Mathf.Floor(_gaugePulsePhase);
             _gaugePulseTarget.localScale = _gaugeBaseScale * (1f + (gaugePulseScale - 1f) * UiMotion.Pulse01(_gaugePulsePhase));
         }
+        // 콤보·무전·키 표시는 전투 시계와 함께 읽히는 연출이라 프레임 고정 캡처에서도 시계와 같은 걸음으로 간다
+        // (FeedbackTime: 평소에는 unscaled time, Time.captureDeltaTime이 있으면 그 값).
+        float feedbackDelta = FeedbackTime.RealDelta(unscaledDeltaTime);
+        if (comboCounter != null) comboCounter.Animate(feedbackDelta);
+        if (radioSubtitle != null) radioSubtitle.Animate(feedbackDelta);
+        if (specialKeyBadge != null) specialKeyBadge.Animate(feedbackDelta);
+        if (skillKeyBadge != null) skillKeyBadge.Animate(feedbackDelta);
     }
 
     private void StopGlitch()
@@ -286,6 +350,8 @@ public sealed class BattleView : UIScreenView
             _gaugePulsePhase = 0f;
             if (_gaugePulseTarget != null) _gaugePulseTarget.localScale = _gaugeBaseScale;
         }
+        // 특수 공격 키(E)는 게이지가 가득 찬 동안에만 켜진다.
+        if (specialKeyBadge != null) specialKeyBadge.SetState(full ? HudKeyBadge.State.Lit : HudKeyBadge.State.Dim);
     }
 
     // 맥동할 대상을 한 번만 정한다(코드로 만든 게이지는 틀 전체, 프리팹에 놓인 게이지는 채움 이미지).
@@ -375,6 +441,9 @@ public sealed class BattleView : UIScreenView
         if (_gaugeRingTexture != null) Destroy(_gaugeRingTexture);
         if (_hitEdgeSprite != null) Destroy(_hitEdgeSprite);
         if (_hitEdgeTexture != null) Destroy(_hitEdgeTexture);
+        if (_radioFontAcquired) UiDialogueFont.Release();
+        _radioFontAcquired = false;
+        _radioFont = null;
     }
 
     public void RenderTimer(float remainingSeconds)

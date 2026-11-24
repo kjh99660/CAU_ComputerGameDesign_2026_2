@@ -13,6 +13,7 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
     private bool _hasState;
     private int _currentTick;
     private GameState _currentState;
+    private ScreenTransition _transition;
 
     public readonly DialoguePresenter Dialogue;
     public readonly BattlePresenter Battle;
@@ -27,7 +28,7 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
         var start = new StartPresenter(startView, requests);
         Dialogue = new DialoguePresenter(dialogueView, requests, dialogueData);
         var countdown = new CountdownPresenter(countdownView, requests);
-        Battle = new BattlePresenter(battleView, requests);
+        Battle = new BattlePresenter(battleView, requests, dialogueData);
         var pause = new PausePresenter(pauseView, requests);
         var retry = new RetryConfirmationPresenter(retryConfirmationView, requests);
         _retry = retry;
@@ -59,7 +60,11 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
         }
 
         foreach (IGameLoopSystem presenter in _presenters) presenter.OnGameStateChanged(notification);
+        _transition?.ApplyState(notification);
     }
+
+    // TransitionLayer 페이드도 화면들과 같은 상태 알림을 받는다(UIRoot.Configure가 연결한다).
+    public void AttachTransition(ScreenTransition transition) => _transition = transition;
 
     public void Update(float deltaTime, float unscaledDeltaTime)
     {

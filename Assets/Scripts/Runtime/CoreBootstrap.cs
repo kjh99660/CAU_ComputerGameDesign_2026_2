@@ -27,6 +27,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private CombatImpactFeedback _impactFeedback;
     private EnemyRemainsRuntime _remains;
     private SfxRuntime _sfx;
+    private PerfRuntime _perf;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -94,6 +95,8 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         roundResetCoordinator.RegisterParticipant(_specialFeedback);
         initializationCoordinator.RegisterParticipant(uiRoot);
         roundResetCoordinator.RegisterParticipant(uiRoot);
+        // 성능 도구: F3 오버레이(F4 이웃 검색, F5 실험용 적 상한), 라운드 FPS 기록, -rebootBenchmark 자동 측정.
+        _perf = PerfRuntime.Attach(gameObject, gameStateManager, eventManager, enemyRuntime, roundResetCoordinator);
         _physics = new PhysicsLayer(_physicsPauseManager);
         _requestProcessor = new GameRequestProcessor(gameStateManager);
         HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
@@ -174,6 +177,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _remains?.ApplyState(notification);
         _sfx?.ApplyState(notification);
         _physics.OnGameStateChanged(notification);
+        _perf?.ApplyState(notification);
     }
 
     // Bootstrap이 사라질 때 UI Presenter의 구독을 정리한다.

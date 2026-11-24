@@ -10,7 +10,7 @@ public sealed class EnemySkeletalSceneTests
     [UnityTest]
     public IEnumerator SkeletalChasePausesResumesAndResetsAfterDeath()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity");
+        yield return TestScenes.Load(TestScenes.Arena);
         EnemyRuntime runtime = null;
         EnemyAgent enemy = null;
         for (int frame = 0; frame < 60 && enemy == null; frame++)

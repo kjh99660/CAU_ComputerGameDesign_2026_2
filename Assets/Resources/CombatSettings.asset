@@ -25,3 +25,6 @@ MonoBehaviour:
   attackHeight: 1
   attackActiveStart: 0.2
   attackActiveEnd: 0.6
+  comboScoreStep: 0.05
+  comboScoreMaxBonus: 0.5
+  comboCountsSpecialKills: 1

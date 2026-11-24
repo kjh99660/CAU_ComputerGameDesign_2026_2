@@ -28,6 +28,26 @@ public readonly struct BattleUiModel
     }
 }
 
+// The combo the HUD shows (Battle and Finishing). Count 0 means there is no combo alive.
+// TimeLeft/Window are round seconds; the bar shows TimeLeftNormalized. ScoreMultiplier is 1 while the combo bonus is off.
+public readonly struct ComboUiModel
+{
+    public readonly int Count;
+    public readonly float TimeLeft;
+    public readonly float Window;
+    public readonly float ScoreMultiplier;
+
+    public ComboUiModel(int count, float timeLeft, float window, float scoreMultiplier)
+    {
+        Count = count < 0 ? 0 : count;
+        Window = window > 0f ? window : 0f;
+        TimeLeft = Mathf.Clamp(timeLeft, 0f, Window);
+        ScoreMultiplier = scoreMultiplier > 1f ? scoreMultiplier : 1f;
+    }
+
+    public float TimeLeftNormalized => Window > 0f ? TimeLeft / Window : 0f;
+}
+
 public readonly struct FinishingUiModel
 {
     public readonly int Score;

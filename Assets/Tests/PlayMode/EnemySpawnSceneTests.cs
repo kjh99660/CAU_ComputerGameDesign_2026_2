@@ -10,7 +10,7 @@ public sealed class EnemySpawnSceneTests
     [UnityTest]
     public IEnumerator MainWavesStayInConfiguredRadiusAndDoNotCopyElevatedPlayerY()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity");
+        yield return TestScenes.Load(TestScenes.Arena);
         var state = Object.FindFirstObjectByType<GameStateManager>();
         for (int frame = 0; frame < 120 && state.CurrentState != GameState.Ready; frame++) yield return null;
         Assert.AreEqual(GameState.Ready, state.CurrentState);
@@ -28,7 +28,7 @@ public sealed class EnemySpawnSceneTests
             runtime.ApplyState(GameState.Battle, state.Tick);
             controller.enabled = false;
             player.transform.position = original + new Vector3(30f, 80f, -20f);
-            runtime.UpdateSpawning(runtime.Settings.SpawnInterval, state.Tick);
+            int wave = SpawnWave(runtime, state.Tick);
             int added = 0;
             foreach (EnemyAgent enemy in Object.FindObjectsByType<EnemyAgent>(FindObjectsSortMode.None))
             {
@@ -43,7 +43,7 @@ public sealed class EnemySpawnSceneTests
                 visualOffset.y = 0f;
                 Assert.Less(visualOffset.magnitude, 2f, "The new model must remain near its spawn root.");
             }
-            Assert.AreEqual(runtime.Settings.SpawnCountPerWave, added);
+            Assert.AreEqual(wave, added);
             yield return null;
             yield return null;
             foreach (EnemyAgent enemy in Object.FindObjectsByType<EnemyAgent>(FindObjectsSortMode.None))
@@ -57,7 +57,7 @@ public sealed class EnemySpawnSceneTests
             runtime.UpdateActions(runtime.Settings.KnockbackFallbackDuration + 0.01f, state.Tick);
             runtime.UpdateActions(runtime.Settings.DeathDuration + 0.01f, state.Tick);
             Assert.IsFalse(reused.gameObject.activeSelf);
-            runtime.UpdateSpawning(runtime.Settings.SpawnInterval, state.Tick);
+            SpawnWave(runtime, state.Tick);
             Assert.IsTrue(reused.gameObject.activeSelf);
             AssertSpawn(reused, player.transform.position, spawnY, runtime.Settings);
             Assert.Less(Vector3.Distance(reused.Body.position, reused.transform.position), 0.001f);
@@ -71,6 +71,20 @@ public sealed class EnemySpawnSceneTests
             controller.enabled = true;
             runtime.ApplyState(GameState.Ready, state.Tick);
         }
+    }
+
+    // One Battle wave: due after the current spawn phase's interval, announced by warning rings and placed when the
+    // warning time is over (EnemySettings spawn phases and spawn warning). Returns how many enemies the wave brought.
+    private static int SpawnWave(EnemyRuntime runtime, int tick)
+    {
+        int before = runtime.ActiveEnemyCount;
+        runtime.UpdateSpawning(runtime.CurrentSpawnPhase.Interval, tick);
+        int wave = runtime.ActiveEnemyCount - before + runtime.PendingSpawnCount;
+        Assert.Greater(wave, 0, "A wave was due.");
+        if (runtime.PendingSpawnCount > 0)
+            runtime.UpdateSpawning(runtime.Settings.SpawnWarningSeconds, tick);
+        Assert.AreEqual(before + wave, runtime.ActiveEnemyCount, "The announced enemies appear when their warning is over.");
+        return wave;
     }
 
     private static void AssertSpawn(EnemyAgent enemy, Vector3 center, float y, EnemySettings settings)

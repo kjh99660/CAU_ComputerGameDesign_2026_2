@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "EnemySettings", menuName = "Game Demo/Enemy Settings")]
@@ -12,6 +14,30 @@ public sealed class EnemySettings : ScriptableObject
     [SerializeField, Min(1)] private int maximumEnemyCount = 100;
     [Tooltip("Height offset from the player's restored round-start position. Does not follow later player elevation.")]
     [SerializeField] private float spawnHeight = 0f;
+
+    // A difficulty curve over the round. Without phases one flat schedule (Spawn Interval, Spawn Count Per Wave,
+    // Maximum Enemy Count) runs the whole round, as before the phases existed.
+    [Header("Spawn phases - provisional")]
+    [Tooltip("Spawn schedule by battle time (the round timer's elapsed time; it holds in Pause and starts over on " +
+             "Retry). From its start second on, a phase sets the cap, the interval and the wave size; Maximum Enemy " +
+             "Count stays the upper limit. Empty: the flat schedule above for the whole round.")]
+    [SerializeField] private EnemySpawnPhase[] spawnPhases = Array.Empty<EnemySpawnPhase>();
+
+    [Header("Spawn warning - provisional")]
+    [Tooltip("Seconds a neon ring marks the floor where an enemy will appear during Battle before it appears there. " +
+             "0 spawns at once, as before. The enemies placed in Ready always appear at once.")]
+    [SerializeField, Min(0f)] private float spawnWarningSeconds = 0f;
+    [Tooltip("Radius of the warning ring (m).")]
+    [SerializeField, Min(0.1f)] private float spawnWarningRadius = 1.3f;
+    [Tooltip("Colour of a fresh warning ring (HDR, additive on the floor).")]
+    [SerializeField, ColorUsage(true, true)] private Color spawnWarningColor = new Color(2.2f, 0.16f, 0.22f, 1f);
+    [Tooltip("Colour the ring heats up to as the enemy is about to appear.")]
+    [SerializeField, ColorUsage(true, true)] private Color spawnWarningHotColor = new Color(2.4f, 0.3f, 1.3f, 1f);
+
+    [Header("Round layout")]
+    [Tooltip("On: every round draws its spawn positions and enemy variety from the first round's seeds, so a Retry " +
+             "starts with the same enemies in the same places. Off: every round (Tick) gets its own layout.")]
+    [SerializeField] private bool sameLayoutEveryRound = false;
 
     [Header("AI - provisional")]
     [SerializeField, Min(0f)] private float moveSpeed = 3.5f;
@@ -106,6 +132,22 @@ public sealed class EnemySettings : ScriptableObject
     public float MaximumSpawnDistance => Mathf.Max(minimumSpawnDistance, maximumSpawnDistance);
     public int MaximumEnemyCount => maximumEnemyCount;
     public float SpawnHeight => spawnHeight;
+    public IReadOnlyList<EnemySpawnPhase> SpawnPhases => spawnPhases ?? Array.Empty<EnemySpawnPhase>();
+    public bool HasSpawnPhases => spawnPhases != null && spawnPhases.Length > 0;
+    // The flat schedule as one phase covering the whole round.
+    public EnemySpawnPhase FlatSpawnPhase => new EnemySpawnPhase(0f, maximumEnemyCount, spawnInterval, spawnCountPerWave);
+    public float SpawnWarningSeconds => spawnWarningSeconds;
+    public float SpawnWarningRadius => spawnWarningRadius;
+    public Color SpawnWarningColor => spawnWarningColor;
+    public Color SpawnWarningHotColor => spawnWarningHotColor;
+    public bool SameLayoutEveryRound => sameLayoutEveryRound;
+
+    // The schedule in effect at a moment of battle time: a phase, or the flat schedule when there are none.
+    public EnemySpawnPhase SpawnPhaseAt(float battleSeconds)
+    {
+        int index = EnemySpawnPhases.IndexAt(spawnPhases, battleSeconds);
+        return index >= 0 ? spawnPhases[index] : FlatSpawnPhase;
+    }
     public float MoveSpeed => moveSpeed;
     public float AttackRange => attackRange;
     public float AttackInterval => attackInterval;

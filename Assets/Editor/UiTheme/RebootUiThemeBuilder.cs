@@ -190,12 +190,7 @@ public static class RebootUiThemeBuilder
                 if (prefabName == "Start" && tmp.name == "Subtitle") { tmp.text = "COMM HUB 07  //  100s EMERGENCY REBOOT"; tmp.fontSize = 22; }
                 if (prefabName == "Start" && tmp.name == "Title") tmp.characterSpacing = 18f;
                 if (prefabName == "Start" && tmp.name == "ControlHint")
-                {
-                    tmp.textWrappingMode = TextWrappingModes.NoWrap;
-                    tmp.enableAutoSizing = true;
-                    tmp.fontSizeMin = 14f;
-                    tmp.fontSizeMax = 21f;
-                }
+                    RebootHudAdditions.StyleControlHint(tmp);   // 두 줄 조작 안내의 글자 크기(RebootHudAdditions.EnsureStart)
                 foreach (MonoBehaviour behaviour in tmp.GetComponents<MonoBehaviour>())
                     if (behaviour != null && behaviour.GetType().Name == "UiGlitchText")
                         Object.DestroyImmediate(behaviour, true);

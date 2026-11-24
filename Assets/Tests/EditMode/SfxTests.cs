@@ -19,7 +19,8 @@ public sealed class SfxTests
         var gameplay = new HashSet<SfxCue>
         {
             SfxCue.Swing, SfxCue.SwingHeavy, SfxCue.Hit, SfxCue.HitMetal, SfxCue.HitSub, SfxCue.EnemyDown,
-            SfxCue.PlayerHurt, SfxCue.PlayerGlitch, SfxCue.Dodge, SfxCue.SkillDash, SfxCue.Special, SfxCue.GaugeFull
+            SfxCue.PlayerHurt, SfxCue.PlayerGlitch, SfxCue.Dodge, SfxCue.SkillDash, SfxCue.Special, SfxCue.GaugeFull,
+            SfxCue.EnemyWindup, SfxCue.EnemyStrike
         };
         foreach (SfxCue cue in Enum.GetValues(typeof(SfxCue)))
             Assert.AreEqual(gameplay.Contains(cue), SfxCues.IsGameplay(cue), cue.ToString());

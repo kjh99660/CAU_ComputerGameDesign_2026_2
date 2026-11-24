@@ -20,6 +20,20 @@ public sealed class ResultView : UIScreenView
     // 숫자가 다 오른 뒤 Retry 버튼의 맥동. 속도가 0이거나 크기가 1이면 쓰지 않는다.
     [SerializeField, Min(0f)] private float retryPulseHz = 1.2f;
     [SerializeField, Min(1f)] private float retryPulseScale = 1.04f;
+    // 실행을 넘어 남는 최고 점수(BEST)와, 이번 판이 그것을 넘었을 때의 NEW BEST 표시.
+    [Header("Best score - provisional")]
+    [SerializeField] private TMP_Text bestScoreLabel;
+    [SerializeField] private TMP_Text bestScoreValue;
+    [SerializeField] private RectTransform newBestMark;
+    [SerializeField, Min(0f)] private float newBestPopSeconds = 0.3f;
+    [SerializeField, Min(1f)] private float newBestPopScale = 1.25f;
+    [SerializeField, Min(0f)] private float newBestPulseHz = 1.1f;
+    [SerializeField, Min(1f)] private float newBestPulseScale = 1.06f;
+
+    private int _shownBest = -1;
+    private float _newBestElapsed = -1f;
+    private Vector3 _newBestBaseScale = Vector3.one;
+    private bool _newBestScaleCached;
 
     private readonly int[] _shown = { -1, -1, -1, -1, -1 };
     private Vector3 _retryBaseScale = Vector3.one;
@@ -42,6 +56,52 @@ public sealed class ResultView : UIScreenView
         if (maxComboValue == null) maxComboValue = FindNamed<TMP_Text>("MaxComboValue");
         if (hitsTakenValue == null) hitsTakenValue = FindNamed<TMP_Text>("HitsTakenValue");
         if (specialUsesValue == null) specialUsesValue = FindNamed<TMP_Text>("SpecialUsesValue");
+        if (bestScoreLabel == null) bestScoreLabel = FindNamed<TMP_Text>("BestScoreLabel");
+        if (bestScoreValue == null) bestScoreValue = FindNamed<TMP_Text>("BestScoreValue");
+        if (newBestMark == null) newBestMark = FindNamed<RectTransform>("NewBestMark");
+    }
+
+    public bool NewBestShown => newBestMark != null && newBestMark.gameObject.activeSelf;
+
+    // 최고 점수 줄. newBest이면 NEW BEST 표시가 튀어나온 뒤 천천히 맥동한다(AnimateBest, unscaled time).
+    public void RenderBest(int best, bool newBest)
+    {
+        if (bestScoreLabel != null) bestScoreLabel.color = UiPalette.Muted;
+        if (bestScoreValue != null)
+        {
+            bestScoreValue.color = newBest ? UiPalette.Accent : UiPalette.Ink;
+            if (best != _shownBest)
+            {
+                _shownBest = best;
+                bestScoreValue.SetText("{0:000000}", best);
+            }
+        }
+        if (newBestMark == null) return;
+        if (!_newBestScaleCached)
+        {
+            _newBestBaseScale = newBestMark.localScale;
+            _newBestScaleCached = true;
+        }
+        if (newBestMark.gameObject.activeSelf != newBest) newBestMark.gameObject.SetActive(newBest);
+        _newBestElapsed = newBest ? 0f : -1f;
+        newBestMark.localScale = newBest ? _newBestBaseScale * newBestPopScale : _newBestBaseScale;
+    }
+
+    public void AnimateBest(float unscaledDeltaTime)
+    {
+        if (_newBestElapsed < 0f || newBestMark == null) return;
+        _newBestElapsed += unscaledDeltaTime;
+        float scale;
+        if (_newBestElapsed < newBestPopSeconds)
+            scale = UiMotion.Pop(_newBestElapsed, newBestPopSeconds, newBestPopScale);
+        else if (newBestPulseHz > 0f && newBestPulseScale > 1f)
+        {
+            float phase = (_newBestElapsed - newBestPopSeconds) * newBestPulseHz;
+            scale = 1f + (newBestPulseScale - 1f) * UiMotion.Pulse01(phase - Mathf.Floor(phase));
+        }
+        else
+            scale = 1f;
+        newBestMark.localScale = _newBestBaseScale * scale;
     }
 
     private void OnEnable()
@@ -108,6 +168,12 @@ public sealed class ResultView : UIScreenView
     {
         Render(new ResultUiModel(0, 0, 0, 0, 0));
         AnimateRetry(0f, false);
+        if (newBestMark != null)
+        {
+            if (_newBestScaleCached) newBestMark.localScale = _newBestBaseScale;
+            if (newBestMark.gameObject.activeSelf) newBestMark.gameObject.SetActive(false);
+        }
+        _newBestElapsed = -1f;
     }
 
     private void HandleRetryClicked() => RetryClicked?.Invoke();

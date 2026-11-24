@@ -93,6 +93,7 @@ public sealed class EnemyAgent : MonoBehaviour
 
     // Liveliness (EnemySettings.Liveliness): this enemy's temperament and the little timers that make it move like
     // someone sizing the player up rather than a marker sliding at them.
+    private int _seedTick;                 // the round whose seeds pick the temperament and the attack looks (Activate)
     private uint _mindRandom = 1u;
     private EnemyTemperament _temperament;
     private float _ringRadius = 3.5f;      // the distance it keeps while waiting for its turn
@@ -165,12 +166,15 @@ public sealed class EnemyAgent : MonoBehaviour
     }
 
     // variation (0..1) spreads speed, size and animation phase between enemies. 0.5 is the neutral enemy.
-    public void Activate(Vector3 position, int tick, float variation = 0.5f)
+    // seedTick: the round whose seeds pick this enemy's temperament and attack looks; below 0 uses tick. A runtime
+    // that gives every round the same layout passes the first round's tick here.
+    public void Activate(Vector3 position, int tick, float variation = 0.5f, int seedTick = -1)
     {
         gameObject.SetActive(true);
         transform.SetPositionAndRotation(position, Quaternion.identity);
         transform.localScale = _rootDefaultScale;
         ActiveTick = tick;
+        _seedTick = seedTick >= 0 ? seedTick : tick;
         ApplyVariation(variation);
         _velocity = Vector3.zero;
         _animationPaused = false;
@@ -432,7 +436,7 @@ public sealed class EnemyAgent : MonoBehaviour
     // round always behaves the same way.
     private void PickTemperament(EnemySettings settings, float variation)
     {
-        _mindRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 2246822519u + (uint)ActiveTick * 3266489917u + 7u;
+        _mindRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 2246822519u + (uint)_seedTick * 3266489917u + 7u;
         if (_mindRandom == 0u) _mindRandom = 1u;
         Vector4 shares = settings != null ? settings.TemperamentShares : new Vector4(1f, 0f, 0f, 0f);
         float total = Mathf.Max(0.0001f, shares.x + shares.y + shares.z + shares.w);
@@ -744,7 +748,7 @@ public sealed class EnemyAgent : MonoBehaviour
         _speedScale = 1f + centered * (settings != null ? settings.SpeedVariance : 0f);
         _phaseOffset = Mathf.Repeat(centered * 3.37f, 1f);
         // Own random stream for the attack look: the same enemy in the same round always shows the same sequence.
-        _attackRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 747796405u + (uint)ActiveTick * 2891336453u + 1u;
+        _attackRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 747796405u + (uint)_seedTick * 2891336453u + 1u;
         _attackLook = -1;   // no attack shown yet, so the first pick is not pushed off any look
         // A different mix of the same number, so the fastest enemy is not also always the largest.
         float size = 1f + Mathf.Sin(centered * 12.9f) * (settings != null ? settings.ScaleVariance : 0f);

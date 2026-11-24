@@ -361,7 +361,7 @@ public sealed class HitFeelSceneTests
 
     private IEnumerator Load()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         _state = Object.FindFirstObjectByType<GameStateManager>();
         _events = Object.FindFirstObjectByType<EventManager>();

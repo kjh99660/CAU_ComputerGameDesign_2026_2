@@ -110,8 +110,10 @@ public static class GameDemoUiPrefabBuilder
         CreateImage(root, "ControlHintPanel", "Start/Start_ControlHintPanel.png", BottomCenter,
             new Vector2(0, 58), new Vector2(760, 128));
         // 회피는 Left Shift다(Player.prefab의 PlayerDodge가 Sprint 액션을 쓴다). 키를 바꾸면 이 문구도 같이 바꾼다.
-        CreateText(root, "ControlHint", "WASD  MOVE     MOUSE  CAMERA     LMB  ATTACK     SHIFT  DODGE", BottomCenter,
+        // 문구와 두 줄 배치는 RebootHudAdditions.EnsureStart가 정한다(차지, Q 스킬, E 특수 공격, ESC까지).
+        CreateText(root, "ControlHint", RebootHudAdditions.ControlHintText, BottomCenter,
             new Vector2(0, 82), new Vector2(690, 48), 21, Muted, FontStyles.Bold);
+        RebootHudAdditions.EnsureStart(root);
     }
 
     private static void BuildDialogue(Transform root)
@@ -170,7 +172,7 @@ public static class GameDemoUiPrefabBuilder
 
         CreateImage(root, "TimerPanel", "Battle/Battle_TimerPanel.png", TopRight,
             new Vector2(-42, -40), new Vector2(470, 142));
-        CreateText(root, "TimerLabel", "TIME", TopRight, new Vector2(-95, -53), new Vector2(160, 34),
+        CreateText(root, "TimerLabel", "REBOOT IN", TopRight, new Vector2(-95, -53), new Vector2(160, 34),
             20, Cyan, FontStyles.Bold);
         CreateText(root, "TimerValue", "01:40", TopRight, new Vector2(-85, -82), new Vector2(300, 62),
             42, White, FontStyles.Bold);
@@ -190,6 +192,8 @@ public static class GameDemoUiPrefabBuilder
             new Vector2(0, 22), new Vector2(58, 58));
         CreateText(root, "SkillKey", "Q", BottomCenter, new Vector2(0, 31), new Vector2(42, 38), 22,
             White, FontStyles.Bold);
+        // 콤보 표시, 전투 중 무전 자막, 게이지 옆 E·Q 키 표시.
+        RebootHudAdditions.EnsureBattle(root);
     }
 
     private static void BuildPause(Transform root)
@@ -248,6 +252,8 @@ public static class GameDemoUiPrefabBuilder
             new Vector2(0, -105), new Vector2(390, 120));
         CreateText(root, "SlowMotion", "SLOW MOTION  x0.5", Center, new Vector2(0, -101), new Vector2(320, 55), 25,
             Cyan, FontStyles.Bold);
+        // 전투 HUD와 같은 자리의 콤보 표시.
+        RebootHudAdditions.EnsureFinishing(root);
     }
 
     private static void BuildResult(Transform root)
@@ -274,6 +280,8 @@ public static class GameDemoUiPrefabBuilder
 
         CreateButton(root, "RetryButton", "Result/Result_RetryButton.png", "RETRY", BottomCenter,
             new Vector2(0, 72), new Vector2(400, 112), 34, Cyan);
+        // 최고 점수(BEST) 줄과 NEW BEST 표시.
+        RebootHudAdditions.EnsureResult(root);
     }
 
     private static void CreateStatTile(Transform root, string name, string label, string value, Vector2 position)

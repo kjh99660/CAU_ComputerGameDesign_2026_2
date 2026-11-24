@@ -107,7 +107,7 @@ public sealed class CombatVfxSettings : ScriptableObject
     [Range(0f, 3f)] public float bodyLingerSeconds = 0.6f;
     [Range(0.1f, 4f)] public float bodyEatenSeconds = 0.9f;
     [Range(0, 64)] public int bodyPoolSize = 32;
-    [Tooltip("Parts that can lie around at once (8 per broken enemy); when they run out, a heavy kill leaves a body.")]
+    [Tooltip("Parts that can lie around at once (11 per broken enemy, see debrisSet); when they run out, a heavy kill leaves a body.")]
     [Range(0, 256)] public int piecePoolSize = 240;
     [Tooltip("Share of light and medium kills that also break apart; heavy blows and the special always do.")]
     [Range(0f, 1f)] public float lightKillBreakChance = 0.25f;

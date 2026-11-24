@@ -124,6 +124,11 @@ public sealed class NeonCitySceneTests
         EnemySettings settings = _enemies.Settings;
         var before = new HashSet<EnemyAgent>(Active());
         int street = 0, upper = 0, spawned = 0;
+        // A Battle spawn is announced by a warning ring first and appears on it when the warning is over, so it lies on
+        // the ring around where the player stood when it was announced (before or after the teleport below).
+        var announced = new List<(Vector3 spot, Vector3 player)>();
+        System.Action<Vector3, int> announce = (spot, tick) => announced.Add((spot, _player.transform.position));
+        _enemies.SpawnAnnounced += announce;
 
         // Player in the street, then up on the terrace with everyone before cleared away.
         for (int round = 0; round < 2; round++)
@@ -147,11 +152,14 @@ public sealed class NeonCitySceneTests
                     spawned++;
                     Vector3 position = enemy.transform.position;
                     AssertStandsOnGround(enemy, "spawn " + spawned);
-                    Vector3 flat = position - player;
+                    Vector3 center = player;
+                    foreach ((Vector3 spot, Vector3 from) in announced)
+                        if (Flat(spot - position).magnitude < 0.6f) center = from;
+                    Vector3 flat = position - center;
                     flat.y = 0f;
                     // One frame of walking may have passed since it appeared.
                     Assert.That(flat.magnitude, Is.InRange(settings.MinimumSpawnDistance - 0.6f, settings.MaximumSpawnDistance + 0.6f),
-                        $"Spawn {spawned} at {position} is off the ring around the player at {player}.");
+                        $"Spawn {spawned} at {position} is off the ring around the player at {center}.");
                     Assert.Less(_enemies.Navigation.PathDistance(enemy.NavCell), 200f, "Every spawn can walk to the player.");
                     if (position.y > 2.5f) upper++; else street++;
                 }
@@ -159,7 +167,11 @@ public sealed class NeonCitySceneTests
                 before.UnionWith(now);
             }
         }
-        Assert.Greater(spawned, 80);
+        _enemies.SpawnAnnounced -= announce;
+        // As many as the first spawn phase brings in these 24 s (the flat schedule's 5 per second used to bring about
+        // 120 and the threshold was 80, two thirds of it).
+        EnemySpawnPhase opening = settings.SpawnPhaseAt(0f);
+        Assert.Greater(spawned, Mathf.FloorToInt(24f * opening.PerWave / opening.Interval * 2f / 3f));
         Assert.Greater(street, 20, "Enemies spawn in the streets.");
         Assert.Greater(upper, 3, "Enemies spawn on the upper floors too.");
     }

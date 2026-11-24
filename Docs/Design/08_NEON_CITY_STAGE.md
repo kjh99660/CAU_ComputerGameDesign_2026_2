@@ -184,7 +184,7 @@
 
 ## 8. 팀이 정할 것
 
-1. 이 무대를 빌드 씬으로 쓸지. 쓰려면 Build Settings에 넣어야 한다.
+1. ~~이 무대를 빌드 씬으로 쓸지.~~ 2026-11-25 정했다: 빌드에는 이 무대 하나만 넣는다(`ProjectSettings/EditorBuildSettings.asset`). 평지 아레나(`Main.unity`)는 프로젝트에 남아 테스트와 A/B 측정에 쓰이고, PlayMode 테스트는 빌드 목록이 아니라 `Assets/Tests/PlayMode/TestScenes.cs`로 씬을 연다.
 2. 복층 스폰 규칙. 시야 밖 우선과 우회 한도는 이번에 임시로 정했다.
 3. `verticalReach` 2.2m, 낙하 한도 10.5m. 3층에서 그대로 뛰어내리는 것이 어색하면 낙하 한도를 7m로 내리면 2층까지만 뛰어내린다.
 4. 작은 소품을 통과하게 둔 것과 경찰 테이프를 뺀 것.

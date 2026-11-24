@@ -19,6 +19,24 @@ MonoBehaviour:
   maximumSpawnDistance: 25
   maximumEnemyCount: 100
   spawnHeight: 0
+  spawnPhases:
+  - startSecond: 0
+    activeCap: 40
+    spawnInterval: 1
+    countPerWave: 3
+  - startSecond: 30
+    activeCap: 70
+    spawnInterval: 1
+    countPerWave: 4
+  - startSecond: 70
+    activeCap: 100
+    spawnInterval: 0.7
+    countPerWave: 5
+  spawnWarningSeconds: 0.6
+  spawnWarningRadius: 1.3
+  spawnWarningColor: {r: 2.2, g: 0.16, b: 0.22, a: 1}
+  spawnWarningHotColor: {r: 2.4, g: 0.3, b: 1.3, a: 1}
+  sameLayoutEveryRound: 1
   moveSpeed: 3.5
   attackRange: 2
   attackInterval: 1.5

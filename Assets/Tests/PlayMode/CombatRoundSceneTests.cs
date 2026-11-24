@@ -16,7 +16,7 @@ public sealed class CombatRoundSceneTests
         Assert.IsNotNull(data);
         Assert.GreaterOrEqual(data.intro.Length, 2);
         Assert.GreaterOrEqual(data.outro.Length, 1);
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();
@@ -123,7 +123,7 @@ public sealed class CombatRoundSceneTests
     [UnityTest]
     public IEnumerator EscapePausesCancelsRetryConfirmationAndResumes()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();
@@ -159,7 +159,7 @@ public sealed class CombatRoundSceneTests
     [UnityTest]
     public IEnumerator FullGaugeSpecialHitsNearbyEnemyAndUpdatesResult()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();
@@ -208,7 +208,7 @@ public sealed class CombatRoundSceneTests
         {
             settings.roundDuration = 0.5f;
             settings.finishingDuration = 0.3f;
-            yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+            yield return TestScenes.Load(TestScenes.Arena);
             yield return null;
             var state = Object.FindFirstObjectByType<GameStateManager>();
             var events = Object.FindFirstObjectByType<EventManager>();
@@ -242,7 +242,7 @@ public sealed class CombatRoundSceneTests
     [UnityTest]
     public IEnumerator AcceptedHitUpdatesHudAndRetryClearsRound()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();
@@ -300,6 +300,10 @@ public sealed class CombatRoundSceneTests
             if (candidate != enemy) { attacker = candidate; break; }
         Assert.IsNotNull(attacker);
         attacker.transform.position = player.transform.position + Vector3.forward * 0.5f;
+        // Face the player, as an enemy that walked up to it does. Whichever enemy the unsorted search returns still has
+        // the heading it walked in with from the far side, and a Rusher swings before it turns; the single step past the
+        // wind-up below skips the wind-up's own turn, so its strike would miss.
+        attacker.Face(player.transform.position);
         Physics.SyncTransforms();
         // An enemy attacks when its turn comes (it may hover a moment first), and its strike lands when the
         // telegraphed wind-up ends.

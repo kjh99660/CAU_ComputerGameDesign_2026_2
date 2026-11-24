@@ -8,6 +8,7 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
     private bool _completionRequested;
     private int _shownCharacters = -1;
     private float _inputLockRemaining;
+    private ResultUiModel _roundStats;
 
     public DialoguePresenter(DialogueView view, IUIRequestDispatcher requests, DialogueSequenceData data = null) : base(view, requests)
     {
@@ -15,6 +16,9 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         View.SkipClicked += Skip;
         View.ContinueClicked += Advance;
     }
+
+    // 마지막으로 들어온 마무리 대화가 고른 대사 묶음(성과에 반응하는 마무리, 05_STORY_AND_SCRIPT 4.4).
+    public OutroVariant ChosenOutro { get; private set; }
 
     protected override bool IsVisibleIn(GameState state) =>
         state == GameState.IntroDialogue || state == GameState.OutroDialogue;
@@ -26,10 +30,28 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         View.SetVisibleCharacters(int.MaxValue);
     }
 
+    // 결과 화면과 같은 통계를 통계가 바뀔 때마다 받아 둔다. 상태 변경 알림은 UI가 전투보다 먼저 받으므로
+    // 마무리 대화에 들어오는 순간 값을 새로 묻지 않고, 받아 둔 값으로 고른다. 통계는 종료 연출이 끝날 때 닫혀서
+    // 마무리 대화에 들어오기 전에 확정돼 있다.
+    public void PresentRoundStats(ResultUiModel stats) => _roundStats = stats;
+
     protected override void OnStateApplied(GameStateChangedEvent notification)
     {
+        // 새 판(Ready)은 이전 판의 통계로 마무리를 고르지 않는다. 새 판의 통계는 다시 들어온다.
+        if (notification.Current == GameState.Ready) _roundStats = default;
         if (!IsVisibleIn(notification.Current)) return;
-        _progress.Begin(_data == null ? null : notification.Current == GameState.IntroDialogue ? _data.intro : _data.outro);
+        DialogueLine[] lines = null;
+        if (_data != null)
+        {
+            if (notification.Current == GameState.IntroDialogue)
+                lines = _data.intro;
+            else
+            {
+                ChosenOutro = _data.ChooseOutro(_roundStats.HitCount, _roundStats.KillCount);
+                lines = _data.OutroLines(ChosenOutro);
+            }
+        }
+        _progress.Begin(lines);
         _completionRequested = false;
         _inputLockRemaining = View.InputGraceSeconds;
         View.BeginSequence();

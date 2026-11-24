@@ -10,7 +10,7 @@ public sealed class PlayerSceneTests
     [UnityTest]
     public IEnumerator MainSceneSpawnsPlayerAtCenterAndConnectsEnemyTarget()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
 
         PlayerRuntime player = Object.FindFirstObjectByType<PlayerRuntime>(FindObjectsInactive.Include);
@@ -58,7 +58,7 @@ public sealed class PlayerSceneTests
     [UnityTest]
     public IEnumerator SwordAndAnimatorPauseAndResetWithRound()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         GameStateManager state = Object.FindFirstObjectByType<GameStateManager>();
         Assert.IsNotNull(state);
@@ -100,7 +100,7 @@ public sealed class PlayerSceneTests
     [UnityTest]
     public IEnumerator PooledEnemyRestoresIdleStateAndVisualPose()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity", LoadSceneMode.Single);
+        yield return TestScenes.Load(TestScenes.Arena);
 
         EnemyRuntime runtime = null;
         EnemyAgent enemy = null;

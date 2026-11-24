@@ -154,7 +154,7 @@ Score 변경 시 짧은 Scale/Color Animation과 증감량을 HUD 안에 표시�
 
 ### 우측 상단
 
-- `TIME` Label
+- `REBOOT IN` Label (2026-11-25 `TIME`에서 바꿈, 05_STORY_AND_SCRIPT 4.2)
 - 남은 시간
 - 10초 이하 Warning Color
 - 0초에서 Timer를 고정하고 새 전투 명령을 차단한다. 다음 프레임의 Finishing 진입 시 화면을 전환한다.

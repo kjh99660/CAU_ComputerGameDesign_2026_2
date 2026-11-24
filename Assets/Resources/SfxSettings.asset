@@ -222,3 +222,27 @@ MonoBehaviour:
     maxVoices: 2
     minInterval: 0.03
     spatialBlend: 0
+  - cue: 20
+    clips:
+    - {fileID: 8300000, guid: 95a0bb3477144462cac4bbec87eb00a8, type: 3}
+    - {fileID: 8300000, guid: e807f70d3a0ee429aad0367ebc54092f, type: 3}
+    volume: 0.16
+    pitch: 0.7
+    pitchJitter: 0.04
+    maxVoices: 2
+    minInterval: 0.15
+    spatialBlend: 0.7
+  - cue: 21
+    clips:
+    - {fileID: 8300000, guid: 640f284d6dd33459c8447c39db20d718, type: 3}
+    - {fileID: 8300000, guid: ccb54ea64b0a14969870b15a5da52b83, type: 3}
+    volume: 0.2
+    pitch: 1.15
+    pitchJitter: 0.05
+    maxVoices: 2
+    minInterval: 0.1
+    spatialBlend: 0.7
+  ambienceClip: {fileID: 8300000, guid: 744554ba9a23948d78ff19988292bf0b, type: 3}
+  ambienceVolume: 0.12
+  ambienceOutsideBattle: 0.5
+  ambienceFadeSeconds: 0.8

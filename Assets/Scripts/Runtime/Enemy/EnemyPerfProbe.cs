@@ -58,7 +58,16 @@ public sealed class EnemyPerfProbe
     public EnemyCandidateMode Mode { get; private set; } = EnemyCandidateMode.SpatialGrid;
 
     // 켜면 AI 갱신과 특수 공격 판정에 걸린 시간을 Stopwatch로 잰다(프레임당 시각 읽기 두 번).
+    // A/B 측정기(EnemyAbRoundRunner)가 켜는 값이라 "측정 판"의 표시로도 읽힌다.
     public bool MeasureTime { get; set; }
+
+    // 성능 오버레이(PerfRuntime)가 보이는 동안 켜는 시간 측정. MeasureTime과 같은 수치(AiTicks, SpecialTicks)를 채우지만
+    // 측정 판을 뜻하지 않는다. 측정 판인지 가리는 코드는 MeasureTime만 보고 이 값은 보지 않는다(오버레이는 게임 진행을
+    // 바꾸지 않는다). 전수 대조(ShadowVerify) 중에는 그 비용이 섞이므로 재지 않는다.
+    public bool LiveTiming { get; set; }
+
+    // 지금 시간을 재는가(MeasureTime 또는 LiveTiming).
+    public bool IsTiming => MeasureTime || (LiveTiming && !ShadowVerify);
 
     // 켜면 격자 질의마다 활성 Enemy 전부를 다시 훑어, 반경 안의 Enemy가 후보에서 빠졌는지 센다.
     // 판정 결과가 전수 검사와 같은지 확인하는 용도이며 비용이 크므로 시간 측정과 함께 쓰지 않는다.
@@ -157,17 +166,17 @@ public sealed class EnemyPerfProbe
 
     public void Clear() => _grid.Clear();
 
-    public long BeginTiming() => MeasureTime ? Stopwatch.GetTimestamp() : 0L;
+    public long BeginTiming() => IsTiming ? Stopwatch.GetTimestamp() : 0L;
 
     public void EndAiTiming(long started)
     {
-        if (MeasureTime)
+        if (IsTiming)
             _aiTicks += Stopwatch.GetTimestamp() - started;
     }
 
     public void EndSpecialTiming(long started)
     {
-        if (MeasureTime)
+        if (IsTiming)
             _specialTicks += Stopwatch.GetTimestamp() - started;
     }
 

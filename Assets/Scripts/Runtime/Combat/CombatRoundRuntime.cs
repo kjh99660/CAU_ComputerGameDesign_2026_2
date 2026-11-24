@@ -22,6 +22,8 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private bool _finishingEnded;
     private float _hitStopRemaining;
     private bool _hitStopsEnabled = true;
+    private int _presentedCombo;
+    private bool _recordingSpecialKills;
     private const float MaxHitStopSeconds = 0.3f;
     private const float MinHitStopTimeScale = 0.02f;
 
@@ -32,6 +34,8 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     // Real seconds left of the current hit stop, and of the round clock. Read by tests and tuning tools.
     public float HitStopRemaining => _hitStopRemaining;
     public float RoundRemaining => _remaining;
+    // Round time the combo window is measured in (scaled time while Battle or Finishing runs). Read by tests and tools.
+    public float CombatTime => _combatTime;
 
     // Holds the round still for a moment of real time when a blow lands (Time.timeScale drops to timeScale).
     // Only in Battle: Finishing keeps its own slow motion. A longer request extends the current stop and a shorter one
@@ -127,7 +131,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private void RecordEnemyHit(int tick, bool chargeGauge)
     {
         int previous = _stats.Score;
-        if (_stats.RecordEnemyKill(tick, chargeGauge, _combatTime) && _state == GameState.Battle)
+        if (_stats.RecordEnemyKill(tick, chargeGauge, _combatTime, _recordingSpecialKills) && _state == GameState.Battle)
             _ui.PresentScoreChange(_stats.Score - previous);
     }
 
@@ -143,7 +147,17 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     public bool TryUseSpecial(int tick, Vector3 center)
     {
         if (_state != GameState.Battle || _timerEnded || !_stats.TryUseSpecial(tick)) return false;
-        _enemy.ApplySpecial(center, _settings.specialRadius, _settings.specialKnockbackMultiplier, tick, _settings.specialKillsRestoreGauge);
+        // ApplySpecial hits everyone in range before it returns, so every kill reported meanwhile is the special's own
+        // (RoundCombatStats.RecordEnemyKill applies CombatSettings.comboCountsSpecialKills to them).
+        _recordingSpecialKills = true;
+        try
+        {
+            _enemy.ApplySpecial(center, _settings.specialRadius, _settings.specialKnockbackMultiplier, tick, _settings.specialKillsRestoreGauge);
+        }
+        finally
+        {
+            _recordingSpecialKills = false;
+        }
         SpecialActivated?.Invoke(center, _settings.specialRadius, tick);
         return true;
     }
@@ -161,7 +175,11 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
                 if (_state != GameState.Finishing) Time.timeScale = 1f;
             }
         }
-        if (_clockActive) _combatTime += deltaTime;
+        if (_clockActive)
+        {
+            _combatTime += deltaTime;
+            PresentCombo();
+        }
         if (_state == GameState.Battle && !_timerEnded)
         {
             _remaining = Mathf.Max(0f, _remaining - clockDelta);
@@ -204,7 +222,25 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         _ui.PresentBattleGauge(_stats.Gauge / Mathf.Max(0.01f, _settings.maximumGauge));
         _ui.PresentBattleTimer(_remaining);
         _ui.PresentFinishing(new FinishingUiModel(_stats.Score));
-        _ui.PresentResult(new ResultUiModel(_stats.Score, _stats.KillCount, _stats.MaxCombo, _stats.HitCount, _stats.SpecialUseCount));
+        var roundStats = new ResultUiModel(_stats.Score, _stats.KillCount, _stats.MaxCombo, _stats.HitCount, _stats.SpecialUseCount);
+        _ui.PresentResult(roundStats);
+        // The outro dialogue picks its lines from the same statistics the Result screen gets (05_STORY_AND_SCRIPT 4.4).
+        _ui.PresentOutroStats(roundStats);
+        PresentCombo();
+    }
+
+    // The combo HUD needs the time left every frame while a combo is alive, and one last update when it ends. A combo
+    // lives only while the round's combat does (Battle, Paused, Finishing until its score window closes); after that it
+    // is reported as ended, so no screen keeps the last combo of a round that is over.
+    private void PresentCombo()
+    {
+        bool combatLive = _state == GameState.Battle || _state == GameState.Paused ||
+                          (_state == GameState.Finishing && !_finishingEnded);
+        int combo = combatLive ? _stats.ComboAt(_combatTime) : 0;
+        if (combo == 0 && _presentedCombo == 0) return;
+        _presentedCombo = combo;
+        float timeLeft = combo > 0 ? _stats.ComboTimeLeft(_combatTime) : 0f;
+        _ui.PresentBattleCombo(new ComboUiModel(combo, timeLeft, _stats.ComboWindowSeconds, _stats.ComboScoreMultiplier(combo)));
     }
 
     private void OnDestroy()

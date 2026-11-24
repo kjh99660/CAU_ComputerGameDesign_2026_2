@@ -8,6 +8,7 @@ using System.Text;
 //   - PlayerGlitch: a digital break-up laid quietly under the player's hit, matching the screen glitch.
 // Every other sound is a recorded CC0 sound in Assets/ThirdParty (see RebootSfxBuilder). Recipes use fixed seeds, so the
 // same code makes the same sounds (the editor rewrites nothing when run again). Pure C# with no Unity types.
+// MakeLoop turns a recorded hum into the seamless ambience loop.
 public static class RebootSfxSynth
 {
     public const int SampleRate = 44100;
@@ -72,6 +73,53 @@ public static class RebootSfxSynth
     }
 
     private static Sound Make(string name, string cue, float[] samples) => new Sound(name, cue, Finish(samples));
+
+    // A seamless loop from a recorded hum (mono, SampleRate): the end of the recording is crossfaded into its start.
+    // The loop point is the one within searchSeconds of the end where the end looks most like the start (highest
+    // correlation), and the crossfade gain is compensated for that correlation, so the level neither dips nor swells
+    // while the two blend. Every step of the result, the loop point included, is a step of the recording or of the
+    // blend, so it loops without a click. The offset is removed and the peak set to -1 dBFS.
+    public static float[] MakeLoop(float[] x, float crossfadeSeconds, float searchSeconds)
+    {
+        int n = x.Length;
+        int fade = Math.Max(1, Math.Min(Count(crossfadeSeconds), n / 4));
+        int search = Math.Max(0, Math.Min(Count(searchSeconds), n - 3 * fade));
+        double headEnergy = 0.0;
+        for (int k = 0; k < fade; k++) headEnergy += x[k] * (double)x[k];
+        int end = n - fade;
+        double best = double.NegativeInfinity;
+        for (int candidate = n - fade - search; candidate <= n - fade; candidate++)
+        {
+            double dot = 0.0, energy = 0.0;
+            for (int k = 0; k < fade; k++)
+            {
+                double value = x[candidate + k];
+                dot += value * x[k];
+                energy += value * value;
+            }
+            double correlation = dot / Math.Sqrt(energy * headEnergy + 1e-20);
+            if (correlation > best)
+            {
+                best = correlation;
+                end = candidate;
+            }
+        }
+
+        double c = Math.Max(0.0, best);
+        var y = new float[end];
+        Array.Copy(x, fade, y, 0, end - fade);
+        for (int k = 0; k < fade; k++)
+        {
+            double t = (k + 0.5) / fade;
+            double gain = 1.0 / Math.Sqrt(t * t + (1.0 - t) * (1.0 - t) + 2.0 * c * t * (1.0 - t));
+            y[end - fade + k] = (float)((x[end + k] * (1.0 - t) + x[k] * t) * gain);
+        }
+        double mean = 0.0;
+        for (int i = 0; i < y.Length; i++) mean += y[i];
+        mean /= Math.Max(1, y.Length);
+        for (int i = 0; i < y.Length; i++) y[i] -= (float)mean;
+        return Normalize(y, 0.89f);
+    }
 
     // A sine that drops fast in pitch and dies away; a little drive adds harmonics so it is felt on laptop speakers too.
     private static float[] SubThump(float startHz, float endHz, float decay, float seconds)

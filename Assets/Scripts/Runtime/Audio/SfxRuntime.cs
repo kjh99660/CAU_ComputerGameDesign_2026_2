@@ -3,10 +3,12 @@ using System.Collections;
 using UnityEngine;
 
 // Plays the game's sound effects. It listens to the same events as the rest of the combat feedback (swings, hits,
-// the special, accepted player hits, the gauge), to the buttons of the UI views and to state changes.
+// the special, accepted player hits, the gauge, the enemies' wind-ups and strikes), to the buttons of the UI views and
+// to state changes.
 // Gameplay sounds belong to the round: they start only in Battle and Finishing, Pause holds them (their AudioSources
 // are paused; the time scale is not involved) and Retry or a dialogue cuts them. Interface sounds play in every
-// state. The voices are a fixed pool of AudioSources made once at start-up.
+// state. The voices are a fixed pool of AudioSources made once at start-up. Under it all runs the ambience bed
+// (SfxAmbience), which follows the same states with its own AudioSource.
 [DisallowMultipleComponent]
 public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
 {
@@ -29,6 +31,7 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     private SpecialHitWindow _special;
     private UIRoot _ui;
     private Animator _player;
+    private SfxAmbience _ambience;
     private int _tick;
     private GameState _state = GameState.Initializing;
     private bool _gameplay;
@@ -39,6 +42,8 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     public SfxSettings Settings => _settings;
     public int VoiceCount => _sources.Length;
     public int PausedVoices => _voices.PausedCount;
+    // The ambience bed; null without an ambience clip.
+    public SfxAmbience Ambience => _ambience;
 
     // The voice that started most recently, for tests that check its position and pitch.
     public AudioSource LastSource { get; private set; }
@@ -60,6 +65,14 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
                 if (cue != null && (int)cue.cue >= 0 && (int)cue.cue < _cues.Length && _cues[(int)cue.cue] == null)
                     _cues[(int)cue.cue] = cue;
         CreateVoices(settings != null ? Mathf.Clamp(settings.voiceCount, 4, 24) : 0);
+        if (settings != null && settings.ambienceClip != null)
+        {
+            var bed = new GameObject("Sfx Ambience");
+            bed.transform.SetParent(transform, false);
+            _ambience = bed.AddComponent<SfxAmbience>();
+            _ambience.Configure(settings.ambienceClip, settings.masterVolume * settings.ambienceVolume,
+                settings.ambienceOutsideBattle, settings.ambienceFadeSeconds);
+        }
         _enemies = enemies;
         _vfx = vfx;
         _combat = combat;
@@ -81,6 +94,7 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
         if (_state == GameState.Paused) PauseGameplay();
         else if (_gameplay) ResumeGameplay();
         else StopGameplay();
+        _ambience?.ApplyState(_state);
         if (_state == GameState.Finishing && previous == GameState.Battle) Play(SfxCue.TimeUp, default);
         if (_state == GameState.Result && previous != GameState.Result) Play(SfxCue.Result, default);
         // Dodges and dashes are noticed by watching the player's animator, only while the round runs.
@@ -94,6 +108,8 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     {
         _tick = tick;
         StopGameplay();
+        // The new round's bed starts again from its beginning when the next state arrives.
+        if (_ambience != null) _ambience.Restart();
         _hitCount = _stats != null ? _stats.HitCount : 0;
         _gaugeFull = false;
         _playerState = 0;
@@ -143,6 +159,18 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
         if (!Accepts(tick)) return;
         Play(SfxCue.Special, center);
         Play(SfxCue.HitSub, center);
+    }
+
+    // An enemy's attack, heard where the enemy stands. A crowd attacking at once is kept in check by the cues' voice
+    // limit and minimum interval (EnemySettings.MaximumAttackers already limits how many attack at once).
+    private void OnEnemyWindup(Vector3 position, int tick)
+    {
+        if (Accepts(tick)) Play(SfxCue.EnemyWindup, position);
+    }
+
+    private void OnEnemyStrike(Vector3 position, int tick)
+    {
+        if (Accepts(tick)) Play(SfxCue.EnemyStrike, position);
     }
 
     // The round's numbers changed: a player hit the round accepted, or the gauge has just become full.
@@ -253,8 +281,18 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     {
         if (_enemies != null)
         {
-            if (on) _enemies.HitPresented += OnHit;
-            else _enemies.HitPresented -= OnHit;
+            if (on)
+            {
+                _enemies.HitPresented += OnHit;
+                _enemies.AttackWindupStarted += OnEnemyWindup;
+                _enemies.AttackSwung += OnEnemyStrike;
+            }
+            else
+            {
+                _enemies.HitPresented -= OnHit;
+                _enemies.AttackWindupStarted -= OnEnemyWindup;
+                _enemies.AttackSwung -= OnEnemyStrike;
+            }
         }
         if (_vfx != null)
         {

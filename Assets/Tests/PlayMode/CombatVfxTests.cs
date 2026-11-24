@@ -59,7 +59,7 @@ public sealed class CombatVfxTests
     [UnityTest]
     public IEnumerator AcceptedEnemyHitCreatesOneImpactAtTarget()
     {
-        yield return SceneManager.LoadSceneAsync("Assets/Scenes/Main.unity");
+        yield return TestScenes.Load(TestScenes.Arena);
         yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();

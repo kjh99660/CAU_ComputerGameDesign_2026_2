@@ -8,7 +8,7 @@ using UnityEngine;
 public sealed class SfxSettings : ScriptableObject
 {
     [Range(0f, 1f)] public float masterVolume = 0.7f;
-    [Tooltip("AudioSources made once at start-up. The project allows 32 real voices and the music uses one.")]
+    [Tooltip("AudioSources made once at start-up. The project allows 32 real voices; the music and the ambience use one each.")]
     [Range(4, 24)] public int voiceCount = 20;
     [Tooltip("Pitch of gameplay sounds that start during the Finishing slow motion.")]
     [Range(0.5f, 1f)] public float finishingPitch = 0.85f;
@@ -18,6 +18,18 @@ public sealed class SfxSettings : ScriptableObject
     [Min(0.1f)] public float spatialMinDistance = 8f;
     [Min(1f)] public float spatialMaxDistance = 40f;
     public SfxCueSettings[] cues = Array.Empty<SfxCueSettings>();
+
+    // A quiet machine hum of the city under the music. It runs through Battle and Finishing, holds in Pause and starts
+    // over from its beginning, faded in, after a Retry. Leave the clip empty for none.
+    [Header("Ambience - provisional")]
+    [Tooltip("A seamless loop. The music (the scene's Sound object, volume 0.5) stays far above it.")]
+    public AudioClip ambienceClip;
+    [Tooltip("Volume in Battle and Finishing, times the master volume.")]
+    [Range(0f, 1f)] public float ambienceVolume = 0.12f;
+    [Tooltip("Share of that volume before and after the battle (Ready, dialogue, countdown, result). 0 is silent there.")]
+    [Range(0f, 1f)] public float ambienceOutsideBattle = 0.5f;
+    [Tooltip("Seconds to fade from silence to the battle volume, in real time.")]
+    [Min(0.01f)] public float ambienceFadeSeconds = 0.8f;
 
     public SfxCueSettings Find(SfxCue cue)
     {

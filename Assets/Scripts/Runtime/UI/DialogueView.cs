@@ -26,6 +26,7 @@ public sealed class DialogueView : UIScreenView
     // 첫 대사를 바로 넘기지 않게 하기 위한 임시값이다. Skip 버튼에는 적용하지 않는다.
     [SerializeField, Min(0f)] private float inputGraceSeconds = 0.35f;
     private TMP_FontAsset dialogueFont;
+    private bool _fontAcquired;
     private float _leftEmphasis = 1f, _rightEmphasis, _leftTarget = 1f, _rightTarget;
     private bool _snapEmphasis = true;
     private bool _portraitBasesCaptured;
@@ -114,11 +115,10 @@ public sealed class DialogueView : UIScreenView
 
     private void OnDestroy()
     {
-        if (dialogueFont == null) return;
-        if (dialogueFont.material != null) Destroy(dialogueFont.material);
-        foreach (var atlas in dialogueFont.atlasTextures)
-            if (atlas != null) Destroy(atlas);
-        Destroy(dialogueFont);
+        // 폰트는 전투 중 무전 자막과 함께 쓴다. 마지막으로 돌려주는 쪽이 지운다(UiDialogueFont).
+        if (_fontAcquired) UiDialogueFont.Release();
+        _fontAcquired = false;
+        dialogueFont = null;
     }
 
     private void ApplyDialogueFont()
@@ -126,9 +126,8 @@ public sealed class DialogueView : UIScreenView
         if (dialogueFont == null)
         {
             // UI 테마의 한글 서체(IBM Plex Sans KR)를 우선 쓰고, 없으면 기존 나눔고딕으로 대체한다.
-            var source = Resources.Load<Font>("Fonts/IBMPlexSansKR-Regular");
-            if (source == null) source = Resources.Load<Font>("Fonts/NanumGothic-Regular");
-            if (source != null) dialogueFont = TMP_FontAsset.CreateFontAsset(source);
+            dialogueFont = UiDialogueFont.Acquire();
+            _fontAcquired = dialogueFont != null;
             if (dialogueFont == null)
             {
                 Debug.LogError("대화용 한글 폰트를 불러오지 못했습니다.", this);

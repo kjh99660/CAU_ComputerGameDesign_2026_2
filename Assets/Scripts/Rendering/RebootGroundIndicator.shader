@@ -5,6 +5,8 @@
 //   The mesh gives uv.x = across the area (0..1) and uv.y = from the player (0) to the rim (1).
 //   Line mode: the special's shock ring (a LineRenderer): a hot core, a soft glow and dashes running round it.
 // Additive, so it reads as light on the floor and never hides what is under it.
+// The scan line, dashes and flicker run on scene time. A marking that must hold still while the game is paused (the
+// enemy spawn warnings) sets _Clock to its own clock in seconds instead; below 0 (the default) means scene time.
 Shader "REBOOT/Ground Indicator"
 {
     Properties
@@ -18,6 +20,7 @@ Shader "REBOOT/Ground Indicator"
         _Arc("Sector arc (degrees)", Float) = 270
         _Size("Area size in metres (x: radius or width, y: length)", Vector) = (3, 3, 0, 0)
         _Dashes("Dashes round a line", Float) = 48
+        _Clock("Animation clock in seconds (below 0: scene time)", Float) = -1
     }
 
     SubShader
@@ -51,6 +54,7 @@ Shader "REBOOT/Ground Indicator"
             half _Shape;
             float _Arc;
             float _Dashes;
+            float _Clock;
             CBUFFER_END
 
             struct Attributes
@@ -91,7 +95,7 @@ Shader "REBOOT/Ground Indicator"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                float t = _Time.y;
+                float t = _Clock >= 0.0 ? _Clock : _Time.y;
                 half3 neon = lerp(_Color.rgb, _HotColor.rgb, saturate(_Charge));
 
                 if (_Mode > 0.5)

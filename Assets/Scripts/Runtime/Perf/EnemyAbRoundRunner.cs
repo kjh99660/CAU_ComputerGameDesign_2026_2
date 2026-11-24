@@ -117,9 +117,24 @@ public sealed class EnemyAbRoundRunner : MonoBehaviour
         _activeProbe = null;
     }
 
+    // The player build holds only the Neon City stage (since 2026-11-25); the flat arena stays in the project. In the
+    // Editor any scene loads by path. In a player, a scene outside the build falls back to the first build scene, and
+    // the report names the scene that was actually measured.
+    private AsyncOperation LoadRoundScene()
+    {
+#if UNITY_EDITOR
+        return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(_config.ScenePath,
+            new LoadSceneParameters(LoadSceneMode.Single));
+#else
+        if (SceneUtility.GetBuildIndexByScenePath(_config.ScenePath) < 0 && SceneManager.sceneCountInBuildSettings > 0)
+            _config.ScenePath = SceneUtility.GetScenePathByBuildIndex(0);
+        return SceneManager.LoadSceneAsync(_config.ScenePath, LoadSceneMode.Single);
+#endif
+    }
+
     private IEnumerator RunPassBody(PassSpec spec, EnemyAbPassResult result)
     {
-        AsyncOperation load = SceneManager.LoadSceneAsync(_config.ScenePath, LoadSceneMode.Single);
+        AsyncOperation load = LoadRoundScene();
         if (load == null)
         {
             result.Error = "Scene is not in the build settings: " + _config.ScenePath;
