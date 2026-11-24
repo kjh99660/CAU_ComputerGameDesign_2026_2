@@ -1,7 +1,7 @@
 {
   "name": "GameDemo.PlayMode.Tests",
   "rootNamespace": "",
-  "references": ["GameDemo.Core", "GameDemo.Systems", "Unity.ugui", "Unity.TextMeshPro", "Unity.InputSystem"],
+  "references": ["GameDemo.Core", "GameDemo.Systems", "Unity.ugui", "Unity.TextMeshPro", "Unity.InputSystem", "Unity.RenderPipelines.Core.Runtime"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
