@@ -61,8 +61,9 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _combat.Configure(enemyRuntime, uiRoot, combatSettings, eventManager, playerRuntime);
         _specialFeedback = gameObject.AddComponent<SpecialFeedback>();
         _specialFeedback.Configure(_combat);
+        var vfxSettings = Resources.Load<CombatVfxSettings>("CombatVfxSettings");
         _combatVfx = gameObject.AddComponent<CombatVfxRuntime>();
-        _combatVfx.Configure(enemyRuntime, Resources.Load<CombatVfxSettings>("CombatVfxSettings"));
+        _combatVfx.Configure(enemyRuntime, vfxSettings, _combat);
         roundResetCoordinator.RegisterParticipant(_combatVfx);
         playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);

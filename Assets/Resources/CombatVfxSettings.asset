@@ -22,3 +22,11 @@ MonoBehaviour:
   impactScale: 1
   maximumInstancesPerEffect: 128
   maximumLifetime: 3
+  specialBurstPrefab: {fileID: 1116249604692860204, guid: 8a02c4042c68dd244abad8cf394dab42, type: 3}
+  specialRadialPrefab: {fileID: 856368647163548680, guid: 724d151229932ba47931fcc83c083470, type: 3}
+  specialOffset: {x: 0, y: 1, z: 0}
+  specialBurstScale: 0.8
+  specialRadialCount: 10
+  specialRadialDistance: 0.5
+  specialRadialEulerOffset: {x: 0, y: 0, z: 0}
+  specialRadialScale: 1.7
