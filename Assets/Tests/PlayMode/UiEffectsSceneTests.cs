@@ -34,19 +34,27 @@ public sealed class UiEffectsSceneTests
         {
             // timeScale이 0이어도 3 → 2 → 1로 넘어가고, 그동안 숫자의 크기와 불투명도가 움직인다.
             float minAlpha = 1f, maxScale = 0f;
+            // 화면에 실제로 보이는 불투명도: 굵은 글자는 TMP 하위 메시(자식 CanvasRenderer)가 그리므로 그쪽 알파까지 본다.
+            float maxVisibleAlphaOfTwo = 0f, worstSubMeshGap = 0f;
             bool sawTwo = false;
             float deadline = Time.realtimeSinceStartup + 5f;
             while (number.text != "1" && Time.realtimeSinceStartup < deadline)
             {
                 sawTwo |= number.text == "2";
-                minAlpha = Mathf.Min(minAlpha, number.canvasRenderer.GetAlpha());
+                float alpha = number.canvasRenderer.GetAlpha();
+                minAlpha = Mathf.Min(minAlpha, alpha);
                 maxScale = Mathf.Max(maxScale, number.rectTransform.localScale.x);
+                float visible = VisibleAlpha(number);
+                worstSubMeshGap = Mathf.Max(worstSubMeshGap, Mathf.Abs(alpha - visible));
+                if (number.text == "2") maxVisibleAlphaOfTwo = Mathf.Max(maxVisibleAlphaOfTwo, visible);
                 yield return null;
             }
             Assert.AreEqual("1", number.text, "Countdown must advance on unscaled time.");
             Assert.IsTrue(sawTwo, "Countdown must show 2 between 3 and 1.");
             Assert.Less(minAlpha, 0.9f, "The number must fade within a step.");
             Assert.Greater(maxScale, 1.02f, "The number must pop in larger than its rest size.");
+            Assert.Less(worstSubMeshGap, 0.01f, "Bold glyphs are drawn by TMP sub-meshes; their alpha must follow the number's alpha.");
+            Assert.Greater(maxVisibleAlphaOfTwo, 0.95f, "Each number must become fully visible on screen, not stay at the alpha it had when the text changed.");
 
             // 같은 프레임 안에서 자세를 직접 확인한다(다음 프레임에는 Presenter가 실제 시간으로 다시 그린다).
             view.AnimateNumber(0f);
@@ -55,6 +63,7 @@ public sealed class UiEffectsSceneTests
             view.AnimateNumber(0.4f);
             Assert.AreEqual(1f, number.rectTransform.localScale.x, 1e-4f);
             Assert.AreEqual(1f, number.canvasRenderer.GetAlpha(), 1e-4f);
+            Assert.AreEqual(1f, VisibleAlpha(number), 1e-4f, "The glyphs themselves must be opaque, not only the parent renderer.");
             Assert.IsFalse(flash.enabled);
             view.AnimateNumber(view.StepDuration);
             Assert.Less(number.canvasRenderer.GetAlpha(), 0.5f);
@@ -315,6 +324,15 @@ public sealed class UiEffectsSceneTests
         Assert.AreEqual(expected.r, actual.r, 0.01f, "red");
         Assert.AreEqual(expected.g, actual.g, 0.01f, "green");
         Assert.AreEqual(expected.b, actual.b, 0.01f, "blue");
+    }
+
+    // 글자가 화면에 실제로 그려지는 불투명도. TMP는 굵은 글자를 자식 하위 메시로 그리므로 그 CanvasRenderer까지 본다.
+    private static float VisibleAlpha(TMP_Text text)
+    {
+        float alpha = text.canvasRenderer.GetAlpha();
+        foreach (TMP_SubMeshUI subMesh in text.GetComponentsInChildren<TMP_SubMeshUI>())
+            alpha = Mathf.Min(alpha, subMesh.canvasRenderer.GetAlpha());
+        return alpha;
     }
 
     private static T Find<T>(Transform root, string name) where T : Component

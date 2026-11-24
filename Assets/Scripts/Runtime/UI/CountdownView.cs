@@ -113,11 +113,18 @@ public sealed class CountdownView : UIScreenView
     }
 
     // 크기는 Transform으로, 불투명도는 CanvasRenderer로 바꿔 글자 메시를 다시 만들지 않는다.
+    // 굵은 글자는 TMP가 자식 오브젝트(TMP_SubMeshUI)로 따로 그리는데, 부모 CanvasRenderer의 알파는 거기에 전달되지 않는다.
+    // 자식 하위 메시의 알파도 함께 맞추지 않으면 글자가 바뀐 프레임의 낮은 알파에 굳어 숫자가 거의 보이지 않는다.
     private static void SetPose(Graphic target, Vector3 restScale, float scale, float alpha)
     {
         if (target == null) return;
         target.rectTransform.localScale = restScale * scale;
         target.canvasRenderer.SetAlpha(alpha);
+        if (!(target is TMP_Text)) return;
+        Transform root = target.transform;
+        for (int i = 0; i < root.childCount; i++)
+            if (root.GetChild(i).TryGetComponent(out TMP_SubMeshUI subMesh))
+                subMesh.canvasRenderer.SetAlpha(alpha);
     }
 
     private void SetFlash(float alpha)
