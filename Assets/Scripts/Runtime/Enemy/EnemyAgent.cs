@@ -75,6 +75,16 @@ public sealed class EnemyAgent : MonoBehaviour
     private static readonly int AttackState = Animator.StringToHash("Attack");
     private static readonly int KnockbackState = Animator.StringToHash("Knockback");
     private static readonly int DyingState = Animator.StringToHash("Dying");
+    // Looks for the same attack (same length, same contact moment). One is picked at random per attack; the rules
+    // and the hit timing do not depend on which one plays. A controller without the extra states uses "Attack" only.
+    private static readonly int[] AttackLooks =
+    {
+        AttackState, Animator.StringToHash("Attack2"), Animator.StringToHash("Attack3")
+    };
+    private readonly int[] _attackLooks = new int[AttackLooks.Length];
+    private int _attackLookCount;
+    private int _attackLook;           // index of the look shown by the current or last attack
+    private uint _attackRandom = 1u;
 
     public Rigidbody Body => _body;
     public EnemyAgentState State { get; private set; } = EnemyAgentState.Pooled;
@@ -86,6 +96,9 @@ public sealed class EnemyAgent : MonoBehaviour
     public bool ShowsLocomotion => _shownAnimation == ChaseState || _shownAnimation == WalkState;
     // The cell the enemy stands on in a level with floors, EnemyNavField.None otherwise.
     public int NavCell => _navCell;
+    // How many attack looks the controller offers, and which one the current or last attack shows.
+    public int AttackLookCount => _attackLookCount;
+    public int AttackLook => _attackLook;
 
     private void Awake()
     {
@@ -112,6 +125,10 @@ public sealed class EnemyAgent : MonoBehaviour
                 else if (clip.name == "Idle") _idleClipLength = Mathf.Max(0.05f, clip.length);
             }
             _hasWalkClip = _animator.HasState(0, WalkState);
+            _attackLookCount = 0;
+            for (int i = 0; i < AttackLooks.Length; i++)
+                if (_animator.HasState(0, AttackLooks[i]))
+                    _attackLooks[_attackLookCount++] = AttackLooks[i];
         }
         _properties = new MaterialPropertyBlock();
     }
@@ -521,6 +538,9 @@ public sealed class EnemyAgent : MonoBehaviour
         EnemySettings settings = _owner != null ? _owner.Settings : null;
         _speedScale = 1f + centered * (settings != null ? settings.SpeedVariance : 0f);
         _phaseOffset = Mathf.Repeat(centered * 3.37f, 1f);
+        // Own random stream for the attack look: the same enemy in the same round always shows the same sequence.
+        _attackRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 747796405u + (uint)ActiveTick * 2891336453u + 1u;
+        _attackLook = -1;   // no attack shown yet, so the first pick is not pushed off any look
         // A different mix of the same number, so the fastest enemy is not also always the largest.
         float size = 1f + Mathf.Sin(centered * 12.9f) * (settings != null ? settings.ScaleVariance : 0f);
         _visualScale = _visualDefaultScale * size;
@@ -713,8 +733,8 @@ public sealed class EnemyAgent : MonoBehaviour
                 break;
             case EnemyAgentState.Attack:
                 _animationSpeed = 1f;
-                _shownAnimation = AttackState;
-                _animator.CrossFadeInFixedTime(AttackState, AttackBlendSeconds, 0, 0f);
+                _shownAnimation = NextAttackLook();
+                _animator.CrossFadeInFixedTime(_shownAnimation, AttackBlendSeconds, 0, 0f);
                 break;
             case EnemyAgentState.Knockback:
                 _animationSpeed = 1f;
@@ -728,6 +748,24 @@ public sealed class EnemyAgent : MonoBehaviour
                 break;
         }
         ApplyAnimatorSpeed();
+    }
+
+    // Random look for the attack that starts now, never the same one twice in a row when there is a choice.
+    private int NextAttackLook()
+    {
+        if (_attackLookCount <= 1)
+        {
+            _attackLook = 0;
+            return _attackLookCount == 1 ? _attackLooks[0] : AttackState;
+        }
+        _attackRandom ^= _attackRandom << 13;
+        _attackRandom ^= _attackRandom >> 17;
+        _attackRandom ^= _attackRandom << 5;
+        int pick = (int)(_attackRandom % (uint)_attackLookCount);
+        if (pick == _attackLook)
+            pick = (pick + 1) % _attackLookCount;
+        _attackLook = pick;
+        return _attackLooks[pick];
     }
 
     private void ResetVisualPose()

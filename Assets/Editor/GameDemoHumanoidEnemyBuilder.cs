@@ -12,7 +12,9 @@ public static class GameDemoHumanoidEnemyBuilder
     public const string ModelPath = "Assets/MeshyImports/EnemyHumanoid/EmenyHumanoid.fbx";
     public const string PrefabPath = "Assets/Prefabs/Enemy/EnemyPrototype.prefab";
     public const string Folder = "Assets/Animations/Enemy/Humanoid";
-    private static readonly string[] States = { "Idle", "Chase", "Walk", "Attack", "Knockback", "Dying" };
+    // Attack2 and Attack3 are looks for the same attack: same length and the same contact moment as Attack.
+    // The game picks one at random per attack (EnemyAgent); rules and timing do not depend on which one plays.
+    private static readonly string[] States = { "Idle", "Chase", "Walk", "Attack", "Attack2", "Attack3", "Knockback", "Dying" };
     private static EnemyGait.Rig _rig;
     private static EnemyGait _idleGait, _runGait, _walkGait;
 
@@ -135,6 +137,7 @@ public static class GameDemoHumanoidEnemyBuilder
         var durations = new Dictionary<string, float>
         {
             { "Idle", IdleCycle }, { "Chase", RunCycle }, { "Walk", WalkCycle }, { "Attack", settings.AttackDuration },
+            { "Attack2", settings.AttackDuration }, { "Attack3", settings.AttackDuration },
             { "Knockback", settings.KnockbackFallbackDuration }, { "Dying", Mathf.Max(0.05f, settings.DeathDuration) }
         };
         var clips = new Dictionary<string, AnimationClip>();
@@ -346,6 +349,35 @@ public static class GameDemoHumanoidEnemyBuilder
             if (bone == "Spine1") extra = new Vector3(0f, -22f * punch, 0f);
             if (bone == "LeftArm") extra = new Vector3(-12f * Mathf.Max(0f, punch), 0f, 0f);
         }
+        else if (state == "Attack2")
+        {
+            // Left hook: the body winds to the left, then swings round to the right carrying the raised left arm
+            // across. Contact at the same 50% as Attack.
+            float swing = t < 0.25f ? -0.35f * t / 0.25f : t < 0.5f ? Mathf.Lerp(-0.35f, 1f, (t - 0.25f) / 0.25f) : 1f - (t - 0.5f) / 0.5f;
+            float raised = Mathf.SmoothStep(0f, 1f, Mathf.Min(t / 0.25f, (1f - t) / 0.4f));   // arm up through the swing
+            // The arm starts out to the left and the turning body brings it round, so at contact it points at the target.
+            if (bone == "LeftArm") extra = new Vector3(-70f * raised - 12f * Mathf.Max(0f, swing), raised * (-38f + 26f * Mathf.Max(0f, swing)), 10f * raised);
+            if (bone == "LeftForeArm") extra = new Vector3(20f * Mathf.Max(0f, swing), 0f, 0f);
+            if (bone == "Spine") extra = new Vector3(8f * Mathf.Max(0f, swing), 10f * swing, 0f);
+            if (bone == "Spine1") extra = new Vector3(0f, 22f * swing, 0f);
+            if (bone == "Head") extra = new Vector3(0f, -14f * swing, 0f);   // keeps looking at the target
+            if (bone == "RightArm") extra = new Vector3(10f * Mathf.Max(0f, swing), 0f, -8f * raised);
+        }
+        else if (state == "Attack3")
+        {
+            // Overhead smash: both arms go up while the body leans back, then come down together.
+            // Contact at the same 50% as Attack.
+            float lift = t < 0.3f ? Mathf.SmoothStep(0f, 1f, t / 0.3f) : t < 0.5f ? 1f - Mathf.SmoothStep(0f, 1f, (t - 0.3f) / 0.2f) : 0f;
+            float held = Mathf.SmoothStep(0f, 1f, Mathf.Min(t / 0.18f, (1f - t) / 0.45f));    // arms forward before and after the blow
+            float down = t < 0.3f ? 0f : t < 0.5f ? Mathf.SmoothStep(0f, 1f, (t - 0.3f) / 0.2f) : 1f - Mathf.SmoothStep(0f, 1f, (t - 0.5f) / 0.5f);
+            float arm = -(58f * held + 96f * lift);
+            if (bone == "RightArm") extra = new Vector3(arm, 0f, -14f * held);
+            if (bone == "LeftArm") extra = new Vector3(arm, 0f, 14f * held);
+            if (bone == "RightForeArm" || bone == "LeftForeArm") extra = new Vector3(26f * down - 10f * lift, 0f, 0f);
+            if (bone == "Spine") extra = new Vector3(20f * down - 10f * lift, 0f, 0f);
+            if (bone == "Spine1") extra = new Vector3(12f * down - 8f * lift, 0f, 0f);
+            if (bone == "Head") extra = new Vector3(-10f * down + 6f * lift, 0f, 0f);
+        }
         else if (state == "Knockback")
         {
             float recoil = Mathf.Sin(Mathf.Min(1f, t * 4f) * Mathf.PI * 0.5f);
@@ -435,7 +467,8 @@ public static class GameDemoHumanoidEnemyBuilder
     public static void ExportPreview()
     {
         var sheet = new Texture2D(320 * States.Length, 800, TextureFormat.RGB24, false);
-        float[] samples = { 0.25f, 0.25f, 0.25f, 0.5f, 0.5f, 1f };
+        // Where in each clip the picture is taken: a quarter into the loops, the contact of the one-shots, the end of Dying.
+        float[] samples = States.Select(state => state == "Idle" || state == "Chase" || state == "Walk" ? 0.25f : state == "Dying" ? 1f : 0.5f).ToArray();
         try
         {
             for (int row = 0; row < 2; row++)
