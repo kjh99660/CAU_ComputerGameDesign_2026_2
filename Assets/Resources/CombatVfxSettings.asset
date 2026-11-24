@@ -30,3 +30,9 @@ MonoBehaviour:
   specialRadialDistance: 0.5
   specialRadialEulerOffset: {x: 0, y: 0, z: 0}
   specialRadialScale: 1.7
+  swingZoomDegrees: 0.8
+  hitZoomDegrees: 2.6
+  specialZoomDegrees: 6
+  zoomInSeconds: 0.05
+  zoomOutSeconds: 0.24
+  zoomOvershoot: 0.2

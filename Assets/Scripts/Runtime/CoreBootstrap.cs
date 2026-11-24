@@ -23,6 +23,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private CombatRoundRuntime _combat;
     private SpecialFeedback _specialFeedback;
     private CombatVfxRuntime _combatVfx;
+    private CombatCameraFeedback _cameraFeedback;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -65,6 +66,10 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _combatVfx = gameObject.AddComponent<CombatVfxRuntime>();
         _combatVfx.Configure(enemyRuntime, vfxSettings, _combat);
         roundResetCoordinator.RegisterParticipant(_combatVfx);
+        // 전투 연출: 공격·적중·특수 공격 때의 카메라 줌 펄스.
+        _cameraFeedback = gameObject.AddComponent<CombatCameraFeedback>();
+        _cameraFeedback.Configure(Camera.main, enemyRuntime, _combatVfx, _combat, vfxSettings);
+        roundResetCoordinator.RegisterParticipant(_cameraFeedback);
         playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);
         roundResetCoordinator.RegisterParticipant(_combat);
@@ -146,6 +151,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _combat?.ApplyState(notification);
         _specialFeedback?.ApplyState(notification);
         _combatVfx?.ApplyState(notification);
+        _cameraFeedback?.ApplyState(notification);
         _physics.OnGameStateChanged(notification);
     }
 

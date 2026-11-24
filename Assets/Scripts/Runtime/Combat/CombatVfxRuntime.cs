@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -29,6 +30,9 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
     private int _tick;
     private bool _stopped;
 
+    // Raised when a swing effect is really shown (same tick, combat running). Used for the camera pulse.
+    public event Action<int> SlashPlayed;
+
     // Effects currently alive in each pool. Read by tests.
     public int ActiveSpecialEffects => CountActive(_specialBursts) + CountActive(_specialRadials);
     // Instances created so far for the special, alive or waiting in the pool.
@@ -51,6 +55,7 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
         Quaternion facing = forward.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(forward, Vector3.up) : Quaternion.identity;
         Play(_slashes, _settings.slashPrefab, player.position + facing * _settings.slashOffset,
             facing * Quaternion.Euler(_settings.slashEulerOffset), _settings.slashScale * Mathf.Max(0.01f, chargeScale));
+        SlashPlayed?.Invoke(tick);
     }
 
     private void PlayImpact(Vector3 position, Vector3 direction, int tick)

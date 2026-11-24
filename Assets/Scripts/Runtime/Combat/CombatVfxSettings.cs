@@ -28,4 +28,14 @@ public sealed class CombatVfxSettings : ScriptableObject
     [Range(0f, 1f)] public float specialRadialDistance = 0.5f;
     public Vector3 specialRadialEulerOffset;
     [Min(0.01f)] public float specialRadialScale = 1.7f;
+
+    // Field-of-view pulse (degrees taken off, then released). 0 turns a pulse off.
+    [Header("Camera zoom pulse - provisional")]
+    [Range(0f, 10f)] public float swingZoomDegrees = 0.8f;
+    [Range(0f, 10f)] public float hitZoomDegrees = 2.6f;
+    [Range(0f, 20f)] public float specialZoomDegrees = 6f;
+    [Min(0.01f)] public float zoomInSeconds = 0.05f;
+    [Min(0.01f)] public float zoomOutSeconds = 0.24f;
+    [Tooltip("How far the view swings back out past its resting value, as a share of the pulse.")]
+    [Range(0f, 1f)] public float zoomOvershoot = 0.2f;
 }
