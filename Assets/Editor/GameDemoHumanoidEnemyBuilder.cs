@@ -12,7 +12,9 @@ public static class GameDemoHumanoidEnemyBuilder
     public const string ModelPath = "Assets/MeshyImports/EnemyHumanoid/EmenyHumanoid.fbx";
     public const string PrefabPath = "Assets/Prefabs/Enemy/EnemyPrototype.prefab";
     public const string Folder = "Assets/Animations/Enemy/Humanoid";
-    private static readonly string[] States = { "Idle", "Chase", "Attack", "Knockback", "Dying" };
+    private static readonly string[] States = { "Idle", "Chase", "Walk", "Attack", "Knockback", "Dying" };
+    private static EnemyGait.Rig _rig;
+    private static EnemyGait _idleGait, _runGait, _walkGait;
 
     [MenuItem("Tools/Game Demo Enemy/Build Humanoid Enemy")]
     public static void BuildAll()
@@ -48,15 +50,10 @@ public static class GameDemoHumanoidEnemyBuilder
             bounds = skin.bounds;
             Vector3 floorCenter = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
             model.transform.position += root.transform.position - floorCenter;
+            // Renderer bounds are padded, so the line above leaves the mesh hovering. Sit the real soles on the root plane.
+            model.transform.position += Vector3.down * LowestVertexHeight(root.transform);
 
-            Transform[] bones = model.GetComponentsInChildren<Transform>(true)
-                .Where(t => t.name.StartsWith("mixamorig:", StringComparison.Ordinal)).ToArray();
-            var settings = AssetDatabase.LoadAssetAtPath<EnemySettings>("Assets/Prefabs/Enemy/EnemySettings.asset");
-            float[] durations = { 2f, 0.65f, settings.AttackDuration, settings.KnockbackFallbackDuration, Mathf.Max(0.05f, settings.DeathDuration) };
-            var clips = new Dictionary<string, AnimationClip>();
-            for (int i = 0; i < States.Length; i++)
-                clips.Add(States[i], BuildClip(States[i], durations[i], i < 2, root.transform, model.transform, bones));
-            AnimatorController controller = BuildController(clips);
+            AnimatorController controller = BuildClipsAndController(root.transform, model.transform);
             Animator animator = root.GetComponent<Animator>();
             animator.avatar = null; // Exact bone paths drive the skin directly; the FBX retains its Humanoid Avatar.
             animator.runtimeAnimatorController = controller;
@@ -70,6 +67,187 @@ public static class GameDemoHumanoidEnemyBuilder
         ValidateAll();
         Debug.Log("[Humanoid Enemy] Built five skeletal clips and connected the gameplay prefab.");
     }
+
+    // Height of the lowest skinned vertex above the gameplay root, in world metres, for the pose the rig is in.
+    private static float LowestVertexHeight(Transform root)
+    {
+        SkinnedMeshRenderer skin = root.GetComponentInChildren<SkinnedMeshRenderer>(true);
+        if (skin == null || skin.sharedMesh == null) return 0f;
+        Mesh mesh = skin.sharedMesh;
+        Transform[] bones = skin.bones;
+        Matrix4x4[] bind = mesh.bindposes;
+        BoneWeight[] weights = mesh.boneWeights;
+        Vector3[] vertices = mesh.vertices;
+        float lowest = float.MaxValue;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            int bone = weights[i].boneIndex0;
+            lowest = Mathf.Min(lowest, bones[bone].localToWorldMatrix.MultiplyPoint3x4(bind[bone].MultiplyPoint3x4(vertices[i])).y);
+        }
+        return lowest - root.position.y;
+    }
+
+    // The prefab was fitted to padded renderer bounds, which left the model hovering above the ground.
+    // Moves only the model's local height so the soles rest on the root plane; nothing else in the prefab changes.
+    [MenuItem("Tools/Game Demo Enemy/Ground Humanoid Enemy Model")]
+    public static void GroundModel()
+    {
+        GameObject root = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            Transform model = root.transform.Find("Visual/EnemyHumanoidModel");
+            if (model == null) throw new InvalidOperationException("Run Build Humanoid Enemy first: the prefab has no rigged model.");
+            float gap = LowestVertexHeight(root.transform);
+            if (Mathf.Abs(gap) > 0.002f)
+            {
+                model.position += Vector3.down * gap;
+                PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+                Debug.Log($"[Humanoid Enemy] Model lowered by {gap:F3} m so its soles rest on the root plane.");
+            }
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    // Regenerates the clips and the controller in place (same GUIDs). The prefab only gets its model height corrected.
+    [MenuItem("Tools/Game Demo Enemy/Rebuild Humanoid Enemy Clips")]
+    public static void RebuildClips()
+    {
+        GroundModel();
+        GameObject root = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            Transform model = root.transform.Find("Visual/EnemyHumanoidModel");
+            if (model == null) throw new InvalidOperationException("Run Build Humanoid Enemy first: the prefab has no rigged model.");
+            BuildClipsAndController(root.transform, model);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+        AssetDatabase.SaveAssets();
+        ValidateAll();
+        Debug.Log("[Humanoid Enemy] Rebuilt clips. " + GaitReport());
+    }
+
+    private static AnimatorController BuildClipsAndController(Transform root, Transform model)
+    {
+        Transform[] bones = model.GetComponentsInChildren<Transform>(true)
+            .Where(t => t.name.StartsWith("mixamorig:", StringComparison.Ordinal)).ToArray();
+        var settings = AssetDatabase.LoadAssetAtPath<EnemySettings>("Assets/Prefabs/Enemy/EnemySettings.asset");
+        ConfigureGaits(root, bones, settings);
+        var durations = new Dictionary<string, float>
+        {
+            { "Idle", IdleCycle }, { "Chase", RunCycle }, { "Walk", WalkCycle }, { "Attack", settings.AttackDuration },
+            { "Knockback", settings.KnockbackFallbackDuration }, { "Dying", Mathf.Max(0.05f, settings.DeathDuration) }
+        };
+        var clips = new Dictionary<string, AnimationClip>();
+        foreach (string state in States)
+            clips.Add(state, BuildClip(state, durations[state], state == "Idle" || state == "Chase" || state == "Walk", root, model, bones));
+        return BuildController(clips);
+    }
+
+    // Provisional motion styling: cycle lengths and the shape of each gait. Speeds come from EnemySettings so the
+    // runtime plays each clip at "real speed / authored speed".
+    private const float IdleCycle = 2f;
+    private const float RunCycle = 0.6f;
+    private const float WalkCycle = 0.8f;
+
+    private static void ConfigureGaits(Transform root, Transform[] bones, EnemySettings settings)
+    {
+        Transform Bone(string name) => bones.First(b => b.name == "mixamorig:" + name);
+        Vector3 Local(Transform bone) => root.InverseTransformPoint(bone.position) * root.lossyScale.y;   // root-space metres
+        EnemyGait.Leg Measure(string side)
+        {
+            Vector3 hip = Local(Bone(side + "UpLeg")), knee = Local(Bone(side + "Leg")), ankle = Local(Bone(side + "Foot"));
+            return new EnemyGait.Leg
+            {
+                Hip = hip,
+                Thigh = Vector3.Distance(hip, knee),
+                Shin = Vector3.Distance(knee, ankle),
+                RestThigh = Mathf.Atan2(knee.z - hip.z, hip.y - knee.y),
+                RestShin = Mathf.Atan2(ankle.z - knee.z, knee.y - ankle.y),
+                AnkleHeight = ankle.y
+            };
+        }
+        MeasureSole(root, bones, Local(Bone("LeftFoot")), out float soleTip, out float heelBack);
+        _rig = new EnemyGait.Rig
+        {
+            Left = Measure("Left"),
+            Right = Measure("Right"),
+            HipsCenter = Local(Bone("Hips")),
+            SoleForward = soleTip * 0.75f,   // the ball of the foot sits behind the tip of the sole
+            SoleTip = soleTip,
+            HeelBack = heelBack
+        };
+        float leg = _rig.LegLength;
+
+        // Ready stance: knees soft, weight shifting, arms hanging ready at the sides. Not an A-pose statue.
+        _idleGait = new EnemyGait(_rig, new EnemyGait.Style
+        {
+            Speed = 0f, Cycle = IdleCycle, Duty = 0.5f, Stance = leg * 0.07f, Crouch = leg * 0.05f, Bob = leg * 0.006f, Sway = leg * 0.022f,
+            PelvisYaw = 2f, PelvisRoll = 1.2f, Lean = 7f, ArmIn = 19f, ArmSwing = 2f, ElbowBend = 42f, ElbowSwing = 4f
+        });
+        // Run: a flight phase between steps, hips lowest under the supporting leg, arms pumping.
+        _runGait = new EnemyGait(_rig, new EnemyGait.Style
+        {
+            Speed = settings.RunClipSpeed, Cycle = RunCycle, Duty = Mathf.Clamp(leg * 0.80f / (settings.RunClipSpeed * RunCycle), 0.2f, 0.45f),
+            ContactZ = leg * 0.27f, Crouch = leg * 0.10f, Bob = -leg * 0.03f, Sway = leg * 0.012f, SwingHeight = leg * 0.30f,
+            SwingToesUp = 8f, ToeOffAngle = 20f, PelvisYaw = 7f, PelvisRoll = 3f, Lean = 14f, ArmIn = 21f, ArmSwing = 34f, ElbowBend = 68f, ElbowSwing = 22f
+        });
+        // Walk: always one foot down, hips highest over the supporting leg, the rear foot rolling onto its toes.
+        _walkGait = new EnemyGait(_rig, new EnemyGait.Style
+        {
+            Speed = settings.WalkClipSpeed, Cycle = WalkCycle, Duty = Mathf.Clamp(leg * 0.74f / (settings.WalkClipSpeed * WalkCycle), 0.52f, 0.68f),
+            ContactZ = leg * 0.36f, Crouch = leg * 0.07f, Bob = leg * 0.018f, Sway = leg * 0.03f, SwingHeight = leg * 0.12f,
+            SwingToesUp = 6f, ToeOffAngle = 16f, PelvisYaw = 5f, PelvisRoll = 3.5f, Lean = 5f, ArmIn = 19f, ArmSwing = 18f, ElbowBend = 24f, ElbowSwing = 8f
+        });
+    }
+
+    // Outline of the sole from the skinned vertices that follow the left foot and sit on the ground at rest:
+    // how far the sole reaches ahead of and behind the ankle. The boots are much longer than the foot bones.
+    private static void MeasureSole(Transform root, Transform[] bones, Vector3 ankle, out float tip, out float heel)
+    {
+        tip = 0.08f;
+        heel = 0.04f;
+        SkinnedMeshRenderer skin = root.GetComponentInChildren<SkinnedMeshRenderer>(true);
+        if (skin == null || skin.sharedMesh == null) return;
+        Mesh mesh = skin.sharedMesh;
+        Transform[] skinBones = skin.bones;
+        Matrix4x4[] bind = mesh.bindposes;
+        BoneWeight[] weights = mesh.boneWeights;
+        Vector3[] vertices = mesh.vertices;
+        var foot = new List<Vector3>();
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            int bone = weights[i].boneIndex0;
+            string name = skinBones[bone].name;
+            if (name != "mixamorig:LeftFoot" && name != "mixamorig:LeftToeBase" && name != "mixamorig:LeftToe_End") continue;
+            Vector3 world = skinBones[bone].localToWorldMatrix.MultiplyPoint3x4(bind[bone].MultiplyPoint3x4(vertices[i]));
+            foot.Add(root.InverseTransformPoint(world) * root.lossyScale.y);
+        }
+        if (foot.Count == 0) return;
+        float ground = foot.Min(v => v.y);
+        float front = float.MinValue, back = float.MaxValue;
+        foreach (Vector3 v in foot)
+        {
+            if (v.y > ground + 0.05f) continue;   // only the part that touches the ground
+            front = Mathf.Max(front, v.z);
+            back = Mathf.Min(back, v.z);
+        }
+        if (front > float.MinValue)
+        {
+            tip = Mathf.Max(0.02f, front - ankle.z);
+            heel = Mathf.Max(0.01f, ankle.z - back);
+        }
+    }
+
+    public static EnemyGait.Rig Rig => _rig;
+
+    public static string GaitReport()
+    {
+        if (_runGait == null) return "(gaits not built in this session)";
+        return $"rig L thigh={_rig.Left.Thigh:F3} shin={_rig.Left.Shin:F3} ankle={_rig.Left.AnkleHeight:F3} | R thigh={_rig.Right.Thigh:F3} shin={_rig.Right.Shin:F3} ankle={_rig.Right.AnkleHeight:F3} | soleTip={_rig.SoleTip:F3} heelBack={_rig.HeelBack:F3} ballPivot={_rig.SoleForward:F3} hips={_rig.HipsCenter.y:F3} | " +
+               $"run reach={_runGait.WorstReach:F3} liftOffZ={_runGait.LiftOffZ:F3} | walk reach={_walkGait.WorstReach:F3} liftOffZ={_walkGait.LiftOffZ:F3} | idle reach={_idleGait.WorstReach:F3}";
+    }
+
+    private static EnemyGait GaitFor(string state) => state == "Chase" ? _runGait : state == "Walk" ? _walkGait : _idleGait;
 
     private static AnimationClip BuildClip(string state, float duration, bool loop, Transform root, Transform model, Transform[] bones)
     {
@@ -89,7 +267,7 @@ public static class GameDemoHumanoidEnemyBuilder
             for (int frame = 0; frame <= steps; frame++)
             {
                 float t = (float)frame / steps;
-                Quaternion q = rest * axes * Quaternion.Euler(Pose(state, boneName, t)) * Quaternion.Inverse(axes);
+                Quaternion q = rest * axes * Pose(state, boneName, t) * Quaternion.Inverse(axes);
                 curves[0].AddKey(t * duration, q.x); curves[1].AddKey(t * duration, q.y);
                 curves[2].AddKey(t * duration, q.z); curves[3].AddKey(t * duration, q.w);
             }
@@ -100,10 +278,16 @@ public static class GameDemoHumanoidEnemyBuilder
             for (int j = 0; j < 3; j++)
             {
                 var positionCurve = AnimationCurve.Constant(0f, duration, pos[j]);
-                if (boneName == "Hips" && state == "Dying")
+                if (boneName == "Hips")
                 {
-                    Vector3 drop = bone.parent.InverseTransformVector(-root.up * root.GetComponent<BoxCollider>().size.y * root.lossyScale.y * 0.35f);
-                    positionCurve = AnimationCurve.EaseInOut(0f, pos[j], duration, pos[j] + drop[j]);
+                    // The pelvis rides on the gait (crouch, bob, sway). Dying starts from the ready stance and drops.
+                    positionCurve = new AnimationCurve();
+                    for (int frame = 0; frame <= steps; frame++)
+                    {
+                        float t = (float)frame / steps;
+                        Vector3 offset = HipsOffset(state, t, root);
+                        positionCurve.AddKey(t * duration, pos[j] + bone.parent.InverseTransformVector(root.TransformDirection(offset))[j]);
+                    }
                 }
                 clip.SetCurve(bonePath, typeof(Transform), "m_LocalPosition." + components[j], positionCurve);
             }
@@ -116,64 +300,96 @@ public static class GameDemoHumanoidEnemyBuilder
         return clip;
     }
 
-    // Provisional motion styling. Angles are in model axes, converted to each bone's rest frame above.
-    private static Vector3 Pose(string state, string bone, float t)
+    // Pelvis offset in root space (metres).
+    private static Vector3 HipsOffset(string state, float t, Transform root)
     {
-        float wave = Mathf.Sin(t * Mathf.PI * 2f);
-        Vector3 pose = Vector3.zero;
-        // This source model has an A pose (left is -X), not a T pose.
-        if (bone == "LeftArm") pose.z = 8f;
-        if (bone == "RightArm") pose.z = -8f;
-        if (bone == "LeftForeArm" || bone == "RightForeArm") pose.x = -20f;
-        if (state == "Idle")
+        if (state == "Idle" || state == "Chase" || state == "Walk")
+            return GaitFor(state).HipsOffset(t);
+        Vector3 ready = _idleGait.HipsOffset(0f);
+        if (state == "Dying")
         {
-            if (bone == "Spine1") pose.x = wave * 1.5f;
-            if (bone == "Head") pose.y = wave * 2f;
+            float drop = root.GetComponent<BoxCollider>().size.y * root.lossyScale.y * 0.35f;
+            return ready + Vector3.down * (drop * Mathf.SmoothStep(0f, 1f, t));
         }
-        else if (state == "Chase")
+        return ready;
+    }
+
+    // Provisional motion styling. Rotations are in model axes, converted to each bone's rest frame above.
+    // Idle, Chase (run) and Walk come from EnemyGait; the one-shot states start from the ready stance so that
+    // blending in and out of them does not pop.
+    private static Quaternion Pose(string state, string bone, float t)
+    {
+        bool locomotion = state == "Idle" || state == "Chase" || state == "Walk";
+        EnemyGait gait = GaitFor(state);
+        float phase = locomotion ? t : 0f;
+        Quaternion basePose = GaitPose(gait, bone, phase);
+        if (locomotion)
         {
-            if (bone == "LeftUpLeg") pose.x = -wave * 32f;
-            if (bone == "RightUpLeg") pose.x = wave * 32f;
-            if (bone == "LeftLeg") pose.x = Mathf.Max(0f, wave) * 48f;
-            if (bone == "RightLeg") pose.x = Mathf.Max(0f, -wave) * 48f;
-            if (bone == "LeftFoot") pose.x = -Mathf.Max(0f, wave) * 16f;
-            if (bone == "RightFoot") pose.x = -Mathf.Max(0f, -wave) * 16f;
-            if (bone == "LeftArm") pose.x = wave * 25f;
-            if (bone == "RightArm") pose.x = -wave * 25f;
-            if (bone == "Spine") pose.x = 9f;
-            if (bone == "Spine1") pose.y = wave * 6f;
+            if (state == "Idle")
+            {
+                // Breathing and a slow look-around on top of the stance.
+                float breath = Mathf.Sin(t * Mathf.PI * 2f);
+                if (bone == "Spine1") return basePose * Quaternion.Euler(breath * 1.6f, 0f, 0f);
+                if (bone == "Head") return basePose * Quaternion.Euler(0f, Mathf.Sin(t * Mathf.PI * 2f + 0.8f) * 5f, 0f);
+            }
+            return basePose;
         }
-        else if (state == "Attack")
+
+        Vector3 extra = Vector3.zero;
+        if (state == "Attack")
         {
             // Windup, contact exactly at the existing 50% hit check, recovery.
             float punch = t < 0.25f ? -0.25f * t / 0.25f : t < 0.5f ? Mathf.Lerp(-0.25f, 1f, (t - 0.25f) / 0.25f) : 1f - (t - 0.5f) / 0.5f;
-            if (bone == "RightArm") { pose.x = -85f * punch; pose.z = -8f - 12f * Mathf.Max(0f, punch); }
-            if (bone == "RightForeArm") pose.x = -55f * (1f - Mathf.Max(0f, punch));
-            if (bone == "Spine") pose.x = 12f * punch;
-            if (bone == "Spine1") pose.y = -22f * punch;
-            if (bone == "LeftArm") pose.x = -25f;
-            if (bone == "LeftForeArm") pose.x = -45f;
+            if (bone == "RightArm") extra = new Vector3(-85f * punch, 0f, -12f * Mathf.Max(0f, punch));
+            if (bone == "RightForeArm") extra = new Vector3(38f * Mathf.Max(0f, punch), 0f, 0f);   // the bent guard arm straightens into the strike
+            if (bone == "Spine") extra = new Vector3(10f * punch, 0f, 0f);
+            if (bone == "Spine1") extra = new Vector3(0f, -22f * punch, 0f);
+            if (bone == "LeftArm") extra = new Vector3(-12f * Mathf.Max(0f, punch), 0f, 0f);
         }
         else if (state == "Knockback")
         {
             float recoil = Mathf.Sin(Mathf.Min(1f, t * 4f) * Mathf.PI * 0.5f);
-            if (bone == "Spine") pose.x = -24f * recoil;
-            if (bone == "Head") pose.x = -15f * recoil;
-            if (bone == "LeftArm") pose.z = 8f - 40f * recoil;
-            if (bone == "RightArm") pose.z = -8f + 40f * recoil;
-            if (bone == "LeftUpLeg" || bone == "RightUpLeg") pose.x = -20f * recoil;
-            if (bone == "LeftLeg" || bone == "RightLeg") pose.x = 35f * recoil;
+            if (bone == "Spine") extra = new Vector3(-30f * recoil, 0f, 0f);
+            if (bone == "Head") extra = new Vector3(-12f * recoil, 0f, 0f);
+            if (bone == "LeftArm") extra = new Vector3(0f, 0f, -40f * recoil);
+            if (bone == "RightArm") extra = new Vector3(0f, 0f, 40f * recoil);
+            if (bone == "LeftUpLeg" || bone == "RightUpLeg") extra = new Vector3(-20f * recoil, 0f, 0f);
+            if (bone == "LeftLeg" || bone == "RightLeg") extra = new Vector3(30f * recoil, 0f, 0f);
         }
         else if (state == "Dying")
         {
             float collapse = Mathf.SmoothStep(0f, 1f, t);
-            if (bone == "Hips") pose.z = 85f * collapse;
-            if (bone == "Spine") pose.x = -24f + 35f * collapse;
-            if (bone == "Head") pose.x = -15f + 35f * collapse;
-            if (bone == "LeftUpLeg" || bone == "RightUpLeg") pose.x = -20f - 20f * collapse;
-            if (bone == "LeftLeg" || bone == "RightLeg") pose.x = 35f + 25f * collapse;
+            if (bone == "Hips") extra = new Vector3(0f, 0f, 85f * collapse);
+            if (bone == "Spine") extra = new Vector3(-30f + 41f * collapse, 0f, 0f);
+            if (bone == "Head") extra = new Vector3(-12f + 32f * collapse, 0f, 0f);
+            if (bone == "LeftUpLeg" || bone == "RightUpLeg") extra = new Vector3(-20f - 20f * collapse, 0f, 0f);
+            if (bone == "LeftLeg" || bone == "RightLeg") extra = new Vector3(30f + 25f * collapse, 0f, 0f);
         }
-        return pose;
+        return Quaternion.Euler(extra) * basePose;
+    }
+
+    private static Quaternion GaitPose(EnemyGait gait, string bone, float phase)
+    {
+        switch (bone)
+        {
+            case "Hips": return gait.PelvisRotation(phase);
+            case "Spine": return gait.Spine(phase, 0.6f, 0.55f);
+            case "Spine1": return gait.Spine(phase, 0.9f, 0.3f);
+            case "Spine2": return gait.Spine(phase, 0f, 0.15f);
+            case "Head": return gait.Head(phase);
+            case "LeftArm": return gait.UpperArm(phase, true);
+            case "RightArm": return gait.UpperArm(phase, false);
+            case "LeftForeArm": return gait.ForeArm(phase, true);
+            case "RightForeArm": return gait.ForeArm(phase, false);
+        }
+        bool left = bone.StartsWith("Left", StringComparison.Ordinal);
+        if (bone == "LeftUpLeg" || bone == "RightUpLeg" || bone == "LeftLeg" || bone == "RightLeg" || bone == "LeftFoot" || bone == "RightFoot")
+        {
+            gait.SolveLeg(phase, left, out Quaternion thigh, out Quaternion knee, out Quaternion foot);
+            if (bone.EndsWith("UpLeg", StringComparison.Ordinal)) return thigh;
+            return bone.EndsWith("Foot", StringComparison.Ordinal) ? foot : knee;
+        }
+        return Quaternion.identity;
     }
 
     private static AnimatorController BuildController(Dictionary<string, AnimationClip> clips)
@@ -218,8 +434,8 @@ public static class GameDemoHumanoidEnemyBuilder
     [MenuItem("Tools/Game Demo Enemy/Export Humanoid Pose Preview")]
     public static void ExportPreview()
     {
-        var sheet = new Texture2D(1600, 800, TextureFormat.RGB24, false);
-        float[] samples = { 0.25f, 0.25f, 0.5f, 0.5f, 1f };
+        var sheet = new Texture2D(320 * States.Length, 800, TextureFormat.RGB24, false);
+        float[] samples = { 0.25f, 0.25f, 0.25f, 0.5f, 0.5f, 1f };
         try
         {
             for (int row = 0; row < 2; row++)
@@ -256,7 +472,7 @@ public static class GameDemoHumanoidEnemyBuilder
             sheet.Apply();
             System.IO.Directory.CreateDirectory("Logs");
             System.IO.File.WriteAllBytes("Logs/humanoid-enemy-poses.png", sheet.EncodeToPNG());
-            Debug.Log("[Humanoid Enemy] Preview exported: Idle, Chase, Attack, Knockback, Dying; front and side rows.");
+            Debug.Log("[Humanoid Enemy] Preview exported: " + string.Join(", ", States) + "; front and side rows.");
         }
         finally { UnityEngine.Object.DestroyImmediate(sheet); }
     }

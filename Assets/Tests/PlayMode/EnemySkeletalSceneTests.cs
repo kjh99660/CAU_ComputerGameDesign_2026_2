@@ -30,18 +30,29 @@ public sealed class EnemySkeletalSceneTests
         animator.Update(0f);
         Quaternion idle = leg.localRotation;
         runtime.ApplyState(GameState.Battle, tick);
-        enemy.RunAI(enemy.transform.position + Vector3.forward * 10f, System.Array.Empty<EnemyAgent>(), runtime.Settings, 0f, tick);
-        animator.Update(0f); // Evaluate Animator.Play before advancing its newly-entered state.
-        animator.Update(0.16f);
-        Assert.Greater(Quaternion.Angle(idle, leg.localRotation), 5f);
+        // Each enemy starts its gait at its own phase, so look at the whole swing instead of one instant.
+        Vector3 target = enemy.transform.position + Vector3.forward * 30f;
+        float swing = 0f;
+        for (int i = 0; i < 60; i++)
+        {
+            enemy.RunAI(target, System.Array.Empty<EnemyAgent>(), runtime.Settings, 1f / 60f, tick);
+            animator.Update(1f / 60f);
+            swing = Mathf.Max(swing, Quaternion.Angle(idle, leg.localRotation));
+        }
+        Assert.Greater(swing, 15f, "Chasing must swing the legs.");
+        Assert.IsTrue(enemy.ShowsLocomotion);
         runtime.ApplyState(GameState.Paused, tick);
         Quaternion paused = leg.localRotation;
         yield return null;
         yield return null;
         Assert.Less(Quaternion.Angle(paused, leg.localRotation), 0.05f);
+        // Finishing stops new movement: the enemy settles into its stance instead of running on the spot.
         runtime.ApplyState(GameState.Finishing, tick);
-        animator.Update(0.2f);
-        Assert.Greater(Quaternion.Angle(paused, leg.localRotation), 5f);
+        Assert.Greater(animator.speed, 0f);
+        Assert.IsFalse(enemy.ShowsLocomotion);
+        animator.Update(0.6f);
+        Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"));
+        Assert.Less(Quaternion.Angle(idle, leg.localRotation), 8f);
         Assert.IsTrue(enemy.ApplyHit(Vector3.zero, runtime.Settings, tick));
         enemy.RunAction(runtime.Settings, runtime.Settings.KnockbackFallbackDuration + 0.01f, tick);
         animator.Update(runtime.Settings.DeathDuration);
@@ -49,7 +60,8 @@ public sealed class EnemySkeletalSceneTests
         enemy.DeactivateForPool(pool.transform);
         enemy.Activate(Vector3.zero, tick + 1);
         Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"));
-        Assert.Less(Quaternion.Angle(idle, leg.localRotation), 0.1f);
+        // Back in the stance (its phase differs per enemy), with nothing left of the death pose.
+        Assert.Less(Quaternion.Angle(idle, leg.localRotation), 8f);
         Object.Destroy(pool);
     }
 }

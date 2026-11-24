@@ -63,3 +63,13 @@ Game camera, hit several enemies, pause/resume mid-motion, then Retry and verify
 idle poses. Inspect floor contact on slopes and raised platforms. These provisional
 procedural motions may need art tuning; no 100-enemy performance measurement or
 full interactive gameplay review is claimed.
+
+## Update 2026-11-24 (branch `polish/game-feel`)
+
+The clips described above were regenerated with a different method; see `Docs/Design/07_PLAYTEST_AUDIT.md` section 3.
+
+- The feet are placed first (planted during stance) and the leg joints are solved from them (`Assets/Editor/EnemyGait.cs`). Chase is now a run authored for `EnemySettings.runClipSpeed`, and a sixth clip, Walk, is authored for `walkClipSpeed`. The runtime plays them at real speed / authored speed.
+- The gameplay prefab's model was 0.223 m above its root because it had been fitted to padded renderer bounds. `Tools > Game Demo Enemy > Ground Humanoid Enemy Model` corrects that one local height.
+- `Tools > Game Demo Enemy > Rebuild Humanoid Enemy Clips` regenerates clips and controller in place without rebuilding the prefab hierarchy.
+- Run duration is 0.6 s and walk 0.8 s (provisional). The statements above about a 0.65 s gait and five clips describe the earlier version.
+
