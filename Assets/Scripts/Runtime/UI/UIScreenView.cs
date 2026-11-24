@@ -14,6 +14,20 @@ public abstract class UIScreenView : MonoBehaviour
             canvasGroup = GetComponent<CanvasGroup>();
     }
 
+    // This game has no keyboard or gamepad menu navigation: buttons are clicked, and Esc, Space and Enter are handled
+    // by UiLayer. With navigation on, a clicked button stays the EventSystem's selected object, and Enter (also the
+    // UI's Submit key) presses it again later: START twice, a dialogue line skipped, RETRY before the result has
+    // counted up. With navigation off a click selects nothing. UIRoot applies this to every button of every screen
+    // once; a view that creates a button at run time applies it to that button.
+    public static void TurnNavigationOff(Selectable selectable)
+    {
+        if (selectable == null) return;
+        Navigation navigation = selectable.navigation;
+        if (navigation.mode == Navigation.Mode.None) return;
+        navigation.mode = Navigation.Mode.None;
+        selectable.navigation = navigation;
+    }
+
     public void SetVisible(bool visible)
     {
         if (gameObject.activeSelf != visible)
@@ -49,6 +63,16 @@ public abstract class UIScreenView : MonoBehaviour
     {
         if (target != null)
             target.interactable = interactable;
+    }
+
+    // A keyboard press of a screen's button: goes through the button's own onClick (listeners, click sound) and only
+    // when the mouse could click it too (active, interactable, its screen accepting input).
+    protected static bool Press(Button target)
+    {
+        if (target == null || !target.isActiveAndEnabled || !target.IsInteractable())
+            return false;
+        target.onClick.Invoke();
+        return true;
     }
 
     private static Transform FindNamedTransform(Transform parent, string objectName)

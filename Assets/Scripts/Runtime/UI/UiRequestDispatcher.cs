@@ -60,7 +60,13 @@ public sealed class UIRequestDispatcher : IUIRequestDispatcher
             UIRequestType.BattleComplete => new TimerReachedZeroRequest(tick),
             _ => throw new ArgumentOutOfRangeException(nameof(requestType), requestType, null)
         };
-        Debug.Log($"Enqueueing UI request: {requestType} at tick {tick}");
+        Trace(requestType, tick);
         _requests.EnqueueRequest(request);
     }
+
+    // 개발 환경에서만 UI 요청을 기록한다(거부된 요청의 기록과 같은 조건, GameStateManager.Reject). 출시 빌드의 로그에는 남지 않는다.
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private static void Trace(UIRequestType requestType, int tick) =>
+        Debug.Log($"Enqueueing UI request: {requestType} at tick {tick}");
 }

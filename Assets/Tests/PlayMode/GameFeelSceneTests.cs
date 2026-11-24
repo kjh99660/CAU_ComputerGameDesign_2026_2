@@ -204,6 +204,37 @@ public sealed class GameFeelSceneTests
         Assert.AreEqual(killsBefore + 1, Object.FindFirstObjectByType<CombatRoundRuntime>().Stats.KillCount, "The enemy it stopped in front of must be hit.");
     }
 
+    // The camera used to keep its minimum distance even with a wall closer than that: it ended up inside the wall.
+    [UnityTest]
+    public IEnumerator WithAWallRightBehindThePlayerTheCameraStaysInFrontOfItAndThePlayerIsNotDrawn()
+    {
+        yield return ClearEnemies();
+        Vector3 origin = _player.transform.position;
+        Assert.IsTrue(Physics.Raycast(origin + Vector3.up, Vector3.left, out RaycastHit wall, 100f, 1 << 0, QueryTriggerInteraction.Ignore), "The arena must have a west wall.");
+        Assert.IsFalse(_player.HiddenForCamera, "In the open the player is drawn.");
+        // The player's back against the wall.
+        Teleport(new Vector3(wall.point.x + _controller.radius + 0.05f, origin.y, wall.point.z));
+        // 450 px of mouse travel = 90 degrees: the camera now sits toward the wall, behind the player.
+        InputSystem.QueueStateEvent(_mouse, new MouseState { delta = new Vector2(450f, 0f) });
+        yield return Frames(30);
+
+        Vector3 head = _player.transform.position + Vector3.up * 1.5f;
+        float distance = Vector3.Distance(head, _camera.transform.position);
+        Assert.Less(distance, 0.7f, "The wall is closer than the camera used to come.");
+        Assert.IsFalse(Physics.Linecast(head, _camera.transform.position, 1 << 0, QueryTriggerInteraction.Ignore), "The camera must stay on the player's side of the wall.");
+        Assert.IsTrue(_player.HiddenForCamera, "This close the camera would look into the player's own model.");
+        foreach (Renderer renderer in _player.GetComponentsInChildren<Renderer>(true))
+            Assert.IsTrue(renderer.forceRenderingOff, renderer.name + " is still drawn.");
+
+        // Stepping away from the wall: the camera backs out and the player is drawn again.
+        Teleport(origin);
+        yield return Frames(90);
+        Assert.IsFalse(_player.HiddenForCamera);
+        foreach (Renderer renderer in _player.GetComponentsInChildren<Renderer>(true))
+            Assert.IsFalse(renderer.forceRenderingOff, renderer.name + " stayed hidden.");
+        Assert.Greater(Vector3.Distance(_player.transform.position + Vector3.up * 1.5f, _camera.transform.position), 2f);
+    }
+
     [UnityTest]
     public IEnumerator CameraPullsInNextToAWall()
     {

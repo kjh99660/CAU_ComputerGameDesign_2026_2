@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 전투 HUD와 화면 프리팹에 더한 요소: 콤보 표시, 전투 중 무전 자막, 게이지 옆 키 표시(E·Q), 결과 화면의 최고 점수,
-// 시작 화면의 두 줄 조작 안내. 프리팹 전체를 다시 만들지 않고 이 요소들만 더하거나 다시 맞춘다
+// 시작 화면의 두 줄 조작 안내, 일시정지 메뉴 양옆의 설정 칸(감도·음량)과 조작 안내 칸, 대사 상자 뒤의 어두운 채움. 프리팹 전체를 다시 만들지 않고 이 요소들만 더하거나 다시 맞춘다
 // (전투 HUD의 피격 글리치·흐림 값처럼 생성 뒤에 조절한 값은 그대로 둔다).
 // - Ensure* 메서드는 여러 번 실행해도 같다. 같은 이름의 요소가 있으면 찾아서 배치와 모양만 다시 맞춘다.
 // - GameDemoUiPrefabBuilder가 같은 메서드를 불러, 전체 다시 만들기에서도 같은 요소가 생긴다.
@@ -52,9 +52,11 @@ public static class RebootHudAdditions
         ApplyToPrefab("Finishing", root => EnsureFinishing(root.transform));
         ApplyToPrefab("Start", root => EnsureStart(root.transform));
         ApplyToPrefab("Result", root => EnsureResult(root.transform));
+        ApplyToPrefab("Pause", root => EnsurePause(root.transform));
+        ApplyToPrefab("Dialogue", root => EnsureDialogue(root.transform));
         EnsureDialogueData();
         AssetDatabase.SaveAssets();
-        Debug.Log("[RebootHUD] Combo, radio, key badges, control hint and best score applied.");
+        Debug.Log("[RebootHUD] Combo, radio, key badges, control hint, best score, pause options and dialogue backing applied.");
     }
 
     private static void ApplyToPrefab(string prefabName, Action<GameObject> ensure)
@@ -220,6 +222,30 @@ public static class RebootHudAdditions
         Place(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 76f), new Vector2(1100f, 96f));
         hint.alignment = TextAlignmentOptions.Center;
         StyleControlHint(hint);
+        EnsureStartBestScore(root);
+    }
+
+    // 제목 칸(아래 끝 y=60)과 START 버튼(위 끝 y=-43) 사이에 최고 점수 한 줄. 기록이 없으면 StartView가 숨긴다.
+    // 결과 화면의 BEST 줄과 같은 배치다(라벨은 가운데의 왼쪽, 숫자는 오른쪽).
+    private static void EnsureStartBestScore(Transform root)
+    {
+        TMP_Text style = FindText(root, "Subtitle");
+        if (style == null) style = FindText(root, "ControlHint");
+        RectTransform row = EnsureRect(root, "BestScoreRow");
+        Place(row, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 8f), new Vector2(520f, 36f));
+        TMP_Text label = EnsureText(row, "BestScoreLabel", style, "BEST", 22f, UiPalette.Muted, TextAlignmentOptions.MidlineRight);
+        Place(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-38f, 0f), new Vector2(160f, 36f));
+        label.characterSpacing = 6f;
+        TMP_Text value = EnsureText(row, "BestScoreValue", style, "000000", 32f, UiPalette.Ink, TextAlignmentOptions.MidlineLeft);
+        Place(value.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f), new Vector2(-22f, 0f), new Vector2(220f, 36f));
+        row.gameObject.SetActive(false);
+
+        var view = root.GetComponent<StartView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("bestScoreRow").objectReferenceValue = row.gameObject;
+        so.FindProperty("bestScoreValue").objectReferenceValue = value;
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // 조작 안내의 글자 크기 규칙. 테마 빌더(RebootUiThemeBuilder)도 같은 값을 쓴다.
@@ -230,6 +256,127 @@ public static class RebootHudAdditions
         hint.fontSizeMin = 18f;
         hint.fontSizeMax = 26f;
         hint.lineSpacing = 14f;
+    }
+
+    // ------------------------------------------------------------------ pause
+
+    // 일시정지 메뉴의 조작 안내. 시작 화면의 안내(ControlHintText)와 같은 키다. 키를 바꾸면 둘 다 바꾼다.
+    public const string PauseControlKeys = "WASD\nMOUSE\nLMB\nHOLD 3RD LMB\nSHIFT\nQ\nE\nESC";
+    public const string PauseControlActions = "MOVE\nCAMERA\nATTACK\nCHARGE\nDODGE\nSKILL DASH\nSPECIAL AT 100%\nRESUME";
+
+    // 일시정지 메뉴 양옆의 두 칸. 가운데 메뉴(MenuPanel 520px)와 겹치지 않게 ±500px에 두고, 위쪽 끝을 RESUME 버튼에 맞춘다.
+    // - 왼쪽 OptionsPanel: 플레이어 설정 두 줄(마우스 감도, 음량). 한 번 누르면 한 단계(GameOptions). PauseView가 버튼과
+    //   값 글자를 이름으로도 찾지만 여기서 직접 연결해 둔다.
+    // - 오른쪽 ControlsPanel: 조작 안내.
+    // 재시작 확인창이 뜨면 PauseView가 DimmedOverlay를 뺀 나머지를 숨기므로 두 칸도 같이 숨는다.
+    public static void EnsurePause(Transform root)
+    {
+        TMP_Text style = FindText(root, "Header");
+        if (style == null) style = FindText(root, "Label");
+
+        RectTransform options = EnsureRect(root, "OptionsPanel");
+        Place(options, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(-500f, 157f), new Vector2(400f, 196f));
+        EnsurePanelDressing(options, style, "OPTIONS");
+        TMP_Text lookValue = EnsureOptionRow(options, style, "Look", "SENSITIVITY", -92f, out Button lookDown, out Button lookUp);
+        TMP_Text volumeValue = EnsureOptionRow(options, style, "Volume", "VOLUME", -150f, out Button volumeDown, out Button volumeUp);
+
+        RectTransform controls = EnsureRect(root, "ControlsPanel");
+        Place(controls, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(500f, 157f), new Vector2(400f, 330f));
+        EnsurePanelDressing(controls, style, "CONTROLS");
+        TMP_Text keys = EnsureText(controls, "ControlKeys", style, PauseControlKeys, 19f, UiPalette.Ink, TextAlignmentOptions.TopLeft);
+        Place(keys.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(26f, -58f), new Vector2(160f, 256f));
+        TMP_Text actions = EnsureText(controls, "ControlActions", style, PauseControlActions, 19f, UiPalette.Muted, TextAlignmentOptions.TopLeft);
+        Place(actions.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(196f, -58f), new Vector2(190f, 256f));
+        keys.lineSpacing = actions.lineSpacing = 22f;
+        keys.characterSpacing = actions.characterSpacing = 2f;
+
+        var view = root.GetComponent<PauseView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("lookDownButton").objectReferenceValue = lookDown;
+        so.FindProperty("lookUpButton").objectReferenceValue = lookUp;
+        so.FindProperty("volumeDownButton").objectReferenceValue = volumeDown;
+        so.FindProperty("volumeUpButton").objectReferenceValue = volumeUp;
+        so.FindProperty("lookValue").objectReferenceValue = lookValue;
+        so.FindProperty("volumeValue").objectReferenceValue = volumeValue;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 옆 칸의 바탕(전투 HUD 무전 자막과 같은 어두운 채움), 왼쪽 강조선, 제목.
+    private static void EnsurePanelDressing(RectTransform panel, TMP_Text style, string title)
+    {
+        Image fill = EnsureImage(panel, "PanelFill", null, PanelFill);
+        Stretch(fill.rectTransform);
+        Image edge = EnsureImage(panel, "PanelEdge", null, UiPalette.Accent);
+        edge.rectTransform.anchorMin = new Vector2(0f, 0f);
+        edge.rectTransform.anchorMax = new Vector2(0f, 1f);
+        edge.rectTransform.pivot = new Vector2(0f, 0.5f);
+        edge.rectTransform.anchoredPosition = Vector2.zero;
+        edge.rectTransform.sizeDelta = new Vector2(3f, 0f);
+        TMP_Text text = EnsureText(panel, "PanelTitle", style, title, 20f, UiPalette.Muted, TextAlignmentOptions.TopLeft);
+        Place(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(26f, -16f), new Vector2(300f, 28f));
+        text.characterSpacing = 8f;
+    }
+
+    // 설정 한 줄: 이름, 내림 버튼, 값, 올림 버튼. y는 칸의 위쪽 끝에서 줄 가운데까지.
+    private static TMP_Text EnsureOptionRow(RectTransform panel, TMP_Text style, string id, string label, float y,
+        out Button down, out Button up)
+    {
+        TMP_Text name = EnsureText(panel, id + "Label", style, label, 20f, UiPalette.Ink, TextAlignmentOptions.MidlineLeft);
+        Place(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(26f, y), new Vector2(170f, 44f));
+        name.characterSpacing = 3f;
+        down = EnsureStepButton(panel, id + "DownButton", "-", style, new Vector2(222f, y));
+        TMP_Text value = EnsureText(panel, id + "Value", style, "100%", 24f, UiPalette.Accent, TextAlignmentOptions.Center);
+        Place(value.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(288f, y), new Vector2(84f, 44f));
+        up = EnsureStepButton(panel, id + "UpButton", "+", style, new Vector2(354f, y));
+        return value;
+    }
+
+    // 한 단계 버튼. 바탕 색 위에 상태 색(보통, 가리킴, 누름, 꺼짐)을 곱한다. 키보드 이동은 쓰지 않는다(마우스로 누른다).
+    private static Button EnsureStepButton(RectTransform panel, string name, string glyph, TMP_Text style, Vector2 position)
+    {
+        RectTransform rect = EnsureRect(panel, name, typeof(Image), typeof(Button));
+        Place(rect, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), position, new Vector2(46f, 46f));
+        var image = rect.GetComponent<Image>();
+        image.sprite = null;
+        image.type = Image.Type.Simple;
+        image.color = UiPalette.WithAlpha(UiPalette.Accent, 0.2f);
+        image.raycastTarget = true;
+        var button = rect.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = ColorBlock.defaultColorBlock;
+        colors.normalColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+        colors.highlightedColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+        colors.pressedColor = new Color(0.3f, 0.3f, 0.3f, 1f);
+        colors.selectedColor = colors.normalColor;
+        colors.disabledColor = new Color(0.5f, 0.5f, 0.5f, 0.15f);
+        colors.colorMultiplier = 2f;
+        colors.fadeDuration = 0.06f;
+        button.colors = colors;
+        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        TMP_Text text = EnsureText(rect, "Glyph", style, glyph, 32f, UiPalette.Ink, TextAlignmentOptions.Center);
+        Stretch(text.rectTransform);
+        return button;
+    }
+
+    // ------------------------------------------------------------------ dialogue
+
+    // 대사 상자 뒤의 어두운 채움. 상자 그림의 채움만으로는 밝은 배경(로봇 무리, 길의 선) 앞에서 글자가 묻힌다
+    // (선형 색 공간에서는 어두운 반투명이 눈에 보이는 것보다 덜 가린다). 상자 그림의 보이는 부분 안쪽에 맞춘다.
+    public static void EnsureDialogue(Transform root)
+    {
+        Transform box = root.Find("DialogueBox");
+        if (box == null) return;
+        Image fill = EnsureImage(box, "BoxFill", null, new Color(PanelFill.r, PanelFill.g, PanelFill.b, 0.62f));
+        RectTransform rect = fill.rectTransform;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.offsetMin = new Vector2(8f, 14f);
+        rect.offsetMax = new Vector2(-14f, -14f);
+        rect.localScale = Vector3.one;
+        rect.SetAsFirstSibling();
     }
 
     // ------------------------------------------------------------------ result
@@ -273,44 +420,28 @@ public static class RebootHudAdditions
 
     // ------------------------------------------------------------------ dialogue data
 
-    // 전투 중 무전 두 줄(4.6의 예문)을 에셋에 넣는다. 마무리 변형 배열은 팀이 대사를 정할 때까지 비워 둔다(= 기본 마무리).
-    // 도입·마무리 대사는 건드리지 않는다. 값이 이미 같으면 에셋을 다시 쓰지 않는다(다시 쓰면 YAML 줄바꿈만 바뀐다).
+    // 대사 에셋(DialogueSequence.asset)의 문장은 에셋이 기준이다: 팀이 정한 도입·마무리 대사, 10초 무전, 생성 경고 세 줄,
+    // 성과 반응 마무리 변형과 그 기준값. 이 빌더는 그 값들을 덮어쓰지 않는다. 전에는 여기서 무전 두 줄을 다시 쓰고 마무리
+    // 변형을 비웠는데, 그대로 두면 Apply를 돌릴 때마다 정해 둔 대사가 지워진다. 무전 줄이 하나도 없는 새 에셋에만
+    // 기본 한 줄(10초)을 넣는다.
     public static void EnsureDialogueData()
     {
         var data = AssetDatabase.LoadAssetAtPath<DialogueSequenceData>(DialogueDataPath);
         if (data == null) throw new InvalidOperationException("Missing " + DialogueDataPath);
+        if (data.battleRadio != null && data.battleRadio.Length > 0)
+            return;
         var radioLines = new[]
         {
-            new BattleRadioLine { remainingSeconds = 50f, speaker = "노아", text = "절반 지났어. 공격 명령은 아직 살아 있어.", leftSpeaker = true },
             new BattleRadioLine { remainingSeconds = 10f, speaker = "노아", text = "10초 남았어. 버텨.", leftSpeaker = true }
         };
-        if (SameRadio(data.battleRadio, radioLines) && data.outroManyHits != null && data.outroManyHits.Length == 0 &&
-            data.outroPrecise != null && data.outroPrecise.Length == 0 && data.manyHitsMinHits == 15 &&
-            data.preciseMaxHits == 3 && data.preciseMinKills == 200)
-            return;
         var so = new SerializedObject(data);
         SerializedProperty radio = so.FindProperty("battleRadio");
         radio.arraySize = radioLines.Length;
         for (int i = 0; i < radioLines.Length; i++)
             SetRadioLine(radio.GetArrayElementAtIndex(i), radioLines[i]);
-        so.FindProperty("outroManyHits").arraySize = 0;
-        so.FindProperty("outroPrecise").arraySize = 0;
-        so.FindProperty("manyHitsMinHits").intValue = 15;
-        so.FindProperty("preciseMaxHits").intValue = 3;
-        so.FindProperty("preciseMinKills").intValue = 200;
         so.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(data);
         AssetDatabase.SaveAssetIfDirty(data);
-    }
-
-    private static bool SameRadio(BattleRadioLine[] current, BattleRadioLine[] wanted)
-    {
-        if (current == null || current.Length != wanted.Length) return false;
-        for (int i = 0; i < wanted.Length; i++)
-            if (current[i].remainingSeconds != wanted[i].remainingSeconds || current[i].speaker != wanted[i].speaker ||
-                current[i].text != wanted[i].text || current[i].leftSpeaker != wanted[i].leftSpeaker)
-                return false;
-        return true;
     }
 
     private static void SetRadioLine(SerializedProperty line, BattleRadioLine value)

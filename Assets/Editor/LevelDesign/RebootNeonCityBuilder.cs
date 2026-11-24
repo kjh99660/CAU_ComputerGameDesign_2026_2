@@ -133,6 +133,7 @@ public static partial class RebootNeonCityBuilder
         added.transform.SetParent(stage.transform, false);
         foreach (StairTower stair in Stairs)
             AddStairTower(stage.transform, added.transform, stair, report);
+        CloseSafeSpots(stage.transform, added.transform, report);
         Physics.SyncTransforms();
 
         // 5. Game wiring that pointed into the old stage.
@@ -329,6 +330,19 @@ public static partial class RebootNeonCityBuilder
         var serialized = new SerializedObject(player);
         serialized.FindProperty("spawnPoint").objectReferenceValue = spawn;
         serialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // Main.unity leaves the player scripts' debugLog on: a line in the log for every dodge and skill.
+        foreach (MonoBehaviour behaviour in player.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour == null)
+                continue;
+            var settings = new SerializedObject(behaviour);
+            SerializedProperty log = settings.FindProperty("debugLog");
+            if (log == null || log.propertyType != SerializedPropertyType.Boolean || !log.boolValue)
+                continue;
+            log.boolValue = false;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 
     private static void AddNavigation(Scene scene, Transform stage)
@@ -340,6 +354,7 @@ public static partial class RebootNeonCityBuilder
         volume.Configure(NavSize, 0.5f, 1 << 0);
         var volumeSettings = new SerializedObject(volume);
         volumeSettings.FindProperty("maxDropHeight").floatValue = MaxDropHeight;
+        volumeSettings.FindProperty("maxClimbDegrees").floatValue = EnemyClimbDegrees;
         volumeSettings.ApplyModifiedPropertiesWithoutUndo();
 
         EnemyRuntime enemies = FindInScene<EnemyRuntime>(scene);

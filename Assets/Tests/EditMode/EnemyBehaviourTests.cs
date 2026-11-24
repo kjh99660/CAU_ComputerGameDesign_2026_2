@@ -157,6 +157,64 @@ public sealed class EnemyBehaviourTests
         Assert.Less(farthest, start + 0.35f, "It does not back away from the player.");
     }
 
+    // A feint is a step in and a step back to where it began. When the step back was dropped for an enemy inside its
+    // ring, every feint left it one step closer, until it stood pressed against the player.
+    [Test]
+    public void AWaitingEnemysFeintsDoNotBringItCloserAndCloser()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 1, liveliness: 1f);
+        EnemyRuntime runtime = Runtime(settings);
+        Assert.IsTrue(runtime.TryTakeAttackSlot(Enemy(runtime)), "Someone else holds the only turn.");
+        EnemyAgent enemy = Enemy(runtime);
+        for (int i = 0; i < 50; i++)
+        {
+            enemy.Activate(Vector3.zero, 8, i / 50f);
+            if (enemy.Temperament == EnemyTemperament.Circler) break;
+        }
+        Assert.AreEqual(EnemyTemperament.Circler, enemy.Temperament, "This test needs an enemy that feints.");
+        var player = new Vector3(0f, 0f, 7f);
+        var none = new List<EnemyAgent>();
+        const float step = 0.02f;
+        float closest = float.MaxValue, restingLate = 0f;
+        for (int i = 0; i < 2000; i++)   // 40 s: a dozen feints
+        {
+            enemy.RunAI(player, none, settings, step, 8);
+            Assert.AreNotEqual(EnemyAgentState.Attack, enemy.State, "No turn, no attack.");
+            Vector3 gap = player - enemy.transform.position;
+            gap.y = 0f;
+            float time = i * step;
+            if (time > 8f) closest = Mathf.Min(closest, gap.magnitude);
+            if (time > 32f) restingLate = Mathf.Max(restingLate, gap.magnitude);   // between feints it stands at its ring
+        }
+        Assert.Greater(restingLate, enemy.HoverRadius - 0.3f, "After a dozen feints it still waits at its ring.");
+        Assert.Greater(closest, enemy.HoverRadius - 1.4f, "A feint is one step in, not a walk up to the player.");
+    }
+
+    // Finishing runs the actions but not the AI: a first hit on a red robot that lands in the slow motion at the end
+    // of the round must still play out, or the robot stays frozen in its recoil through the outro and the result.
+    [Test]
+    public void AStaggerPlaysOutWhenOnlyTheActionsRunAsInFinishing()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 0, liveliness: 0f);
+        EnemyAgent enemy = Enemy(null);
+        enemy.Activate(Vector3.zero, 4, 0.5f, -1, 2);
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back * 3f, settings, 4));
+        Assert.IsTrue(enemy.Staggered);
+        float startZ = enemy.transform.position.z;
+        int steps = 0;
+        while (enemy.Staggered && steps < 100)
+        {
+            enemy.RunAction(settings, 0.02f, 4);
+            steps++;
+        }
+        Assert.IsFalse(enemy.Staggered, "The stagger ends without the AI step.");
+        Assert.AreEqual(Mathf.CeilToInt(settings.StaggerSeconds / 0.02f), steps, 1, "...after the stagger time.");
+        Assert.Less(enemy.transform.position.z, startZ - 0.2f, "Shoved back along the blow.");
+        Assert.AreEqual(EnemyAgentState.Chase, enemy.State);
+        Assert.IsFalse(enemy.Defeated);
+        Assert.IsTrue(enemy.Damaged);
+    }
+
     // 2026-11-25 request: the red robot takes two hits. There is no health bar: the hit it survives shoves it back,
     // cancels its attack and leaves its lights flickering.
     [Test]

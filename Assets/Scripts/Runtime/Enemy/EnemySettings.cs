@@ -64,6 +64,15 @@ public sealed class EnemySettings : ScriptableObject
     [SerializeField, ColorUsage(true, true)] private Color spawnWarningWeakColor = new Color(2.2f, 0.16f, 0.22f, 1f);
     [SerializeField, ColorUsage(true, true)] private Color spawnWarningWeakHotColor = new Color(2.4f, 0.3f, 1.3f, 1f);
 
+    // The story's ending: the reboot erases the robots' attack orders. When the outro starts every robot still
+    // standing loses its lights and stays dark through the result screen (which also keeps the outro text and the
+    // result numbers readable in front of a crowd). The next round spawns them with their skins again.
+    [Header("Round end - provisional")]
+    [Tooltip("Robots still standing go dark when the outro starts (the reboot erased their orders).")]
+    [SerializeField] private bool powerDownAtRoundEnd = true;
+    [Tooltip("Colour of a powered-down robot. Little saturation = no glow in the enemy shader. It also multiplies the texture, so a dark value is what makes the white visor and chest plate look switched off.")]
+    [SerializeField] private Color poweredDownColor = new Color(0.07f, 0.075f, 0.09f, 1f);
+
     [Header("AI - provisional")]
     [SerializeField, Min(0f)] private float moveSpeed = 3.5f;
     [SerializeField, Min(0.1f)] private float attackRange = 2f;
@@ -170,6 +179,8 @@ public sealed class EnemySettings : ScriptableObject
     public Color ToughColor => toughColor;
     public int ToughHits => Mathf.Max(1, toughHits);
     public Color DamagedColor => damagedColor;
+    public bool PowerDownAtRoundEnd => powerDownAtRoundEnd;
+    public Color PoweredDownColor => poweredDownColor;
     public float DamagedFlickerHz => Mathf.Max(1f, damagedFlickerHz);
     public float StaggerSeconds => staggerSeconds;
     public float StaggerPushSpeed => staggerPushSpeed;

@@ -121,6 +121,10 @@ public sealed class EnemyAgent : MonoBehaviour
     private bool _pacePaused;
     private float _feintTimer;             // until the next feint
     private float _feintLeft;              // seconds left of the feint in progress
+    private float _feintFrom;              // distance to the player when the feint in progress began
+    private float _feintReturnLeft;        // seconds the step back of that feint may still take
+    private const float FeintStepBack = -0.9f;         // share of Move Speed, away from the player
+    private const float FeintReturnSeconds = 0.5f;     // the step back takes this long at most
 
     public Rigidbody Body => _body;
     public EnemyAgentState State { get; private set; } = EnemyAgentState.Pooled;
@@ -291,12 +295,8 @@ public sealed class EnemyAgent : MonoBehaviour
         }
         if (_staggerLeft > 0f)
         {
-            // Reeling from a hit it survived: it slides back, slower and slower, and decides nothing.
+            // Reeling from a hit it survived: RunAction slides it back; nothing is decided until that is over.
             ChangeState(EnemyAgentState.Chase);
-            Vector3 slide = _staggerVelocity * Mathf.Clamp01(_staggerLeft / Mathf.Max(0.01f, _staggerSeconds));
-            _staggerLeft -= deltaTime;
-            if (slide.sqrMagnitude > 0.000001f)
-                Travel(slide * deltaTime, deltaTime, false, false);
             _velocity = Vector3.zero;
             return;
         }
@@ -434,8 +434,30 @@ public sealed class EnemyAgent : MonoBehaviour
                 _strafeTimer = 1.6f + 2.4f * MindValue();
             }
             float radial = Mathf.Clamp((distance - _ringRadius) * 1.5f, 0f, 1f);    // too far: step in; closer: hold
+            bool feinting = _feintLeft > 0f;
             float feint = Feint(deltaTime);
-            if (feint < 0f && distance < _ringRadius) feint = 0f;                    // a feint's pull-back stops at the ring
+            if (!feinting && _feintLeft > 0f)
+            {
+                _feintFrom = distance;                       // a feint starts here
+                _feintReturnLeft = FeintReturnSeconds;
+            }
+            // A feint ends where it began. The step back goes on until the enemy stands at that distance again (it
+            // has to stop and turn its own momentum first, so the feint's own time is not enough), for a short time
+            // at most, and never farther from the player than where it started: no backing away. Without the step
+            // back every feint left the enemy one step closer, until it stood pressed against the player.
+            if (feint <= 0f)
+            {
+                if (_feintReturnLeft > 0f && distance < _feintFrom)
+                {
+                    _feintReturnLeft -= deltaTime;
+                    feint = FeintStepBack;
+                }
+                else
+                {
+                    _feintReturnLeft = 0f;
+                    feint = 0f;
+                }
+            }
             want = toward * (speed * (radial * 0.6f + feint)) + around * (speed * settings.CircleSpeedShare);
         }
         want += separation * (speed * 0.5f);
@@ -464,7 +486,7 @@ public sealed class EnemyAgent : MonoBehaviour
         if (_feintLeft > 0f)
         {
             _feintLeft -= deltaTime;
-            return _feintLeft > 0.25f ? 1.1f : -0.9f;
+            return _feintLeft > 0.25f ? 1.1f : FeintStepBack;
         }
         _feintTimer -= deltaTime;
         if (_feintTimer > 0f)
@@ -503,6 +525,8 @@ public sealed class EnemyAgent : MonoBehaviour
         _pacePaused = false;
         _feintTimer = 1.5f + 2.5f * MindValue();
         _feintLeft = 0f;
+        _feintFrom = 0f;
+        _feintReturnLeft = 0f;
     }
 
     // How long this enemy hovers before it steps in: rushers hardly at all, circlers longest.
@@ -666,6 +690,8 @@ public sealed class EnemyAgent : MonoBehaviour
             return;
 
         Fall(deltaTime);
+        if (_staggerLeft > 0f)
+            Reel(deltaTime);
         if (_hitImmunity > 0f)
             _hitImmunity -= deltaTime;
         if (Damaged)
@@ -687,6 +713,21 @@ public sealed class EnemyAgent : MonoBehaviour
         {
             _stateTime -= deltaTime;
         }
+    }
+
+    // Reeling from a hit it survived: it slides back, slower and slower, then stands again. This runs with the actions,
+    // which also run during Finishing: a first hit that lands in the slow motion at the end of the round plays out
+    // too, instead of leaving the robot frozen in its recoil through the outro and the result screen (RunAI, which
+    // only runs in Battle, used to count the stagger down).
+    private void Reel(float deltaTime)
+    {
+        Vector3 slide = _staggerVelocity * Mathf.Clamp01(_staggerLeft / Mathf.Max(0.01f, _staggerSeconds));
+        _staggerLeft -= deltaTime;
+        if (slide.sqrMagnitude > 0.000001f)
+            Travel(slide * deltaTime, deltaTime, false, false);
+        _velocity = Vector3.zero;
+        if (_staggerLeft <= 0f && (State == EnemyAgentState.Chase || State == EnemyAgentState.Idle))
+            ShowLocomotion(false, null);
     }
 
     // The strike: checked once, when the wind-up ends (halfway through the attack animation unless a wind-up is set).
@@ -772,6 +813,19 @@ public sealed class EnemyAgent : MonoBehaviour
         _lightsOn = false;
         _flickerFrame = -1;
         SetColor(settings.DamagedColor);
+    }
+
+    // The round is over and the reboot has erased the attack orders (the outro and the result screen): the lights go
+    // out and stay out, whatever the robot was showing (skin, wind-up warning, damaged flicker). Robots already
+    // falling keep their own look. Nothing runs RunAction in those states, so nothing turns the lights back on; the
+    // next round's Activate shows the skin again.
+    public void PowerDown(Color color, int tick)
+    {
+        if (tick != ActiveTick || _acceptedHit || State == EnemyAgentState.Pooled || State == EnemyAgentState.Dying)
+            return;
+        _lightsOn = false;
+        _flickerFrame = -1;
+        SetColor(color);
     }
 
     // Its own skin, lights on. A damaged enemy starts flickering again from here on the next frame.

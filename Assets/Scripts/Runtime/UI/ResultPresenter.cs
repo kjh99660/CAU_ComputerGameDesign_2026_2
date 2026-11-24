@@ -67,6 +67,13 @@ public sealed class ResultPresenter : UiPresenter<ResultView>
 
     private void OnRetryClicked() => Requests.Enqueue(UIRequestType.Restart);
 
+    // Keyboard confirm (UiLayer). Only once every number has finished counting up, so a key that was skipping the
+    // outro cannot throw the result away before it has been seen. Presses the RETRY button itself.
+    public void RetryFromInput()
+    {
+        if (CurrentState == GameState.Result && _countUp.IsComplete) View.PressRetry();
+    }
+
     public override void Dispose()
     {
         View.RetryClicked -= OnRetryClicked;

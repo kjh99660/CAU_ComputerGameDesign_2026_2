@@ -9831,6 +9831,7 @@ Transform:
   m_Children:
   - {fileID: 1491247880}
   - {fileID: 149481709}
+  - {fileID: 506271841}
   m_Father: {fileID: 1541980049}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &253679750
@@ -15877,7 +15878,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 240846898242199518, guid: 5a50e90b803d55d47ae1bfcc72743f1a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.124
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 541840094494140892, guid: 5a50e90b803d55d47ae1bfcc72743f1a, type: 3}
       propertyPath: m_RootOrder
@@ -20866,6 +20867,38 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5743848158837398214, guid: f579a59b5a6a7174eb70d3b06acb38c8, type: 3}
   m_PrefabInstance: {fileID: 502957950}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &506271840
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 506271841}
+  m_Layer: 2
+  m_Name: PlayerBlockers
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &506271841
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 506271840}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 953373944}
+  m_Father: {fileID: 253125076}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &507196369
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -23644,7 +23677,7 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: 5a0386ef0bc6c472a87c6ed74d1bdc60, type: 2}
     - target: {fileID: 1507072493644532412, guid: 246cf019bd7864b489154eb170c7ee8e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.19
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 5506569215931976778, guid: 246cf019bd7864b489154eb170c7ee8e, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
@@ -26875,7 +26908,7 @@ MonoBehaviour:
   bodyRadius: 0.45
   bodyHeight: 1.9
   stepHeight: 0.45
-  maxClimbDegrees: 40
+  maxClimbDegrees: 44
   maxFloors: 6
   maxDropHeight: 10.5
 --- !u!1001 &624338148
@@ -30928,7 +30961,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7819075557148611132, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: debugLog
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7872109362996020534, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: m_LocalPosition.x
@@ -30972,7 +31005,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9115505955110292297, guid: 3ddaeca822c49b24fbd8fe92a667de11, type: 3}
       propertyPath: debugLog
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -39857,6 +39890,59 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 6711062949645263326, guid: c316f6db20d40c945ab6e3108328a33e, type: 3}
   m_PrefabInstance: {fileID: 952196758}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &953373943
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 953373944}
+  - component: {fileID: 953373945}
+  m_Layer: 2
+  m_Name: PlayerBlocker_PoliceCars
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &953373944
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 953373943}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -27.64, y: 1.35, z: 2.775}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 506271841}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &953373945
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 953373943}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 4294966783
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 4.48, y: 2.8, z: 3.71}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &955207649
 PrefabInstance:
   m_ObjectHideFlags: 0

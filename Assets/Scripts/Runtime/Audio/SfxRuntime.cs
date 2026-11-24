@@ -198,9 +198,12 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     }
 
     private void Click() => Play(SfxCue.UiClick, default);
+    // An option step in the pause menu. It plays after the value has changed, so a volume step is heard at the new volume.
+    private void StepClick(int direction) => Play(SfxCue.UiClick, default);
     private void Confirm() => Play(SfxCue.UiConfirm, default);
     private void Back() => Play(SfxCue.UiBack, default);
     private void NextLine() => Play(SfxCue.DialogueNext, default);
+    // The 3, 2, 1 before the battle, and the same tick on the battle's last three seconds.
     private void CountdownNumber(int number) => Play(SfxCue.CountdownTick, default);
     private void CountdownStart() => Play(SfxCue.CountdownGo, default);
 
@@ -355,8 +358,16 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
         BattleView battle = _ui.BattleScreen;
         if (battle != null)
         {
-            if (on) battle.PauseClicked += Click;
-            else battle.PauseClicked -= Click;
+            if (on)
+            {
+                battle.PauseClicked += Click;
+                battle.FinalSecondTicked += CountdownNumber;
+            }
+            else
+            {
+                battle.PauseClicked -= Click;
+                battle.FinalSecondTicked -= CountdownNumber;
+            }
         }
         PauseView pause = _ui.PauseScreen;
         if (pause != null)
@@ -366,12 +377,16 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
                 pause.ResumeClicked += Confirm;
                 pause.RetryClicked += Click;
                 pause.QuitClicked += Back;
+                pause.LookStepClicked += StepClick;
+                pause.VolumeStepClicked += StepClick;
             }
             else
             {
                 pause.ResumeClicked -= Confirm;
                 pause.RetryClicked -= Click;
                 pause.QuitClicked -= Back;
+                pause.LookStepClicked -= StepClick;
+                pause.VolumeStepClicked -= StepClick;
             }
         }
         RetryConfirmationView confirmation = _ui.RetryConfirmationScreen;

@@ -28,7 +28,11 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private EnemyRemainsRuntime _remains;
     private SfxRuntime _sfx;
     private PerfRuntime _perf;
+    private GameOptions _options;
     private bool _spawnWarningsWired;
+
+    // 플레이어 설정(일시정지 메뉴의 마우스 감도, 음량). 테스트가 값을 읽을 때 쓴다.
+    public GameOptions Options => _options;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -101,6 +105,11 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         // 생성 이벤트(25% 소규모 대량 생성, 50% 생성 속도 2배, 75% 대규모 대량 생성)마다 노아의 경고를 HUD에 띄운다.
         enemyRuntime.SpawnPhaseStarted += OnSpawnPhaseStarted;
         _spawnWarningsWired = true;
+        // 플레이어 설정: 저장된 감도와 음량을 바로 적용하고, 일시정지 메뉴에서 바꿀 때마다 다시 적용한다.
+        _options = new GameOptions(new PlayerPrefsOptionsStore());
+        _options.Changed += ApplyOptions;
+        uiRoot.AttachOptions(_options);
+        ApplyOptions();
         _physics = new PhysicsLayer(_physicsPauseManager);
         _requestProcessor = new GameRequestProcessor(gameStateManager);
         HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
@@ -191,9 +200,21 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
             uiRoot.PresentSpawnWarning(warningIndex);
     }
 
+    // 설정값의 적용: 감도는 플레이어 카메라의 배율로, 음량은 모든 소리(배경 음악, 효과음, 환경음)에 걸리는 전체 음량으로.
+    private void ApplyOptions()
+    {
+        if (_options == null)
+            return;
+        if (playerRuntime != null)
+            playerRuntime.LookSensitivityScale = _options.LookScale;
+        AudioListener.volume = _options.Volume;
+    }
+
     // Bootstrap이 사라질 때 UI Presenter의 구독과 생성 이벤트 구독을 정리한다.
     private void OnDestroy()
     {
+        if (_options != null)
+            _options.Changed -= ApplyOptions;
         if (_spawnWarningsWired && enemyRuntime != null)
             enemyRuntime.SpawnPhaseStarted -= OnSpawnPhaseStarted;
         _ui?.Dispose();

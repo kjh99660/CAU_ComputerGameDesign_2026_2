@@ -33,6 +33,9 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
             Debug.LogError("UIRoot requires all eight screen Views.", this);
             return null;
         }
+        // 눌린 버튼이 선택된 채로 남지 않게 한다(UIScreenView.TurnNavigationOff의 설명 참고). 꺼져 있는 화면의 버튼까지 한 번에.
+        foreach (UnityEngine.UI.Selectable selectable in GetComponentsInChildren<UnityEngine.UI.Selectable>(true))
+            UIScreenView.TurnNavigationOff(selectable);
         _layer?.Dispose();
         if (dialogueData == null) dialogueData = Resources.Load<DialogueSequenceData>("DialogueSequence");
         _layer = new UiLayer(new UIRequestDispatcher(requests, stateManager), startView, dialogueView,
@@ -55,6 +58,9 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
         finishingView = FindScreen<FinishingView>("Finishing");
         resultView = FindScreen<ResultView>("Result");
     }
+
+    // 일시정지 메뉴의 설정 칸이 쓰는 값(마우스 감도, 음량). CoreBootstrap이 만들어 넘기고 값의 적용도 맡는다.
+    public void AttachOptions(GameOptions options) => _layer?.AttachOptions(options);
 
     public void PresentDialogue(DialogueUiModel model) => _layer?.Dialogue.Present(model);
     public void PresentBattle(BattleUiModel model) => _layer?.Battle.Present(model);

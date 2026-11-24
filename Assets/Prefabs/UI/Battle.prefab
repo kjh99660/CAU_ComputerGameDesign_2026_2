@@ -840,6 +840,8 @@ MonoBehaviour:
   rightPortrait: {fileID: 5249255937137129032}
   slideTarget: {fileID: 7099851340990753322}
   group: {fileID: 4288539263507980491}
+  channelText: {fileID: 8902231211771523291}
+  edge: {fileID: 4925066498556937564}
   holdSeconds: 3.5
   fadeInSeconds: 0.2
   fadeOutSeconds: 0.4
@@ -1156,6 +1158,7 @@ MonoBehaviour:
   timerWarningSeconds: 10
   timerTickScale: 1.14
   timerTickSeconds: 0.25
+  finalTickSeconds: 3
   gaugePulseHz: 1.4
   gaugePulseScale: 1.08
   comboCounter: {fileID: 7374326323201642074}

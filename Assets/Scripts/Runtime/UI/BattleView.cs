@@ -28,6 +28,8 @@ public sealed class BattleView : UIScreenView
     [SerializeField, Min(0f)] private float timerWarningSeconds = 10f;
     [SerializeField, Min(1f)] private float timerTickScale = 1.14f;
     [SerializeField, Min(0f)] private float timerTickSeconds = 0.25f;
+    [Tooltip("The last seconds of the round tick like the countdown that started it (3, 2, 1). 0 turns the ticks off.")]
+    [SerializeField, Min(0)] private int finalTickSeconds = 3;
     // 게이지가 가득 찬 동안의 맥동. 속도가 0이거나 크기가 1이면 쓰지 않는다.
     [SerializeField, Min(0f)] private float gaugePulseHz = 1.4f;
     [SerializeField, Min(1f)] private float gaugePulseScale = 1.08f;
@@ -446,12 +448,20 @@ public sealed class BattleView : UIScreenView
         _radioFont = null;
     }
 
+    // The shown second changed to one of the round's last seconds (finalTickSeconds .. 1). The sound system ticks on it.
+    public event System.Action<int> FinalSecondTicked;
+
     public void RenderTimer(float remainingSeconds)
     {
         _lastRemainingSeconds = remainingSeconds;
         int second = Mathf.Max(0, Mathf.CeilToInt(remainingSeconds));
         if (second == _lastRenderedSecond) return;
+        // One second down. Not the jump back up when a round is reset, nor the first value of a round shown after the
+        // previous round's (or the reset's) number.
+        bool countedDown = _lastRenderedSecond == second + 1;
         _lastRenderedSecond = second;
+        if (countedDown && second > 0 && second <= finalTickSeconds)
+            FinalSecondTicked?.Invoke(second);
         SetText(timerValue, FormatTime(_lastRemainingSeconds));
         ApplyTimerWarning(timerWarningSeconds > 0f && second <= timerWarningSeconds);
     }

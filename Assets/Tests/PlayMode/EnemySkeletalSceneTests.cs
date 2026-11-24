@@ -11,14 +11,14 @@ public sealed class EnemySkeletalSceneTests
     public IEnumerator SkeletalChasePausesResumesAndResetsAfterDeath()
     {
         yield return TestScenes.Load(TestScenes.Arena);
-        EnemyRuntime runtime = null;
-        EnemyAgent enemy = null;
-        for (int frame = 0; frame < 60 && enemy == null; frame++)
-        {
+        // Loading takes a few frames (the enemy pool is filled): wait for Ready, so the game's own state change does
+        // not land in the middle of the states this test applies by hand.
+        yield return null;
+        GameStateManager readyState = Object.FindFirstObjectByType<GameStateManager>();
+        for (int frame = 0; frame < 300 && readyState.CurrentState != GameState.Ready; frame++)
             yield return null;
-            runtime = Object.FindFirstObjectByType<EnemyRuntime>();
-            enemy = Object.FindFirstObjectByType<EnemyAgent>();
-        }
+        EnemyRuntime runtime = Object.FindFirstObjectByType<EnemyRuntime>();
+        EnemyAgent enemy = Object.FindFirstObjectByType<EnemyAgent>();
         Assert.IsNotNull(enemy);
         var skin = enemy.GetComponentInChildren<SkinnedMeshRenderer>();
         Assert.IsNotNull(skin);

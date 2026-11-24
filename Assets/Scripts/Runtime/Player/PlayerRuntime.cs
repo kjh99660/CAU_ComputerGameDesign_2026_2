@@ -53,6 +53,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [Tooltip("An attack press that arrives early is kept this long and fires as soon as the combo or cancel window opens.")]
     [SerializeField, Min(0f)] private float attackBufferSeconds = 0.4f;
 
+    [Header("Fall recovery - provisional")]
+    [Tooltip("A player that drops this far below the spawn point (through a gap in the level's colliders) is put back on the spawn point. Must be deeper than the lowest floor of the level. 0 turns it off.")]
+    [SerializeField, Min(0f)] private float fallRecoveryDepth = 30f;
+
     [Header("Camera")]
     [SerializeField, Min(0.1f)] private float cameraDistance = 4f;
     [SerializeField] private float cameraHeightOffset = 1.5f;
@@ -66,7 +70,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [Tooltip("Level geometry the camera must not pass through.")]
     [SerializeField] private LayerMask cameraCollisionLayers = 1 << 0;
     [SerializeField, Min(0f)] private float cameraCollisionRadius = 0.25f;
+    [Tooltip("Closer than this to the player's head the camera would look into the player's own model, so the player is not drawn until the camera has backed out again.")]
     [SerializeField, Min(0f)] private float cameraMinimumDistance = 0.7f;
+    [Tooltip("With a wall right behind the player the camera comes in as close as this, instead of ending up inside the wall.")]
+    [SerializeField, Min(0.05f)] private float cameraWallMinimumDistance = 0.2f;
     [Tooltip("How fast (m/s) the camera moves back out after an obstacle is gone. Pulling in is immediate.")]
     [SerializeField, Min(0f)] private float cameraDistanceRecoverSpeed = 6f;
 
@@ -332,7 +339,28 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _grounded = (flags & CollisionFlags.Below) != 0;
         if ((flags & CollisionFlags.Above) != 0 && _verticalVelocity > 0f)
             _verticalVelocity = 0f;
+        if (fallRecoveryDepth > 0f && spawnPoint != null && transform.position.y < spawnPoint.position.y - fallRecoveryDepth)
+            RecoverFromFall();
     }
+
+    // Safety net. The level's colliders are meant to keep the player in, but a gap anywhere would end the round in an
+    // endless fall. Far below every floor of the level the player is put back on the spawn point, facing as before,
+    // and the round goes on (score, timer and enemies are not touched).
+    private void RecoverFromFall()
+    {
+        FallRecoveries++;
+        bool wasEnabled = characterController.enabled;
+        characterController.enabled = false;
+        transform.position = spawnPoint.position;
+        characterController.enabled = wasEnabled;
+        _velocity = Vector3.zero;
+        _verticalVelocity = 0f;
+        _grounded = false;
+        PlaceCamera(0f, true);
+    }
+
+    // How many times the safety net has put the player back since the scene loaded (0 in a sound level).
+    public int FallRecoveries { get; private set; }
 
     // The run loop covers runAnimationReferenceSpeed m/s, so it is played faster while running to narrow the gap to
     // the real speed. The run-stop clip is hurried once the body has stopped. Only Animator.speed is touched, so the
@@ -394,6 +422,9 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             animator.SetBool(IsHoldingHash, false);
     }
 
+    // The player's own setting from the pause menu (GameOptions): multiplies lookSensitivity. 1 = the Inspector value.
+    public float LookSensitivityScale { get; set; } = 1f;
+
     // Orbit camera. Looking around is immediate (applied before movement, which is camera-relative).
     private void ApplyLookInput()
     {
@@ -402,8 +433,9 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
         if (_battleActive && !_stopRequested)
         {
-            _cameraYaw += _lookInput.x * lookSensitivity;
-            _cameraPitch = Mathf.Clamp(_cameraPitch - _lookInput.y * lookSensitivity, minimumPitch, maximumPitch);
+            float sensitivity = lookSensitivity * LookSensitivityScale;
+            _cameraYaw += _lookInput.x * sensitivity;
+            _cameraPitch = Mathf.Clamp(_cameraPitch - _lookInput.y * sensitivity, minimumPitch, maximumPitch);
         }
         cameraTransform.rotation = Quaternion.Euler(_cameraPitch, _cameraYaw, 0f);
     }
@@ -428,17 +460,15 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
         Quaternion rotation = Quaternion.Euler(_cameraPitch, _cameraYaw, 0f);
         Vector3 back = rotation * Vector3.back;
+        // Cast from the player (always in free space) so a wall next to the smoothed point cannot be skipped.
+        Vector3 toCamera = _cameraFocus + back * cameraDistance - focus;
+        float length = toCamera.magnitude;
         float wanted = cameraDistance;
-        if (cameraCollisionLayers.value != 0)
-        {
-            // Cast from the player (always in free space) so a wall next to the smoothed point cannot be skipped.
-            Vector3 toCamera = _cameraFocus + back * cameraDistance - focus;
-            float length = toCamera.magnitude;
-            if (length > 0.001f &&
-                Physics.SphereCast(focus, Mathf.Max(0.01f, cameraCollisionRadius), toCamera / length, out RaycastHit hit, length,
-                    cameraCollisionLayers, QueryTriggerInteraction.Ignore))
-                wanted = Mathf.Clamp(hit.distance, Mathf.Min(cameraMinimumDistance, cameraDistance), cameraDistance);
-        }
+        if (cameraCollisionLayers.value != 0 && length > 0.001f &&
+            Physics.SphereCast(focus, Mathf.Max(0.01f, cameraCollisionRadius), toCamera / length, out RaycastHit hit, length,
+                cameraCollisionLayers, QueryTriggerInteraction.Ignore))
+            // Kept as a share of the way to the unobstructed place: the camera then stays on the line just found free.
+            wanted = cameraDistance * Mathf.Clamp(hit.distance, Mathf.Min(cameraWallMinimumDistance, length), length) / length;
 
         if (snap || !_cameraSettled || wanted < _cameraCurrentDistance)
             _cameraCurrentDistance = wanted;
@@ -446,8 +476,38 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             _cameraCurrentDistance = Mathf.MoveTowards(_cameraCurrentDistance, wanted, cameraDistanceRecoverSpeed * deltaTime);
         _cameraSettled = true;
 
-        cameraTransform.SetPositionAndRotation(_cameraFocus + back * _cameraCurrentDistance, rotation);
+        // On the line from the player to the unobstructed place. With nothing in between that is the place itself,
+        // behind the smoothed point. (It used to be measured from the smoothed point instead: while that point lagged
+        // behind a dash, the distance found on one line was used on another and the camera ended up against a wall.)
+        float share = cameraDistance > 0.001f ? _cameraCurrentDistance / cameraDistance : 0f;
+        cameraTransform.SetPositionAndRotation(cameraDistance > 0.001f ? focus + toCamera * share : _cameraFocus, rotation);
+        UpdateHiddenForCamera(length * share);
     }
+
+    // The player is not drawn while the camera is this close to its head (its back against a wall).
+    public bool HiddenForCamera { get; private set; }
+
+    // The camera used to stop cameraMinimumDistance behind the head whatever stood there, which put it inside a wall
+    // or a prop the player was leaning on and filled the screen with it. Now it comes in front of the obstacle, and
+    // while it is closer than cameraMinimumDistance the player's own model is not drawn (the view is then roughly
+    // what the player's eyes see). forceRenderingOff leaves the renderers' enabled flags to whoever else switches
+    // them (the dash). Renderers are only touched when the state changes.
+    private void UpdateHiddenForCamera(float fromHead)
+    {
+        bool hide = HiddenForCamera
+            ? fromHead < cameraMinimumDistance
+            : fromHead < cameraMinimumDistance - CameraHideBand;
+        if (hide == HiddenForCamera)
+            return;
+        HiddenForCamera = hide;
+        GetComponentsInChildren(true, _ownRenderers);
+        for (int i = 0; i < _ownRenderers.Count; i++)
+            _ownRenderers[i].forceRenderingOff = hide;
+        _ownRenderers.Clear();
+    }
+
+    private const float CameraHideBand = 0.1f;
+    private readonly System.Collections.Generic.List<Renderer> _ownRenderers = new System.Collections.Generic.List<Renderer>();
 
     private void ResetPlayer(int tick)
     {

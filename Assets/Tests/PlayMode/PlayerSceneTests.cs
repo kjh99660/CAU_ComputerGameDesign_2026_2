@@ -26,13 +26,11 @@ public sealed class PlayerSceneTests
         Assert.IsNotNull(player.GetComponent<Animator>());
         Assert.AreEqual(2, player.GetComponentsInChildren<Animator>(true).Length);
 
-        EnemyAgent enemyAgent = null;
-        for (int frame = 0; frame < 30 && enemyAgent == null; frame++)
-        {
-            enemyAgent = Object.FindFirstObjectByType<EnemyAgent>(FindObjectsInactive.Include);
-            if (enemyAgent == null)
-                yield return null;
-        }
+        // A robot that is in play: the pool also holds spare ones, created over a few frames while the game loads.
+        GameStateManager readyState = Object.FindFirstObjectByType<GameStateManager>();
+        for (int frame = 0; frame < 300 && readyState.CurrentState != GameState.Ready; frame++)
+            yield return null;
+        EnemyAgent enemyAgent = Object.FindFirstObjectByType<EnemyAgent>();
         Assert.IsNotNull(enemyAgent);
         Animator enemyAnimator = enemyAgent.GetComponent<Animator>();
         Assert.IsNotNull(enemyAnimator);
@@ -102,15 +100,12 @@ public sealed class PlayerSceneTests
     {
         yield return TestScenes.Load(TestScenes.Arena);
 
-        EnemyRuntime runtime = null;
-        EnemyAgent enemy = null;
-        for (int frame = 0; frame < 30 && enemy == null; frame++)
-        {
-            runtime = Object.FindFirstObjectByType<EnemyRuntime>(FindObjectsInactive.Include);
-            enemy = Object.FindFirstObjectByType<EnemyAgent>(FindObjectsInactive.Include);
-            if (enemy == null)
-                yield return null;
-        }
+        // A robot that is in play: the pool also holds spare ones, created over a few frames while the game loads.
+        GameStateManager readyState = Object.FindFirstObjectByType<GameStateManager>();
+        for (int frame = 0; frame < 300 && readyState.CurrentState != GameState.Ready; frame++)
+            yield return null;
+        EnemyRuntime runtime = Object.FindFirstObjectByType<EnemyRuntime>(FindObjectsInactive.Include);
+        EnemyAgent enemy = Object.FindFirstObjectByType<EnemyAgent>();
 
         Assert.IsNotNull(runtime);
         Assert.IsNotNull(enemy);

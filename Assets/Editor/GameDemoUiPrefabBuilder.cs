@@ -142,6 +142,8 @@ public static class GameDemoUiPrefabBuilder
             new Vector2(-46, -42), new Vector2(230, 78), 24, Muted);
         CreateButton(root, "ContinuePrompt", "Dialogue/Dialogue_ContinuePrompt.png", "SPACE   CONTINUE", BottomRight,
             new Vector2(-96, 47), new Vector2(330, 82), 19, White);
+        // 대사 상자 뒤의 어두운 채움(밝은 배경 앞에서도 글자가 읽히게).
+        RebootHudAdditions.EnsureDialogue(root);
     }
 
     private static void BuildCountdown(Transform root)
@@ -211,6 +213,8 @@ public static class GameDemoUiPrefabBuilder
             new Vector2(0, -35), new Vector2(360, 104), 31, White);
         CreateButton(root, "QuitButton", "Pause/Pause_ButtonDanger.png", "QUIT TO START", Center,
             new Vector2(0, -175), new Vector2(360, 104), 29, Warning);
+        // 양옆의 설정 칸(마우스 감도, 음량)과 조작 안내 칸.
+        RebootHudAdditions.EnsurePause(root);
     }
 
     private static void BuildRetryConfirmation(Transform root)

@@ -63,6 +63,8 @@ MonoBehaviour:
   hitImmunitySeconds: 0.15
   spawnWarningWeakColor: {r: 0.16, g: 0.7, b: 2.4, a: 1}
   spawnWarningWeakHotColor: {r: 0.3, g: 1.5, b: 2.6, a: 1}
+  powerDownAtRoundEnd: 1
+  poweredDownColor: {r: 0.07, g: 0.075, b: 0.09, a: 1}
   moveSpeed: 4.375
   attackRange: 2
   attackInterval: 1.5

@@ -150,9 +150,19 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public IEnumerator InitializeRound(int tick)
     {
         EnsureInfrastructure();
+        // Every robot a normal round can hold is created now, a few per frame while the game is still loading. The
+        // mass spawns (15 and 30 robots at once) and the growing crowd then take theirs from the pool instead of
+        // instantiating in the middle of the battle.
+        while (!_pool.Prewarm(settings.MaximumEnemyCount, PrewarmPerFrame))
+            yield return null;
         PrepareRound(tick);
         yield break;
     }
+
+    private const int PrewarmPerFrame = 20;
+
+    // Robots the pool has created so far, in play or waiting (the prewarm makes this the round's maximum from the start).
+    public int PooledEnemyCount => _pool != null ? _pool.CreatedCount : 0;
 
     // Also cancels the announced spawns: when the timer runs out or a Reset begins, no ring is left on the floor.
     public void StopProducing()
@@ -189,6 +199,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         {
             // AI stops issuing moves here; enemies settle instead of walking on the spot through the slow motion.
             HaltAll(tick);
+        }
+        else if (state == GameState.OutroDialogue)
+        {
+            // The reboot is done: the robots that are still standing lose their lights for the outro and the result.
+            PowerDownAll(tick);
         }
         // Announced spawns belong to Battle: Pause holds them with their rings, every other state cancels them.
         if (state != GameState.Battle && state != GameState.Paused)
@@ -662,6 +677,17 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         for (int i = 0; i < active.Count; i++)
             if (active[i] != null)
                 active[i].HaltLocomotion(tick);
+    }
+
+    private void PowerDownAll(int tick)
+    {
+        if (_registry == null || settings == null || !settings.PowerDownAtRoundEnd)
+            return;
+        Color dark = settings.PoweredDownColor;
+        IReadOnlyList<EnemyAgent> active = _registry.Active;
+        for (int i = 0; i < active.Count; i++)
+            if (active[i] != null)
+                active[i].PowerDown(dark, tick);
     }
 
     private void SetAnimationPausedForAll(bool paused)

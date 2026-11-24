@@ -219,6 +219,31 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 - 수동 확인 절차: `Main.unity`에서 Play → Start → Skip → 숫자가 커졌다 줄어드는지와 START에서 화면이 한 번 옅게 번쩍이는지 본다. 전투에서 적을 13번 잡아 게이지를 채우고 육각 틀이 맥동하는지, E로 쓰면 멈추는지 본다. 남은 시간이 10초가 되면 타이머가 빨갛게 바뀌는지 본다(기다리기 어려우면 `CombatSettings`의 `roundDuration`을 15로 줄인다). 결과 화면에서 숫자가 오른 뒤 Retry가 맥동하는지 본다.
 - 이번에 하지 않은 것: 게이지의 키 안내(8절 "Skill Input Icon 또는 Label"). 특수 공격 키가 정해지지 않았다. 지금 코드는 E(범위 공격, 게이지 소모)이고, `WH_Dodge` 브랜치의 Q 스킬은 게이지를 쓰지 않는다. 키와 게이지 연결이 정해진 뒤에 넣는다.
 
+## 일시정지 메뉴의 설정·조작 안내와 읽기 쉬움 보정 (2026-11-25)
+
+화면을 모두 캡처해 검수하면서 찾은 것을 고쳤다. 색과 크기, 범위는 모두 임시값이다.
+
+| 화면 | 바뀐 것 |
+| --- | --- |
+| Pause | 메뉴 왼쪽에 `OptionsPanel`(마우스 감도 30~300%, 음량 0~100%, 10% 단계), 오른쪽에 `ControlsPanel`(조작 안내 8줄). `Resume`, `Retry`, `Quit`는 그대로다 |
+| RetryConfirmation | 확인창이 떠 있는 동안 뒤의 메뉴와 두 칸을 숨긴다. 확인창이 반투명이라 `RESUME`, `RETRY`, `QUIT TO START` 글자가 확인창 안에 비쳐 보였다 |
+| Dialogue | 대사 상자 뒤에 어두운 채움(`BoxFill`). 로봇 무리나 길의 밝은 선 앞에서 글자가 묻혔다 |
+| Start, Result | Space/Enter로 `START`, `RETRY` 버튼을 누를 수 있다. 결과 화면은 숫자가 다 오른 뒤에만 받는다 |
+| Battle | 마지막 3초에 카운트다운과 같은 틱 소리 |
+
+### 구성
+
+- 설정값은 `GameOptions`(`Assets/Scripts/Runtime/UI/GameOptions.cs`)가 갖고 `PlayerPrefs`의 `REBOOT.LookScale`, `REBOOT.Volume`에 저장한다. 게임 상태 전환이 아니므로 Request Queue를 거치지 않는다.
+- `CoreBootstrap`이 값을 적용한다. 감도는 `PlayerRuntime.LookSensitivityScale`(Inspector의 `lookSensitivity`에 곱하는 배율), 음량은 `AudioListener.volume`(배경 음악, 효과음, 환경음에 모두 걸린다).
+- 두 칸과 대사 상자 채움은 `RebootHudAdditions.EnsurePause`, `EnsureDialogue`가 프리팹에 더한다(`-executeMethod RebootHudAdditions.ApplyBatch`). 여러 번 실행해도 같다.
+- `RebootHudAdditions.EnsureDialogueData`는 이제 대사 에셋의 문장을 덮어쓰지 않는다. 전에는 실행할 때마다 50초 무전을 다시 넣고 성과 반응 마무리를 비웠다.
+- 확인창이 메뉴를 가리는 동안의 처리는 `RetryConfirmationPresenter.CoverChanged` → `PausePresenter.SetCoveredByConfirmation` → `PauseView.SetMenuVisible`이다.
+
+### 확인
+
+- EditMode `GameOptionsTests`(단계, 범위, 저장값 복원), PlayMode `UxPolishSceneTests`(메뉴 구성, 확인창이 메뉴를 가림, 감도가 실제 카메라 회전에 반영, 음량, 저장, 키보드 확인, 마지막 3초 틱).
+- 해상도별 겹침 검사(`UiResolutionSceneTests`)에 두 칸이 포함된다.
+
 ## 함께 발견한 적 시스템 문제(수정하지 않음)
 
 `EnemyPrototype.prefab`의 Rigidbody 설정과 프로젝트 물리 설정이 다음과 같다.

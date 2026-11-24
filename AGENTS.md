@@ -156,7 +156,7 @@ Skip 버튼은 별도 우회 전이를 만들지 않고 현재 Dialogue를 완�
 1. Scene 로드 후 상태는 `Initializing`이다.
 2. Pool, Player, Enemy, Arena, UI, Timer, Score, Physics 시스템이 각자 초기화 완료를 보고한다.
 3. 초기화 Barrier가 모든 필수 시스템의 준비 완료를 확인한다.
-4. Enemy를 실제 전투 공간에 미리 Spawn하고 Idle로 둔다.
+4. Enemy를 실제 전투 공간에 미리 Spawn하고 Idle로 둔다. Enemy Pool은 이 단계에서 일반 상한(100)까지 몇 프레임에 나눠 미리 만든다(2026-11-25). 전투 중 대량 생성은 Pool에서 꺼내기만 한다.
 5. 상태를 `Ready`로 전환하고 Start Overlay를 표시한다.
 6. Start 입력을 받으면 `IntroDialogue`로 전환한다.
 7. Dialogue 완료 또는 Skip 후 `Countdown`으로 전환한다.
@@ -189,7 +189,7 @@ Timer가 0이 되면 `TimerReachedZero`를 발행하고 Timer를 0으로 고정�
 - 100초 전에 시작되어 Finishing 중 적중한 공격, 처치, Player 피격은 Score에 반영한다.
 - Finishing 종료 시 Score 수용 창을 닫고 `Time.timeScale`을 1.0으로 반드시 복구한다.
 - 복구는 정상 종료뿐 아니라 중단, Reset, 예외적인 상태 이탈에서도 보장한다.
-- 그 후 물리를 정지하고 `OutroDialogue → Result`로 진행한다.
+- 그 후 물리를 정지하고 `OutroDialogue → Result`로 진행한다. `OutroDialogue`에 들어갈 때 서 있는 로봇은 불빛이 꺼지고(재부팅으로 공격 명령이 지워졌다는 연출, 2026-11-25) Result까지 그대로 둔다. 다음 판에 Spawn될 때 다시 켜진다. 색은 `EnemySettings.poweredDownColor`로 조절한다.
 - Finishing HUD는 Timer 0과 Score만 유지하고 Pause와 Gauge는 숨기며 `TIME UP`을 표시한다.
 
 ## 11. UI 상세 계약
@@ -208,11 +208,13 @@ Timer가 0이 되면 `TimerReachedZero`를 발행하고 Timer를 0으로 고정�
 
 ### 화면별 요구사항
 
-- Ready: 낮은 불투명도의 검은 Overlay와 중앙 Start 버튼.
-- Battle: 좌상단 Pause와 Score, 우상단 Timer, 하단 중앙 원형 Special Gauge.
+- Ready: 낮은 불투명도의 검은 Overlay와 중앙 Start 버튼. Space/Enter로도 Start 버튼을 누를 수 있다.
+- Battle: 좌상단 Pause와 Score, 우상단 Timer, 하단 중앙 원형 Special Gauge. 마지막 3초는 Countdown과 같은 틱 소리를 낸다.
 - Dialogue: 두 Portrait를 동시에 표시하고 현재 화자는 밝게, 비화자는 어둡게 처리한다. 하단 Dialogue Box를 사용하며 화면 외곽에 Skip을 둔다.
 - Pause: Resume, Retry, Quit. Retry는 확인 모달을 띄운다. Quit는 모달 없이 즉시 `QuitToStartRequest`를 발행한다.
-- Result: Final Score, Kill Count, Max Combo, Hit Count, Special Use Count, Retry.
+  - 메뉴 왼쪽에 설정 칸(마우스 감도, 음량), 오른쪽에 조작 안내 칸을 둔다(2026-11-25). 설정 변경은 게임 상태 전환이 아니므로 Request Queue를 거치지 않고 `GameOptions`에 바로 반영하며 `PlayerPrefs`(`REBOOT.LookScale`, `REBOOT.Volume`)에 저장한다. 값의 적용은 `CoreBootstrap`이 한다(카메라 감도 배율, `AudioListener.volume`). 범위와 단계는 provisional이다.
+  - 확인 모달이 떠 있는 동안에는 뒤의 메뉴와 두 칸을 숨긴다(모달이 반투명이라 글자가 비친다). 어두운 Overlay는 남긴다.
+- Result: Final Score, Kill Count, Max Combo, Hit Count, Special Use Count, Retry. 숫자가 다 오른 뒤에는 Space/Enter로도 Retry 버튼을 누를 수 있다.
 
 ### UI 구현 규칙
 

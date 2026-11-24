@@ -18,6 +18,8 @@ public sealed class NeonCitySceneTests
     private const int Level = 1 << 0;
     private static readonly Vector3 EastTerrace = new(10f, 6.9f, 3f);
     private static readonly Vector3 AlleyUnderTheTerrace = new(0.5f, 0.3f, 3f);
+    // The landing at the top of the entrance steps behind the start (2 m above the street).
+    private static readonly Vector3 EntranceLanding = new(0f, 2.05f, -26.5f);
 
     private readonly HashSet<Key> _keys = new();
     private Keyboard _keyboard;
@@ -262,6 +264,83 @@ public sealed class NeonCitySceneTests
         Assert.IsTrue(_player.IsGrounded);
     }
 
+    // The places where a bot could stand for a whole round without any enemy reaching it
+    // (RebootNeonCityBuilder.SafeSpots): two shops with an open door too narrow for enemies, and the roofs of two
+    // police cars parked side by side. The player's own CharacterController is pushed at them here.
+    [UnityTest]
+    public IEnumerator ThePlayerCannotGetIntoTheShopsOrOverTheParkedPoliceCars()
+    {
+        // The STORE door faces +x and the BAR door faces -z: straight in and from both sides of the doorway.
+        foreach (float aside in new[] { 0f, -0.4f, 0.4f })
+        {
+            Vector3 store = Push(new Vector3(-3.8f, 0.3f, 11.06f + aside), new Vector3(-1f, 0f, -aside * 0.3f).normalized, 4f, true);
+            Assert.Greater(store.x, -4.9f, $"The player walked into the STORE (offset {aside}): {store}.");
+            Vector3 bar = Push(new Vector3(18.94f + aside, 0.3f, -11.2f), new Vector3(-aside * 0.3f, 0f, 1f).normalized, 4f, true);
+            Assert.Less(bar.z, -10.1f, $"The player walked into the BAR (offset {aside}): {bar}.");
+        }
+
+        // The cars are solid themselves; a dodge roll used to carry the player up onto them. Above their roofs there
+        // is now a box that only the player collides with, and the camera, enemy paths and sight lines do not see.
+        Transform blockers = GameObject.Find("Stage_NeonCity").transform.Find("Added/PlayerBlockers");
+        Assert.IsNotNull(blockers, "The stage has no player blockers.");
+        BoxCollider box = blockers.Find("PlayerBlocker_PoliceCars").GetComponent<BoxCollider>();
+        Assert.AreEqual(LayerMask.NameToLayer("Ignore Raycast"), box.gameObject.layer);
+        Assert.IsFalse(box.isTrigger);
+        Assert.AreEqual(0, box.excludeLayers.value & (1 << _player.gameObject.layer), "The blocker must stop the player.");
+        Assert.AreNotEqual(0, box.excludeLayers.value & (1 << LayerMask.NameToLayer("Enemy")), "Knocked-back enemies pass through it.");
+        Bounds bounds = box.bounds;
+        int cars = 0;
+        foreach (Transform car in GameObject.Find("Stage_NeonCity").transform.Find("Vehicles"))
+        {
+            Renderer body = car.GetComponentInChildren<Renderer>();
+            if (body == null || !bounds.Contains(body.bounds.center))
+                continue;
+            cars++;
+            Vector3 roof = new Vector3(body.bounds.center.x, body.bounds.max.y, body.bounds.center.z);
+            Assert.IsTrue(bounds.Contains(roof + Vector3.up * 1f), car.name + ": the box ends too close above the roof.");
+        }
+        Assert.AreEqual(2, cars, "The box stands over the two police cars.");
+
+        // Above roof height only the box is there. From every open side the player is stopped at its face.
+        int sides = 0;
+        foreach (Vector3 side in new[] { Vector3.forward, Vector3.back, Vector3.left, Vector3.right })
+        {
+            Vector3 from = bounds.center + Vector3.Scale(side, bounds.extents) + side * 1.2f;
+            from.y = 1.6f;
+            if (Physics.CheckCapsule(from + Vector3.up * 0.4f, from + Vector3.up * 1.4f, 0.45f, Level, QueryTriggerInteraction.Ignore))
+                continue;   // a wall stands on this side
+            sides++;
+            Vector3 stopped = Push(from, -side, 3f, false);
+            Assert.IsFalse(Mathf.Abs(stopped.x - bounds.center.x) < bounds.extents.x - 0.05f && Mathf.Abs(stopped.z - bounds.center.z) < bounds.extents.z - 0.05f,
+                $"The player got over the police cars from {from}: {stopped}.");
+        }
+        Assert.GreaterOrEqual(sides, 2, "The cars can be walked up to from at least two sides.");
+        yield break;
+    }
+
+    // The entrance steps behind the start have one step of 0.44 m. Enemies used to stop below it, and the landing
+    // was a place to stand in peace for the whole round.
+    [UnityTest]
+    public IEnumerator EnemiesComeUpTheEntranceStepsBehindTheStart()
+    {
+        Assert.AreNotEqual(EnemyNavField.None, _enemies.Navigation.FindNearestCell(EntranceLanding, 1, 0.3f), "Enemies have no ground on the entrance landing.");
+
+        yield return EnterBattle();
+        Teleport(EntranceLanding);
+        int hitsBefore = Hits(), arrived = 0;
+        for (int frames = 0; frames < 30 * Fps && (arrived < 3 || Hits() == hitsBefore); frames++)
+        {
+            yield return null;
+            arrived = 0;
+            Vector3 player = _player.transform.position;
+            foreach (EnemyAgent enemy in Active())
+                if (Mathf.Abs(enemy.transform.position.y - player.y) < 0.3f && Flat(enemy.transform.position - player).magnitude < 3f)   // on the landing itself: one step down is 0.44 m lower
+                    arrived++;
+        }
+        Assert.GreaterOrEqual(arrived, 3, "Enemies did not come up to the player on the entrance landing within 30 s.");
+        Assert.Greater(Hits(), hitsBefore, "Nobody hit a player who stood still on the entrance landing for 30 s.");
+    }
+
     [UnityTest]
     public IEnumerator RetryResetsTheRoundInPlace()
     {
@@ -331,6 +410,17 @@ public sealed class NeonCitySceneTests
         var keys = new Key[_keys.Count];
         _keys.CopyTo(keys);
         InputSystem.QueueStateEvent(_keyboard, new KeyboardState(keys));
+    }
+
+    // Moves the player's own CharacterController in small steps, all within this frame, and returns where it ends
+    // up. walking: kept on the ground, so it climbs what walking climbs. Otherwise straight through the air.
+    private Vector3 Push(Vector3 from, Vector3 direction, float distance, bool walking)
+    {
+        Teleport(from);
+        const float step = 0.05f;
+        for (float done = 0f; done < distance; done += step)
+            _controller.Move(direction * step + (walking ? Vector3.down * 0.03f : Vector3.zero));
+        return _player.transform.position;
     }
 
     private void Teleport(Vector3 position)

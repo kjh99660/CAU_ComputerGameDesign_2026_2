@@ -10,6 +10,9 @@ public sealed class EnemyPool
     private readonly Transform _root;
     private readonly Stack<EnemyAgent> _available = new();
 
+    // Enemies this pool has instantiated so far (pooled or in play).
+    public int CreatedCount { get; private set; }
+
     public EnemyPool(EnemyAgent prefab, EnemyRuntime owner, Transform root)
     {
         _prefab = prefab != null ? prefab : throw new ArgumentNullException(nameof(prefab));
@@ -19,11 +22,30 @@ public sealed class EnemyPool
 
     public EnemyAgent Get()
     {
-        EnemyAgent enemy = _available.Count > 0
-            ? _available.Pop()
-            : UnityEngine.Object.Instantiate(_prefab, _root);
+        EnemyAgent enemy = _available.Count > 0 ? _available.Pop() : Create();
         enemy.Initialize(_owner);
         return enemy;
+    }
+
+    // Creates enemies ahead of time, at most `budget` in this call, until the pool has created `total`. Returns true
+    // once it has. A mass spawn in the middle of a round then takes its robots from the pool instead of instantiating
+    // them all in one frame.
+    public bool Prewarm(int total, int budget)
+    {
+        for (int i = 0; i < budget && CreatedCount < total; i++)
+        {
+            EnemyAgent enemy = Create();
+            enemy.Initialize(_owner);
+            enemy.DeactivateForPool(_root);
+            _available.Push(enemy);
+        }
+        return CreatedCount >= total;
+    }
+
+    private EnemyAgent Create()
+    {
+        CreatedCount++;
+        return UnityEngine.Object.Instantiate(_prefab, _root);
     }
 
     public void Release(EnemyAgent enemy)

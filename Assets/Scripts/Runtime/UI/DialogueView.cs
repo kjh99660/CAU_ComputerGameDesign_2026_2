@@ -73,6 +73,7 @@ public sealed class DialogueView : UIScreenView
                 continueButton = box.GetComponent<Button>();
                 if (continueButton == null) continueButton = box.gameObject.AddComponent<Button>();
                 continueButton.transition = Selectable.Transition.None;
+                TurnNavigationOff(continueButton);
                 box.raycastTarget = true;
             }
         }
@@ -111,6 +112,7 @@ public sealed class DialogueView : UIScreenView
         image.raycastTarget = true;
         advanceArea = area.GetComponent<Button>();
         advanceArea.transition = Selectable.Transition.None;
+        TurnNavigationOff(advanceArea);
     }
 
     private void OnDestroy()

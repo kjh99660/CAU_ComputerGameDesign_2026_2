@@ -177,4 +177,7 @@ public sealed class ResultView : UIScreenView
     }
 
     private void HandleRetryClicked() => RetryClicked?.Invoke();
+
+    // Space/Enter on the result screen: the same click the mouse makes, refused while the button cannot be clicked.
+    public bool PressRetry() => Press(retryButton);
 }
