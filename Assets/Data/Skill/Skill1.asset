@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 18122649f712ad2459a0167acd3768cf, type: 3}
+  m_Name: Skill1
+  m_EditorClassIdentifier: Assembly-CSharp::SkillData
+  skillId: 1
+  inputActionName: Skill1
+  cooldown: 0
+  windupTime: 0.5
+  dashDistance: 8
+  dashDuration: 0.2
+  hideDuringDash: 1
+  dashPassThroughEnemies: 0
+  enemyLayers:
+    serializedVersion: 2
+    m_Bits: 256
+  invulnerableDuringDash: 0
+  vanishVfx: {fileID: 0}
+  appearVfx: {fileID: 0}
+  hitData: {fileID: 11400000, guid: b25b78d58b5a3664c9221d4ca0e448f5, type: 2}
+  hitTime: 0.1
+  hitDuration: 0.05
+  vfxPrefab: {fileID: 5545173171955001552, guid: 748bc19f05044d04e96f8bd309edd4ca, type: 3}
+  vfxOffset: {x: 0, y: 0, z: 0}
+  cancelTime: 0.8

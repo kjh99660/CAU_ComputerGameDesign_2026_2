@@ -31,6 +31,9 @@ public class AttackHitData : ScriptableObject
     public float lungeEndTime = 0.15f;                   // 전진 끝 시각 (초)
     public float lungeDistance = 0f;                     // 그 사이 전진 거리 (m). 0이면 전진 안 함
 
+    [Header("Cancel (Attack1, Attack2, ChargeAttack)")]
+    public float cancelTime = -1f;                       // 공격 상태 시작 후 몇 초부터 이동/재공격으로 캔슬 가능. 음수면 캔슬 없음
+
     public enum ChargeMode { None, Linear, Steps }
 
     [System.Serializable]
