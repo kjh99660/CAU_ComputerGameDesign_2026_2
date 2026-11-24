@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
@@ -318,7 +319,7 @@ public sealed class UiEffectsSceneTests
         StringAssert.Contains(KeyboardKeyLabel(action) + " DODGE", hint, "The control hint must name the key that dodge is bound to.");
     }
 
-    // 전투가 끝난 화면에는 점수와 시간(00:00)만 남고, 일시정지 버튼과 게이지는 사라진다.
+    // 전투가 끝난 화면에는 점수와 시간(00:00)만 그 자리에 남고, 일시정지 버튼과 게이지는 사라진다.
     [UnityTest]
     public IEnumerator FinishingKeepsScoreAndZeroTimerAndDropsPauseAndGauge()
     {
@@ -329,6 +330,9 @@ public sealed class UiEffectsSceneTests
 
         var battle = Object.FindFirstObjectByType<BattleView>();
         var combat = Object.FindFirstObjectByType<CombatRoundRuntime>();
+        // 전투 중 점수·시간 패널이 화면에서 차지하는 자리. TIME UP이 떠도 그대로여야 한다.
+        Rect battleScore = WorldRect(Find<RectTransform>(battle.transform, "ScorePanel"));
+        Rect battleTimer = WorldRect(Find<RectTransform>(battle.transform, "TimerPanel"));
         for (int i = 0; i < 3; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         int score = combat.Stats.Score;
         Assert.Greater(score, 0);
@@ -362,6 +366,8 @@ public sealed class UiEffectsSceneTests
             }
             Assert.IsFalse(panelRect.Overlaps(WorldRect(scorePanel)), "The timer panel must not cover the score panel.");
             Assert.IsFalse(panelRect.Overlaps(WorldRect(Find<RectTransform>(finishing.transform, "TimeUpFrame"))), "The timer panel must not cover TIME UP.");
+            AssertSameRect(battleScore, WorldRect(scorePanel), "The score panel must stay where the battle HUD showed it.");
+            AssertSameRect(battleTimer, panelRect, "The timer panel must stay where the battle HUD showed it.");
 
             Assert.AreEqual(score.ToString("D6"), Find<TMP_Text>(finishing.transform, "ScoreValue").text);
             Assert.IsTrue(Find<TMP_Text>(finishing.transform, "TimeUp").gameObject.activeInHierarchy);
@@ -382,6 +388,81 @@ public sealed class UiEffectsSceneTests
         {
             Time.timeScale = 1f;
         }
+    }
+
+#if UNITY_EDITOR
+    // 씬이 UI 화면 안쪽 요소의 배치를 따로 바꿔 두면 테마의 배치(모서리에서 40px 안쪽)가 가려진다. 전에는 세 씬 모두
+    // 전투 HUD의 일시정지 버튼·점수·시간 패널을 화면 모서리로 옮겨 두었다. 무대 씬마다 전투 HUD와 종료 화면이 프리팹 배치
+    // 그대로이고, 종료 화면의 점수·시간 패널이 전투 HUD와 같은 배치인지 본다.
+    [UnityTest]
+    public IEnumerator StageScenesShowTheHudAsLaidOutInThePrefabs()
+    {
+        foreach (string scenePath in new[] { "Assets/Scenes/Main.unity", "Assets/Scenes/Main_NeonCity.unity", "Assets/Scenes/Main_RebootHub.unity" })
+        {
+            yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(scenePath, new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+            var battle = Object.FindFirstObjectByType<BattleView>(FindObjectsInactive.Include);
+            var finishing = Object.FindFirstObjectByType<FinishingView>(FindObjectsInactive.Include);
+            Assert.IsNotNull(battle, scenePath + " has no battle HUD.");
+            Assert.IsNotNull(finishing, scenePath + " has no finishing screen.");
+            AssertLaidOutAsPrefab("Assets/Prefabs/UI/Battle.prefab", battle.transform, scenePath);
+            AssertLaidOutAsPrefab("Assets/Prefabs/UI/Finishing.prefab", finishing.transform, scenePath);
+            foreach (string panel in new[] { "ScorePanel", "TimerPanel" })
+                AssertSameLayout(battle.transform.Find(panel), finishing.transform.Find(panel), $"{scenePath}: {panel} must not move when TIME UP shows");
+        }
+    }
+
+    // 프리팹에 있는 UI 요소가 씬에서도 같은 배치(기준점·피벗·위치·크기)인지 본다. 실행 중에 만든 요소는 프리팹에 없어 보지 않는다.
+    private static void AssertLaidOutAsPrefab(string prefabPath, Transform instance, string scenePath)
+    {
+        var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        Assert.IsNotNull(prefab, "Missing prefab " + prefabPath);
+        foreach (RectTransform source in prefab.GetComponentsInChildren<RectTransform>(true))
+        {
+            string path = RelativePath(prefab.transform, source);
+            Transform found = path.Length == 0 ? instance : instance.Find(path);
+            Assert.IsNotNull(found, $"{scenePath}: {instance.name}/{path} is missing.");
+            AssertSameRectLayout(source, (RectTransform)found, $"{scenePath}: {instance.name}/{path} must keep the prefab layout");
+        }
+    }
+#endif
+
+    // 두 요소와 같은 이름의 자식들이 같은 배치인지 본다.
+    private static void AssertSameLayout(Transform expected, Transform actual, string message)
+    {
+        Assert.IsNotNull(expected, message);
+        Assert.IsNotNull(actual, message);
+        AssertSameRectLayout((RectTransform)expected, (RectTransform)actual, $"{message} ({actual.name})");
+        foreach (Transform child in expected)
+        {
+            Transform match = actual.Find(child.name);
+            if (match != null) AssertSameLayout(child, match, message);
+        }
+    }
+
+    private static void AssertSameRectLayout(RectTransform expected, RectTransform actual, string message)
+    {
+        Assert.Less(Vector2.Distance(expected.anchorMin, actual.anchorMin), 1e-4f, message + ": anchorMin");
+        Assert.Less(Vector2.Distance(expected.anchorMax, actual.anchorMax), 1e-4f, message + ": anchorMax");
+        Assert.Less(Vector2.Distance(expected.pivot, actual.pivot), 1e-4f, message + ": pivot");
+        Assert.Less(Vector2.Distance(expected.anchoredPosition, actual.anchoredPosition), 0.01f,
+            $"{message}: position {actual.anchoredPosition} instead of {expected.anchoredPosition}");
+        Assert.Less(Vector2.Distance(expected.sizeDelta, actual.sizeDelta), 0.01f,
+            $"{message}: size {actual.sizeDelta} instead of {expected.sizeDelta}");
+    }
+
+    private static void AssertSameRect(Rect expected, Rect actual, string message)
+    {
+        Assert.Less(Vector2.Distance(expected.min, actual.min), 0.5f, $"{message} {actual} instead of {expected}");
+        Assert.Less(Vector2.Distance(expected.max, actual.max), 0.5f, $"{message} {actual} instead of {expected}");
+    }
+
+    private static string RelativePath(Transform root, Transform node)
+    {
+        var parts = new List<string>();
+        for (Transform current = node; current != null && current != root; current = current.parent)
+            parts.Insert(0, current.name);
+        return string.Join("/", parts);
     }
 
     // 화면에서 차지하는 사각형(캔버스 배율이 적용된 좌표).
