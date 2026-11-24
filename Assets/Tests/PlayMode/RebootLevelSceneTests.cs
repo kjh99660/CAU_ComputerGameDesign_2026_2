@@ -51,6 +51,19 @@ public sealed class RebootLevelSceneTests
                 Assert.Less(b.max.y - floor.Value, 0.1f, $"{renderer.name} blocks the walkable plaza volume.");
         }
 
+        // CC0 외부 소품: 재질이 깨지지 않았고(분홍 셰이더 없음) 모두 광장 반경 19m 밖에 있다. 충돌체 0개는 위에서 확인했다.
+        Transform props = env.transform.Find("ArenaProps_CC0");
+        Assert.IsNotNull(props, "ArenaProps_CC0 group is missing.");
+        Assert.Greater(props.childCount, 0, "ArenaProps_CC0 has no props.");
+        foreach (Renderer renderer in props.GetComponentsInChildren<Renderer>(true))
+        {
+            Bounds b = renderer.bounds;
+            Assert.GreaterOrEqual(Vector2.Distance(new Vector2(b.center.x, b.center.z), plaza), 19f, $"{renderer.name} is inside the plaza radius.");
+            foreach (Material material in renderer.sharedMaterials)
+                Assert.IsTrue(material != null && material.shader != null && material.shader.isSupported && material.shader.name != "Hidden/InternalErrorShader",
+                    $"{renderer.name} has a missing or broken material.");
+        }
+
         // 보안 표지판 뒷면(로컬 +z, 판 두께 0.1m) 바로 뒤에 맵 벽이 있어야 한다. 벽 속에 묻히거나 공중에 뜨면 실패한다.
         Assert.IsNotNull(signage, "Signage group is missing.");
         int signs = 0;
