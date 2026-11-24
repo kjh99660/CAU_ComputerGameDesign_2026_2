@@ -19,6 +19,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private EnemyPool _pool;
     private PhysicsPauseManager _physics;
     private System.Random _random;
+    private System.Random _variationRandom;   // separate stream, so per-enemy variety does not shift spawn positions
+    private int _spawnObstacleMask;
     private Transform _poolRoot;
     private GameState _state = GameState.Initializing;
     private int _tick;
@@ -88,6 +90,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             _stopRequested = false;
             SetAllIdle(tick);
         }
+        else if (state == GameState.Finishing)
+        {
+            // AI stops issuing moves here; enemies settle instead of walking on the spot through the slow motion.
+            HaltAll(tick);
+        }
     }
 
     public void UpdateSpawning(float deltaTime, int tick)
@@ -121,6 +128,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
             IReadOnlyList<EnemyAgent> neighbours = _probe.Collect(enemy.transform.position, settings.SeparationDistance, _candidates);
             enemy.RunAI(targetPosition, neighbours, settings, deltaTime, tick);
+            enemy.YieldTo(targetPosition, settings, deltaTime, tick);
             _probe.Track(enemy);
         }
         _probe.EndAiTiming(started);
@@ -211,6 +219,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _grid = new EnemySpatialGrid(settings.SpatialCellSize);
         _probe = new EnemyPerfProbe(_registry, _grid);
         _pool = new EnemyPool(enemyPrefab, this, _poolRoot);
+        // Spawn checks look for level geometry only: not other enemies, not the player, not ray-ignored helpers.
+        _spawnObstacleMask = ~((1 << enemyPrefab.gameObject.layer) | (1 << target.gameObject.layer) | (1 << 2));
         _configured = true;
     }
 
@@ -220,6 +230,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _spawnElapsed = 0f;
         _stopRequested = false;
         _random = new System.Random(unchecked(7919 + tick * 104729));
+        _variationRandom = new System.Random(unchecked(104729 + tick * 7919));
         // Movement AI is planar and enemies stay kinematic until hit. Inherit only
         // the player's restored starting height, never a later jump/step elevation.
         _roundSpawnY = TargetPosition.y + settings.SpawnHeight;
@@ -233,20 +244,44 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         if (_registry.Count >= MaximumEnemies)
             return;
 
-        double angle = _random.NextDouble() * Math.PI * 2d;
-        float distance = Mathf.Lerp(settings.MinimumSpawnDistance, settings.MaximumSpawnDistance,
-            (float)_random.NextDouble());
         Vector3 center = TargetPosition;
-        Vector3 position = new Vector3(
-            center.x + Mathf.Cos((float)angle) * distance,
-            _roundSpawnY,
-            center.z + Mathf.Sin((float)angle) * distance);
+        Vector3 position = SampleSpawnPosition(center);
 
         EnemyAgent enemy = _pool.Get();
-        enemy.Activate(position, tick);
+        enemy.Activate(position, tick, (float)_variationRandom.NextDouble());
+        enemy.Face(center);
         _registry.Add(enemy);
         _probe.Track(enemy);
         _physics.Register(enemy.Body, tick);
+    }
+
+    // Draws a point on the spawn ring. Enemies move in a straight line and ignore walls, so a point with level
+    // geometry between it and the player (outside the arena, behind a building) is drawn again.
+    private Vector3 SampleSpawnPosition(Vector3 center)
+    {
+        int draws = 1 + Mathf.Max(0, settings.SpawnVisibilityAttempts);
+        Vector3 position = center;
+        for (int draw = 0; draw < draws; draw++)
+        {
+            double angle = _random.NextDouble() * Math.PI * 2d;
+            float distance = Mathf.Lerp(settings.MinimumSpawnDistance, settings.MaximumSpawnDistance,
+                (float)_random.NextDouble());
+            position = new Vector3(
+                center.x + Mathf.Cos((float)angle) * distance,
+                _roundSpawnY,
+                center.z + Mathf.Sin((float)angle) * distance);
+            if (draw == draws - 1 || HasClearPath(center, position))
+                break;
+        }
+        return position;
+    }
+
+    private bool HasClearPath(Vector3 center, Vector3 position)
+    {
+        const float chestHeight = 1f;
+        var from = new Vector3(center.x, _roundSpawnY + chestHeight, center.z);
+        var to = new Vector3(position.x, _roundSpawnY + chestHeight, position.z);
+        return !Physics.Linecast(from, to, _spawnObstacleMask, QueryTriggerInteraction.Ignore);
     }
 
     private void Release(EnemyAgent enemy)
@@ -272,6 +307,16 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         for (int i = 0; i < active.Count; i++)
             active[i].SetIdle(tick);
+    }
+
+    private void HaltAll(int tick)
+    {
+        if (_registry == null)
+            return;
+        IReadOnlyList<EnemyAgent> active = _registry.Active;
+        for (int i = 0; i < active.Count; i++)
+            if (active[i] != null)
+                active[i].HaltLocomotion(tick);
     }
 
     private void SetAnimationPausedForAll(bool paused)

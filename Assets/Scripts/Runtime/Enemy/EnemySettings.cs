@@ -22,6 +22,30 @@ public sealed class EnemySettings : ScriptableObject
     [SerializeField, Min(0f)] private float separationWeight = 1.5f;
     [SerializeField, Min(0.5f)] private float spatialCellSize = 4f;
 
+    // Presentation of how the crowd moves. None of these changes range, cooldown, damage or score rules.
+    [Header("Locomotion feel - provisional")]
+    [Tooltip("How fast an enemy reaches its move speed (m/s^2). Stops enemies from starting and stopping in one frame.")]
+    [SerializeField, Min(0f)] private float acceleration = 14f;
+    [Tooltip("Turn rate in degrees per second. Stops enemies from snapping to a new facing in one frame.")]
+    [SerializeField, Min(0f)] private float turnSpeed = 420f;
+    [Tooltip("Per-enemy move speed spread (0.12 = 88%..112%), so a wave does not march in step.")]
+    [SerializeField, Range(0f, 0.5f)] private float speedVariance = 0.12f;
+    [Tooltip("Per-enemy visual size spread. The collider is not scaled.")]
+    [SerializeField, Range(0f, 0.2f)] private float scaleVariance = 0.04f;
+    [Tooltip("Ground speed (m/s) the Chase (run) clip is authored for. Playback follows the real speed so feet do not slide. Rebuild the clips after changing it.")]
+    [SerializeField, Min(0.1f)] private float runClipSpeed = 3.5f;
+    [Tooltip("Ground speed (m/s) the Walk clip is authored for. Rebuild the clips after changing it.")]
+    [SerializeField, Min(0.1f)] private float walkClipSpeed = 1.1f;
+    [Tooltip("Above this speed (m/s) the run clip is shown, below it the walk clip.")]
+    [SerializeField, Min(0.1f)] private float walkToRunSpeed = 2f;
+    [Tooltip("An enemy does not walk into another enemy closer than this (m). Late arrivals wait behind a full ring instead of standing inside each other. 0 turns it off.")]
+    [SerializeField, Min(0f)] private float bodySpacing = 1.1f;
+    [Tooltip("Enemies closer to the player than this step back, because the player is no longer body-blocked by the crowd. 0 turns it off.")]
+    [SerializeField, Min(0f)] private float playerPersonalRadius = 0.9f;
+    [SerializeField, Min(0f)] private float playerPushSpeed = 12f;
+    [Tooltip("How many times a spawn position is re-drawn when level geometry stands between it and the player.")]
+    [SerializeField, Range(0, 16)] private int spawnVisibilityAttempts = 8;
+
     [Header("Hit - provisional")]
     [SerializeField, Min(0f)] private float normalKnockbackForce = 8f;
     [SerializeField, Min(0f)] private float knockbackUpwardForce = 3f;
@@ -42,6 +66,17 @@ public sealed class EnemySettings : ScriptableObject
     public float SeparationDistance => separationDistance;
     public float SeparationWeight => separationWeight;
     public float SpatialCellSize => spatialCellSize;
+    public float Acceleration => acceleration;
+    public float TurnSpeed => turnSpeed;
+    public float SpeedVariance => speedVariance;
+    public float ScaleVariance => scaleVariance;
+    public float RunClipSpeed => runClipSpeed;
+    public float WalkClipSpeed => walkClipSpeed;
+    public float WalkToRunSpeed => walkToRunSpeed;
+    public float BodySpacing => bodySpacing;
+    public float PlayerPersonalRadius => playerPersonalRadius;
+    public float PlayerPushSpeed => playerPushSpeed;
+    public int SpawnVisibilityAttempts => spawnVisibilityAttempts;
     public float NormalKnockbackForce => normalKnockbackForce;
     public float KnockbackUpwardForce => knockbackUpwardForce;
     public float KnockbackFallbackDuration => knockbackFallbackDuration;
