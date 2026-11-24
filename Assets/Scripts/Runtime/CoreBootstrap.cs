@@ -66,10 +66,13 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _combatVfx = gameObject.AddComponent<CombatVfxRuntime>();
         _combatVfx.Configure(enemyRuntime, vfxSettings, _combat);
         roundResetCoordinator.RegisterParticipant(_combatVfx);
-        // 전투 연출: 공격·적중·특수 공격 때의 카메라 줌 펄스.
+        // 전투 연출: 공격·적중·특수 공격 때의 카메라 줌 펄스와, 군중 속에서도 보이는 주인공 테두리.
         _cameraFeedback = gameObject.AddComponent<CombatCameraFeedback>();
         _cameraFeedback.Configure(Camera.main, enemyRuntime, _combatVfx, _combat, vfxSettings);
         roundResetCoordinator.RegisterParticipant(_cameraFeedback);
+        if (vfxSettings != null)
+            playerRuntime.gameObject.AddComponent<PlayerOutline>().Configure(vfxSettings.playerOutlineShader,
+                vfxSettings.playerOutlineColor, vfxSettings.playerOutlinePixels, vfxSettings.playerOutlineThroughOccluders);
         playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);
         roundResetCoordinator.RegisterParticipant(_combat);

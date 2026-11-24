@@ -36,3 +36,7 @@ MonoBehaviour:
   zoomInSeconds: 0.05
   zoomOutSeconds: 0.24
   zoomOvershoot: 0.2
+  playerOutlineShader: {fileID: 4800000, guid: 0253252c5fbbf4730b8b85ee994ed1dc, type: 3}
+  playerOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+  playerOutlinePixels: 2.5
+  playerOutlineThroughOccluders: 1

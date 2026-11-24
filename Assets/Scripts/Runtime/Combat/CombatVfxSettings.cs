@@ -38,4 +38,13 @@ public sealed class CombatVfxSettings : ScriptableObject
     [Min(0.01f)] public float zoomOutSeconds = 0.24f;
     [Tooltip("How far the view swings back out past its resting value, as a share of the pulse.")]
     [Range(0f, 1f)] public float zoomOvershoot = 0.2f;
+
+    // Outline that keeps the player readable inside the crowd. Width 0 turns it off.
+    [Header("Player outline - provisional")]
+    public Shader playerOutlineShader;
+    public Color playerOutlineColor = Color.white;
+    [Tooltip("Width in pixels on a 1080-pixel-high screen; it scales with the screen height.")]
+    [Range(0f, 8f)] public float playerOutlinePixels = 2.5f;
+    [Tooltip("Draw the outline even where an enemy or a wall stands in front of the player.")]
+    public bool playerOutlineThroughOccluders = true;
 }
