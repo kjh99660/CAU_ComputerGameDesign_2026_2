@@ -7,6 +7,10 @@ public class PlayerAttackLunge : MonoBehaviour, IPlayerPresentation
 {
     [SerializeField] private AttackHitData attack1;   // Attack1 상태에서 쓸 값
     [SerializeField] private AttackHitData attack2;   // Attack2 상태에서 쓸 값
+    // 플레이어는 이제 적 무리에 몸이 막히지 않고 지나간다(PlayerRuntime). 전진만은 맨 앞 적 앞에서 멈춰야
+    // 겨냥한 적을 지나쳐 공격이 빗나가지 않는다. (임시값)
+    [SerializeField] private LayerMask stopAtLayers = 1 << 8;     // 전진을 멈출 대상 레이어 (기본: 8번 Enemy). 0이면 멈추지 않음
+    [SerializeField, Min(0f)] private float stopMargin = 0.2f;    // 적 몸 앞에 남길 거리 (m)
 
     private Animator _animator;
     private CharacterController _controller;
@@ -57,7 +61,23 @@ public class PlayerAttackLunge : MonoBehaviour, IPlayerPresentation
 
         Vector3 forward = transform.forward;
         forward.y = 0f;
-        _controller.Move(forward.normalized * (data.lungeDistance * delta));
+        forward.Normalize();
+        _controller.Move(forward * ClampToFirstBody(forward, data.lungeDistance * delta));
+    }
+
+    // 전진 경로에 적이 있으면 그 앞까지만 간다. 이미 몸이 겹친 적도 잡히도록 조금 뒤에서부터 쓸어 본다.
+    private float ClampToFirstBody(Vector3 forward, float step)
+    {
+        if (stopAtLayers.value == 0 || step <= 0f) return step;
+        const float runUp = 1.5f;
+        float radius = _controller.radius * 0.6f;
+        Vector3 origin = transform.position + _controller.center - forward * runUp;
+        if (!Physics.SphereCast(origin, radius, forward, out RaycastHit hit, runUp + step + stopMargin + _controller.radius,
+                stopAtLayers, QueryTriggerInteraction.Ignore))
+            return step;
+        // hit.distance는 쓸어 본 구의 중심이 간 거리. 플레이어 몸(반지름)이 적 몸에 닿기 전까지가 갈 수 있는 거리다.
+        float allowed = hit.distance - runUp - (_controller.radius - radius) - stopMargin;
+        return Mathf.Clamp(allowed, 0f, step);
     }
 
     // 경과 시간 → 전진 진행도 (0~1). 지금은 직선(일정한 속도).

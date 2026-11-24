@@ -22,6 +22,7 @@ public class PlayerDodge : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     [SerializeField] private string moveActionName = "Move";
     [SerializeField] private string dodgeActionName = "Sprint";      // 회피 키. Sprint = Left Shift, Jump = Space
     [SerializeField] private Transform cameraTransform;              // 비우면 Main Camera 사용
+    [SerializeField, Min(0f)] private float inputBufferSeconds = 0.2f; // 조금 일찍 누른 회피 입력을 이 시간만큼 기억했다가 가능해지는 순간 실행 (임시값)
     [SerializeField] private bool debugLog = false;                  // 켜면 회피 시작/끝, 실제 이동 거리를 콘솔에 출력
 
     private Animator _animator;
@@ -37,6 +38,7 @@ public class PlayerDodge : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     private bool _hasParams;              // Animator에 Dodge/DodgeBack 파라미터가 있는지 (없으면 회피 비활성 + 경고 1회)
 
     private float _cooldownRemaining;
+    private float _bufferRemaining;       // 일찍 눌린 회피 입력이 남아 있는 시간
     private bool _triggerPending;         // 트리거를 보냈지만 아직 구르기 상태로 들어가지 않음
     private float _triggerAge;
     private LayerMask _originalExclude;
@@ -100,8 +102,19 @@ public class PlayerDodge : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         if (_cooldownRemaining > 0f)
             _cooldownRemaining -= Time.deltaTime * _animator.speed;   // Pause 중(애니메이터 정지)에는 줄지 않음
 
-        if (_allowed && DodgePressed() && HasParams() && CanStartDodge())
+        // 구르기 캔슬 시각 직전처럼 아직 회피할 수 없는 순간에 누른 입력을 버리지 않고 잠깐 기억한다.
+        if (!_allowed)
+            _bufferRemaining = 0f;
+        else if (DodgePressed())
+            _bufferRemaining = Mathf.Max(inputBufferSeconds, 0.0001f);
+        else if (_bufferRemaining > 0f && _animator.speed > 0f)   // Pause 중에는 줄지 않음
+            _bufferRemaining = Mathf.Max(0f, _bufferRemaining - Time.deltaTime);
+
+        if (_allowed && _bufferRemaining > 0f && HasParams() && CanStartDodge())
+        {
+            _bufferRemaining = 0f;
             StartDodge();
+        }
     }
 
     private bool CanStartDodge()
@@ -351,6 +364,7 @@ public class PlayerDodge : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     public void ResetPresentation()
     {
         _cooldownRemaining = 0f;
+        _bufferRemaining = 0f;
         _triggerPending = false;
         _rollHash = 0;
         RestoreLayers();
