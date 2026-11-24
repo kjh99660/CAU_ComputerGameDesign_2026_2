@@ -18,7 +18,7 @@ using Object = UnityEngine.Object;
 // - 기본 대상은 미리보기 씬(Main_RebootHub.unity)이다. 팀 공용 Main.unity는 채택이 결정됐을 때만
 //   "Adopt" 메뉴나 -rebootScene main 인자로 적용한다. 미리보기 씬은 Main.unity를 파일 그대로 복사해 만들므로
 //   내부 fileID가 Main과 같고, 두 씬의 diff에는 이 빌더가 만든 변경만 남는다.
-public static class RebootHubEnvironmentBuilder
+public static partial class RebootHubEnvironmentBuilder
 {
     public const string MainScenePath = "Assets/Scenes/Main.unity";
     public const string PreviewScenePath = "Assets/Scenes/Main_RebootHub.unity";
@@ -664,6 +664,7 @@ public static class RebootHubEnvironmentBuilder
 
     public static void ApplyToScene(string scenePath)
     {
+        PrepareArenaPropImports();
         var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
         LoadBuiltMaterials();
 
@@ -758,6 +759,9 @@ public static class RebootHubEnvironmentBuilder
         Marker(gameplay, "EntryGate_North", At(c.x, 0f, northGateZ - 0.4f));
         Marker(gameplay, "EntryGate_South", At(c.x, 0f, southGateZ + 0.7f));
 
+        // CC0 외부 소품(폴더가 있을 때만). 광장 밖 데크·옥상·턱·벽면에만 놓는다.
+        int arenaProps = PlaceArenaProps(env, c);
+
         foreach (Transform t in env.GetComponentsInChildren<Transform>(true))
             if (t.GetComponent<Light>() == null)
                 GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic);
@@ -789,7 +793,7 @@ public static class RebootHubEnvironmentBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        Debug.Log($"[RebootHub] Applied to {scenePath} on {map.name}: plaza floor y={floor:0.###}, swapped {swapped} renderers, {beaconCount} beacons.");
+        Debug.Log($"[RebootHub] Applied to {scenePath} on {map.name}: plaza floor y={floor:0.###}, swapped {swapped} renderers, {beaconCount} beacons, {arenaProps} CC0 props.");
     }
 
     private static void LoadBuiltMaterials()
