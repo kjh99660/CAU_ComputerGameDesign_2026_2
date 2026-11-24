@@ -97,6 +97,22 @@ public sealed class RoundCombatStats
         return true;
     }
 
+    // A hit the enemy survives (a tough enemy's first hit): the hit's own score and gauge, and one more step of the
+    // combo, which counts landed hits (every hit was a kill before tough enemies existed). No kill is counted. The
+    // combo bonus applies to the hit score by the same rounding rule as a kill.
+    public bool RecordEnemyHit(int tick, bool chargeGauge = true, float gameTime = 0f)
+    {
+        if (!_accepting || tick != Tick) return false;
+        _combo = gameTime - _lastKillTime <= ComboWindowSeconds ? _combo + 1 : 1;
+        _lastKillTime = gameTime;
+        Score += ComboKillScore(Mathf.Max(0, _settings.hitScore), _combo, _settings.comboScoreStep, _settings.comboScoreMaxBonus);
+        MaxCombo = Mathf.Max(MaxCombo, _combo);
+        if (chargeGauge)
+            Gauge = Mathf.Clamp(Gauge + Mathf.Max(0f, _settings.hitGauge), 0f, Mathf.Max(0.01f, _settings.maximumGauge));
+        Changed?.Invoke();
+        return true;
+    }
+
     // Provisional policy: floor the penalty amount to an integer.
     public bool RecordPlayerHit(int tick, float gameTime)
     {

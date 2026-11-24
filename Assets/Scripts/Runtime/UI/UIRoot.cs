@@ -73,6 +73,8 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     }
     // 결과 화면과 같은 통계를 마무리 대화에도 넘긴다. 마무리 대화는 들어올 때 마지막으로 받은 값으로 대사를 고른다.
     public void PresentOutroStats(ResultUiModel model) => _layer?.Dialogue.PresentRoundStats(model);
+    // 생성 이벤트 때 노아의 경고(DialogueSequenceData.spawnWarnings의 번호). 전투 HUD의 무전 자리에 경고 모양으로 뜬다.
+    public void PresentSpawnWarning(int warningIndex) => _layer?.Battle.PresentSpawnWarning(warningIndex);
     // 스킬(Q) 재사용 대기 표시용 자리. 지금 스킬은 대기 시간이 없어 아무도 부르지 않는다(0 = 준비됨, 1 = 막 사용함).
     public void PresentSkillCooldown(float remainingNormalized) => _layer?.Battle.PresentSkillCooldown(remainingNormalized);
 

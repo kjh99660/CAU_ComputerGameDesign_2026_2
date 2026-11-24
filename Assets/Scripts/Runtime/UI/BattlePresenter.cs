@@ -11,10 +11,11 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
         View.PauseClicked += OnPauseClicked;
         View.ResetView();
         _radio.Begin(RadioLines);
-        View.PrepareRadioText(RadioCharacters(RadioLines));
+        View.PrepareRadioText(RadioCharacters(RadioLines, WarningLines));
     }
 
     private BattleRadioLine[] RadioLines => _data != null ? _data.battleRadio : null;
+    private DialogueLine[] WarningLines => _data != null ? _data.spawnWarnings : null;
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Battle || state == GameState.Paused;
     protected override bool AcceptsInputIn(GameState state) => state == GameState.Battle;
@@ -46,6 +47,17 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
         View.ShowRadio(radio.speaker, radio.text, radio.leftSpeaker);
     }
 
+    // 생성 이벤트(대량 생성, 생성 속도 증가) 때 노아의 경고. Battle에서만, 없는 번호면 아무것도 띄우지 않는다.
+    // 무전과 같은 자리를 쓰며, 앞의 자막이 떠 있으면 새 경고로 바뀐다.
+    public void PresentSpawnWarning(int index)
+    {
+        if (CurrentState != GameState.Battle) return;
+        DialogueLine[] lines = WarningLines;
+        if (lines == null || index < 0 || index >= lines.Length) return;
+        DialogueLine line = lines[index];
+        View.ShowRadio(line.speaker, line.text, line.leftSpeaker, true);
+    }
+
     private void OnPauseClicked() => Requests.Enqueue(UIRequestType.Pause);
 
     public override void Dispose()
@@ -61,12 +73,19 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
         View.UpdateHud(unscaledDeltaTime);
     }
 
-    private static string RadioCharacters(BattleRadioLine[] lines)
+    // 무전과 생성 경고에 쓰일 글자 전부(폰트 아틀라스에 미리 넣는다). 경고 채널 글자도 함께.
+    private static string RadioCharacters(BattleRadioLine[] lines, DialogueLine[] warnings)
     {
-        if (lines == null || lines.Length == 0) return string.Empty;
         var characters = new StringBuilder();
-        foreach (BattleRadioLine line in lines)
-            characters.Append(line.speaker).Append(line.text);
+        if (lines != null)
+            foreach (BattleRadioLine line in lines)
+                characters.Append(line.speaker).Append(line.text);
+        if (warnings != null && warnings.Length > 0)
+        {
+            foreach (DialogueLine line in warnings)
+                characters.Append(line.speaker).Append(line.text);
+            characters.Append("WARNING");
+        }
         return characters.ToString();
     }
 }

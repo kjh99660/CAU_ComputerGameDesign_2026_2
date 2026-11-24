@@ -360,4 +360,135 @@ public sealed class EnemySpawnPhaseTests
     {
         while (routine.MoveNext()) { }
     }
+
+    [Test]
+    public void APhaseHasNoEventUnlessItAsksForOneAndFiresOnlyAsTheClockPassesItsStart()
+    {
+        var plain = new EnemySpawnPhase(5f, 10, 1f, 1);
+        Assert.IsFalse(plain.HasEvent, "Old phase lists (no burst, no warning) fire nothing.");
+        Assert.AreEqual(0, plain.Burst);
+        Assert.AreEqual(-1, plain.WarningIndex);
+        var mass = new EnemySpawnPhase(5f, 10, 1f, 1, 12, 2);
+        Assert.IsTrue(mass.HasEvent);
+        Assert.AreEqual(12, mass.Burst);
+        Assert.AreEqual(1, mass.WarningIndex, "Warning number 2 is the second line.");
+        Assert.IsTrue(mass.StartsBetween(4.98f, 5f), "It starts on its start second.");
+        Assert.IsFalse(mass.StartsBetween(5f, 5.02f), "...once: the next frame is already past it.");
+        Assert.IsFalse(mass.StartsBetween(3f, 4.9f));
+        Assert.IsFalse(new EnemySpawnPhase(0f, 10, 1f, 1, 5, 1).StartsBetween(0f, 0.02f), "A phase at 0 never fires an event.");
+    }
+
+    // 2026-11-25 request: a small mass spawn at 25% of the round, the spawn rate doubled from 50%, a large mass spawn at
+    // 75%, each with Noa's warning. Kept in step with the round length (CombatSettings.roundDuration).
+    [Test]
+    public void TheGameMassSpawnsAtAQuarterAndThreeQuartersAndDoublesTheRateAtHalfTime()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<EnemySettings>("Assets/Prefabs/Enemy/EnemySettings.asset");
+        var combat = Resources.Load<CombatSettings>("CombatSettings");
+        var dialogue = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        float round = combat.roundDuration;
+        var events = new List<EnemySpawnPhase>();
+        foreach (EnemySpawnPhase phase in settings.SpawnPhases)
+            if (phase.HasEvent) events.Add(phase);
+        Assert.AreEqual(3, events.Count, "Three spawn events.");
+        events.Sort((a, b) => a.startSecond.CompareTo(b.startSecond));
+        Assert.AreEqual(0.25f * round, events[0].startSecond, 0.001f, "Small mass spawn at 25%.");
+        Assert.AreEqual(0.5f * round, events[1].startSecond, 0.001f, "Spawn rate doubles at 50%.");
+        Assert.AreEqual(0.75f * round, events[2].startSecond, 0.001f, "Large mass spawn at 75%.");
+        Assert.Greater(events[0].Burst, 0);
+        Assert.AreEqual(0, events[1].Burst, "The 50% event only speeds the waves up.");
+        Assert.Greater(events[2].Burst, events[0].Burst, "The 75% mass spawn is the larger one.");
+
+        EnemySpawnPhase before = settings.SpawnPhaseAt(0.5f * round - 0.01f);
+        EnemySpawnPhase after = settings.SpawnPhaseAt(0.5f * round);
+        Assert.AreEqual(2f * before.PerWave / before.Interval, after.PerWave / after.Interval, 0.001f, "Twice the spawn rate from 50% on.");
+        EnemySpawnPhase late = settings.SpawnPhaseAt(0.75f * round);
+        Assert.AreEqual(after.PerWave / after.Interval, late.PerWave / late.Interval, 0.001f, "...and it stays doubled.");
+        Assert.LessOrEqual(settings.SpawnPhaseAt(0.75f * round - 0.01f).Cap + events[2].Burst, settings.MaximumEnemyCount,
+            "Room for the whole large mass spawn under the cap of 100.");
+
+        foreach (EnemySpawnPhase phase in events)
+        {
+            Assert.That(phase.WarningIndex, Is.InRange(0, dialogue.spawnWarnings.Length - 1), "Each event has Noa's warning.");
+            DialogueLine line = dialogue.spawnWarnings[phase.WarningIndex];
+            Assert.AreEqual("노아", line.speaker);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(line.text));
+        }
+    }
+
+    // 2026-11-25 request: blue one-hit robots first, red two-hit robots mixed in from half time, only red from 75%
+    // (starting with the large mass spawn); wind-up 25% shorter and move speed 25% higher.
+    [Test]
+    public void TheGameSendsBlueRobotsFirstMixesInRedFromHalfTimeAndOnlyRedFromThreeQuarters()
+    {
+        var settings = AssetDatabase.LoadAssetAtPath<EnemySettings>("Assets/Prefabs/Enemy/EnemySettings.asset");
+        var combat = Resources.Load<CombatSettings>("CombatSettings");
+        float round = combat.roundDuration;
+        Assert.AreEqual(0f, settings.SpawnPhaseAt(0f).Tough, "Only the weak kind at the start.");
+        Assert.AreEqual(0f, settings.SpawnPhaseAt(0.5f * round - 0.01f).Tough, "...until half time, the 25% mass spawn included.");
+        Assert.That(settings.SpawnPhaseAt(0.5f * round).Tough, Is.GreaterThan(0f).And.LessThan(1f), "Both kinds from half time.");
+        EnemySpawnPhase last = settings.SpawnPhaseAt(0.75f * round);
+        Assert.AreEqual(1f, last.Tough, "Only the tough kind from 75%.");
+        Assert.Greater(last.Burst, 0, "...starting with the large mass spawn, all tough.");
+        Assert.AreEqual(2, settings.ToughHits, "A red robot takes two hits.");
+        Assert.Greater(settings.WeakColor.b, settings.WeakColor.r, "The weak kind is blue.");
+        Assert.Greater(settings.ToughColor.r, settings.ToughColor.b, "The tough kind is the red robot.");
+        Assert.AreNotEqual(settings.SpawnWarningWeakColor, settings.SpawnWarningColor, "Their warning rings differ too.");
+        Assert.AreEqual(0.41f, settings.AttackWindup, 0.001f, "Wind-up 25% shorter than 0.55 s.");
+        Assert.AreEqual(4.375f, settings.MoveSpeed, 0.001f, "Move speed 25% above 3.5 m/s.");
+    }
+
+    [Test]
+    public void EachSpawnTakesItsKindFromItsPhaseAndTheSameRoundDrawsTheSameKinds()
+    {
+        EnemySettings settings = Settings(interval: 0.5f, perWave: 2);
+        var blue = new Color(0.2f, 0.55f, 1f, 1f);
+        SetField(settings, "weakColor", blue);
+        SetField(settings, "spawnPhases", new[]
+        {
+            new EnemySpawnPhase(0f, 4, 0.5f, 2, 0, 0, 0f),
+            new EnemySpawnPhase(2f, 30, 0.5f, 2, 0, 0, 0.5f),
+            new EnemySpawnPhase(5f, 60, 0.5f, 2, 6, 0, 1f),
+        });
+        const float frame = 1f / 60f;
+        var runs = new List<List<bool>>();
+        for (int run = 0; run < 2; run++)
+        {
+            EnemyRuntime runtime = Runtime(settings, out _);
+            Exhaust(runtime.InitializeRound(3));
+            runtime.ApplyState(GameState.Battle, 3);
+            int beforeBurst = 0, afterBurst = 0;
+            for (int step = 1; step <= 6 * 60; step++)
+            {
+                runtime.UpdateSpawning(frame, frame, 3);
+                if (step == 114)   // 1.9 s: the first phase, all weak
+                    foreach (EnemyAgent enemy in runtime.Perf.ActiveEnemies)
+                    {
+                        Assert.IsFalse(enemy.Tough, "Only the weak kind in a phase with no tough share.");
+                        Assert.AreEqual(1, enemy.HitsLeft);
+                        Assert.AreEqual(blue, enemy.SkinColor, "...in the weak kind's skin.");
+                    }
+                if (step == 294) beforeBurst = runtime.ActiveEnemyCount;   // 4.9 s
+                if (step == 306) afterBurst = runtime.ActiveEnemyCount;    // 5.1 s
+            }
+            IReadOnlyList<EnemyAgent> all = runtime.Perf.ActiveEnemies;
+            int toughInMix = 0, weakInMix = 0;
+            for (int i = 6; i < beforeBurst; i++)
+                if (all[i].Tough) toughInMix++; else weakInMix++;
+            Assert.Greater(toughInMix, 0, "A half share brings tough enemies...");
+            Assert.Greater(weakInMix, 0, "...and weak ones.");
+            Assert.GreaterOrEqual(afterBurst - beforeBurst, 6, "The mass spawn of the last phase.");
+            Assert.Greater(all.Count, afterBurst, "Waves keep coming after it.");
+            for (int i = afterBurst; i < all.Count; i++)
+            {
+                Assert.IsTrue(all[i].Tough, "Only the tough kind in a phase with a full tough share.");
+                Assert.AreEqual(settings.ToughHits, all[i].HitsLeft);
+                Assert.AreEqual(settings.ToughColor, all[i].SkinColor);
+            }
+            var kinds = new List<bool>();
+            foreach (EnemyAgent enemy in all) kinds.Add(enemy.Tough);
+            runs.Add(kinds);
+        }
+        CollectionAssert.AreEqual(runs[0], runs[1], "The same round draws the same kinds.");
+    }
 }

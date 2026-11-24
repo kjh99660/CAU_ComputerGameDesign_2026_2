@@ -28,6 +28,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private EnemyRemainsRuntime _remains;
     private SfxRuntime _sfx;
     private PerfRuntime _perf;
+    private bool _spawnWarningsWired;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -97,6 +98,9 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         roundResetCoordinator.RegisterParticipant(uiRoot);
         // 성능 도구: F3 오버레이(F4 이웃 검색, F5 실험용 적 상한), 라운드 FPS 기록, -rebootBenchmark 자동 측정.
         _perf = PerfRuntime.Attach(gameObject, gameStateManager, eventManager, enemyRuntime, roundResetCoordinator);
+        // 생성 이벤트(25% 소규모 대량 생성, 50% 생성 속도 2배, 75% 대규모 대량 생성)마다 노아의 경고를 HUD에 띄운다.
+        enemyRuntime.SpawnPhaseStarted += OnSpawnPhaseStarted;
+        _spawnWarningsWired = true;
         _physics = new PhysicsLayer(_physicsPauseManager);
         _requestProcessor = new GameRequestProcessor(gameStateManager);
         HandleGameStateChanged(new GameStateChangedEvent(gameStateManager.CurrentState, gameStateManager.CurrentState, gameStateManager.Tick));
@@ -180,9 +184,18 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _perf?.ApplyState(notification);
     }
 
-    // Bootstrap이 사라질 때 UI Presenter의 구독을 정리한다.
+    // 생성 이벤트 알림: 경고 번호가 있으면 전투 HUD에 노아의 경고를 띄운다(현재 판의 알림만).
+    private void OnSpawnPhaseStarted(int phaseIndex, int warningIndex, int tick)
+    {
+        if (warningIndex >= 0 && tick == gameStateManager.Tick)
+            uiRoot.PresentSpawnWarning(warningIndex);
+    }
+
+    // Bootstrap이 사라질 때 UI Presenter의 구독과 생성 이벤트 구독을 정리한다.
     private void OnDestroy()
     {
+        if (_spawnWarningsWired && enemyRuntime != null)
+            enemyRuntime.SpawnPhaseStarted -= OnSpawnPhaseStarted;
         _ui?.Dispose();
     }
 }

@@ -11,6 +11,7 @@ public struct EnemyPendingSpawn
     public float Remaining;
     public int Tick;
     public int Marker;      // the warning ring showing it, -1 without one
+    public bool Tough;      // the kind drawn for it when it was announced
 
     // 0 when announced, 1 when the enemy appears.
     public float Progress => Duration > 0f ? Mathf.Clamp01(1f - Remaining / Duration) : 1f;
@@ -41,7 +42,7 @@ public sealed class EnemyPendingSpawns
         }
     }
 
-    public void Add(Vector3 position, float variation, float seconds, int tick, int marker)
+    public void Add(Vector3 position, float variation, float seconds, int tick, int marker, bool tough = false)
     {
         if (_count == _items.Length)
             Array.Resize(ref _items, _items.Length * 2);
@@ -49,7 +50,7 @@ public sealed class EnemyPendingSpawns
         _items[_count++] = new EnemyPendingSpawn
         {
             Position = position, Variation = variation, Duration = duration, Remaining = duration, Tick = tick,
-            Marker = marker
+            Marker = marker, Tough = tough
         };
     }
 

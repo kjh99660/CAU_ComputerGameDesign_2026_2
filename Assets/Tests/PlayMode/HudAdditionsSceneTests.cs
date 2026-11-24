@@ -274,34 +274,44 @@ public sealed class HudAdditionsSceneTests
     }
 
     [UnityTest]
-    public IEnumerator RadioLinesPlayAtFiftyAndTenSecondsHoldInPauseAndClearOnRetry()
+    public IEnumerator RadioLinePlaysAtTenSecondsHoldsInPauseAndClearsOnRetry()
     {
         var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
-        BattleRadioLine half = Line(data, 50f), last = Line(data, 10f);
+        BattleRadioLine last = Line(data, 10f);
 
-        // 51초 판: 50초 줄이 1초쯤 뒤에 뜬다.
-        _settings.roundDuration = 51f;
+        // 11초 판: 10초 줄이 1초쯤 뒤에 뜬다. (50초 무전은 2026-11-25에 50% 생성 경고로 바뀌어 10초 한 줄만 남았다.)
+        _settings.roundDuration = 11f;
         yield return Load();
         yield return EnterBattle();
         var battle = Object.FindFirstObjectByType<BattleView>();
         var radio = Find<HudRadioSubtitle>(battle.transform, "RadioSubtitle");
         Assert.IsFalse(radio.IsShowing, "No radio at the start of the battle.");
         yield return UntilFrames(() => radio.IsShowing, 180);
-        Assert.IsTrue(radio.IsShowing, "The 50 s line plays when the clock reaches 50 s.");
-        Assert.LessOrEqual(_combat.RoundRemaining, 50f);
-        Assert.Greater(_combat.RoundRemaining, 49f, "It plays the moment the clock passes 50 s.");
-        Assert.AreEqual(half.speaker, radio.SpeakerShown);
-        Assert.AreEqual(half.text, radio.TextShown);
+        Assert.IsTrue(radio.IsShowing, "The 10 s line plays when the clock reaches 10 s.");
+        Assert.LessOrEqual(_combat.RoundRemaining, 10f);
+        Assert.Greater(_combat.RoundRemaining, 9f, "It plays the moment the clock passes 10 s.");
+        Assert.AreEqual(last.speaker, radio.SpeakerShown);
+        Assert.AreEqual(last.text, radio.TextShown);
+        Assert.IsFalse(radio.ShowsWarning, "A radio line is not a spawn warning.");
+        Assert.AreEqual("COMM LINK", radio.ChannelShown);
 
-        // 한글은 대화 화면과 같은 TMP 폰트로 그려지고, 빠진 글자가 없다. 클릭을 가로채지 않는다.
+        // 한글은 대화 화면과 같은 TMP 폰트로 그려지고, 무전과 생성 경고에 빠진 글자가 없다. 클릭을 가로채지 않는다.
         var dialogue = Object.FindFirstObjectByType<DialogueView>(FindObjectsInactive.Include);
         TMP_FontAsset dialogueFont = Find<TMP_Text>(dialogue.transform, "BodyText").font;
         Assert.AreSame(dialogueFont, radio.Font, "The radio reuses the dialogue's Korean TMP font asset.");
-        Assert.IsTrue(radio.Font.HasCharacters(half.speaker + half.text + last.text, out List<char> missing),
+        string characters = last.speaker + last.text;
+        foreach (DialogueLine warning in data.spawnWarnings) characters += warning.speaker + warning.text;
+        Assert.IsTrue(radio.Font.HasCharacters(characters, out List<char> missing),
             "Missing glyphs: " + (missing == null ? string.Empty : new string(missing.ToArray())));
         Assert.IsFalse(radio.GetComponent<CanvasGroup>().blocksRaycasts);
         foreach (Graphic graphic in radio.GetComponentsInChildren<Graphic>(true))
             Assert.IsFalse(graphic.raycastTarget, graphic.name + " must not take clicks.");
+        TMP_Text timer = Find<TMP_Text>(battle.transform, "TimerValue");
+        Assert.AreEqual("00:10", timer.text);
+        AssertColor(UiPalette.Alert, timer.color);
+        Rect radioRect = WorldRect((RectTransform)radio.transform);
+        Assert.IsFalse(radioRect.Overlaps(WorldRect(Find<RectTransform>(battle.transform, "TimerPanel"))),
+            "The radio must not sit on the 10-second timer warning.");
 
         // Pause 동안 그대로 머문다.
         _events.EnqueueRequest(new PauseRequest(_state.Tick));
@@ -313,31 +323,13 @@ public sealed class HudAdditionsSceneTests
         _events.EnqueueRequest(new ResumeRequest(_state.Tick));
         yield return WaitFor(GameState.Battle);
 
-        // 몇 초 뒤 스스로 사라지고, 같은 판에서 다시 뜨지 않는다(다음 줄은 10초에야 뜬다).
+        // 몇 초 뒤 스스로 사라지고, 같은 판에서 다시 뜨지 않는다.
         int shownFrames = Mathf.CeilToInt((radio.TotalSeconds - radio.Elapsed) * 60f);
         yield return UntilFrames(() => !radio.IsShowing, shownFrames + 30);
         Assert.IsFalse(radio.IsShowing, "The radio line goes away by itself.");
-        Assert.Greater(_combat.RoundRemaining, 40f, "It went away after a few seconds, long before the 10 s line.");
+        Assert.Greater(_combat.RoundRemaining, 4f, "It went away after a few seconds, before the round ends.");
         yield return Frames(30);
         Assert.IsFalse(radio.IsShowing);
-
-        // 11초 판(Retry): 50초 줄은 뜨지 않고 10초 줄만 뜬다. 그때 시간 표시는 10초 경고 중이고 자막과 겹치지 않는다.
-        _events.EnqueueRequest(new PauseRequest(_state.Tick));
-        yield return WaitFor(GameState.Paused);
-        _settings.roundDuration = 11f;
-        _events.EnqueueRequest(new RestartRequest(_state.Tick));
-        yield return WaitFor(GameState.Ready);
-        Assert.IsFalse(radio.IsShowing);
-        yield return EnterBattle();
-        yield return UntilFrames(() => radio.IsShowing, 180);
-        Assert.IsTrue(radio.IsShowing, "The 10 s line plays.");
-        Assert.AreEqual(last.text, radio.TextShown, "A round shorter than 50 s never plays the 50 s line.");
-        TMP_Text timer = Find<TMP_Text>(battle.transform, "TimerValue");
-        Assert.AreEqual("00:10", timer.text);
-        AssertColor(UiPalette.Alert, timer.color);
-        Rect radioRect = WorldRect((RectTransform)radio.transform);
-        Assert.IsFalse(radioRect.Overlaps(WorldRect(Find<RectTransform>(battle.transform, "TimerPanel"))),
-            "The radio must not sit on the 10-second timer warning.");
 
         // 전투가 끝나면 보이지 않고, Retry 뒤에는 지워져 있다.
         _events.EnqueueRequest(new TimerReachedZeroRequest(_state.Tick));
@@ -582,7 +574,7 @@ public sealed class HudAdditionsSceneTests
         HoldCrowdHits();
         var battle = Object.FindFirstObjectByType<BattleView>();
         Kill(2);
-        BattleRadioLine half = Line(Resources.Load<DialogueSequenceData>("DialogueSequence"), 50f);
+        BattleRadioLine half = Line(Resources.Load<DialogueSequenceData>("DialogueSequence"), 10f);
         battle.ShowRadio(half.speaker, half.text, half.leftSpeaker);
         yield return null;
         string[] names =

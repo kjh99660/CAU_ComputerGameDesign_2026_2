@@ -130,13 +130,15 @@ public sealed class RoundCombatStatsTests
             Assert.IsTrue(stats.RecordEnemyKill(1));
             Assert.AreEqual(110, stats.Score);
             Assert.AreEqual(8f, stats.Gauge);
-            // A hit on the player takes 1% of the score, rounded down (110 -> 109 -> 108).
+            // A hit on the player takes 10% of the score, and the amount taken is rounded down
+            // (110 - 11 = 99, then 99 - 9 = 90: 9.9 loses its fraction).
+            Assert.AreEqual(0.1f, settings.playerHitPenalty, "The default penalty is 10% (2026-11-25).");
             Assert.IsTrue(stats.RecordPlayerHit(1, 1f));
-            Assert.AreEqual(109, stats.Score);
+            Assert.AreEqual(99, stats.Score);
             Assert.AreEqual(16f, stats.Gauge);
             Assert.IsFalse(stats.RecordPlayerHit(1, 1.7f));
             Assert.IsTrue(stats.RecordPlayerHit(1, 1.8f));
-            Assert.AreEqual(108, stats.Score);
+            Assert.AreEqual(90, stats.Score);
             stats.Reset(2);
             Assert.AreEqual(0, stats.Score);
             Assert.AreEqual(0f, stats.Gauge);

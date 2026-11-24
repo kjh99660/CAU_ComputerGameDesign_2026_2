@@ -10,7 +10,7 @@ public sealed class CombatSettings : ScriptableObject
     [Min(0)] public float killGauge = 5f;
     [Min(0)] public float playerHitGauge = 8f;
     [Min(0.01f)] public float maximumGauge = 100f;
-    [Range(0f, 1f)] public float playerHitPenalty = 0.01f;
+    [Range(0f, 1f)] public float playerHitPenalty = 0.1f;
     [Min(0f)] public float invulnerabilitySeconds = 0.8f;
     [Header("Special and combo - provisional")]
     [Range(0f, 1f)] public float specialCostFraction = 1f;

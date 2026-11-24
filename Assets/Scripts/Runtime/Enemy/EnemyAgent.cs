@@ -14,6 +14,7 @@ public sealed class EnemyAgent : MonoBehaviour
     private const float LocomotionBlendSeconds = 0.2f;
     private const float AttackBlendSeconds = 0.06f;
     private const float RecoverBlendSeconds = 0.15f;
+    private const float StaggerBlendSeconds = 0.05f;
     private const float FacePlayerDistanceFactor = 2.5f; // within AttackRange * this, look at the player rather than the path
     private const float GaitSwitchBand = 0.2f;           // m/s either side of WalkToRunSpeed, so the gait does not flicker
     private const float PathSlack = 1.5f;                // a walk to the player this much longer than AttackRange still counts as "next to them"
@@ -86,10 +87,24 @@ public sealed class EnemyAgent : MonoBehaviour
     private int _attackLook;           // index of the look shown by the current or last attack
     private uint _attackRandom = 1u;
 
-    // Attack telegraph: the enemy glows this colour while it winds up, then goes back to its usual colour.
-    private static readonly Color ReadyColor = new Color(0.9f, 0.22f, 0.18f, 1f);
+    // Attack telegraph: the enemy glows this colour while it winds up, then goes back to its own skin colour.
+    private static readonly Color DefaultSkin = new Color(0.9f, 0.22f, 0.18f, 1f);
     private static readonly Color WarningColor = new Color(1f, 0.82f, 0.2f, 1f);
     private float _attackElapsed;
+
+    // Kind (EnemySettings "Enemy kinds"): how many hits it takes and the skin that shows it. A tough enemy that has
+    // been hit staggers and its lights flicker until the next hit destroys it. There is no health bar.
+    private Color _skin = DefaultSkin;
+    private int _hitsAtSpawn = 1;
+    private int _hitsLeft = 1;
+    private float _hitImmunity;            // seconds left in which further hits are ignored (one swing, one hit)
+    private float _staggerLeft;            // seconds left of the shove after a hit it survived
+    private float _staggerSeconds;
+    private Vector3 _staggerVelocity;
+    private float _flickerClock;
+    private int _flickerFrame = -1;
+    private uint _flickerSeed = 1u;
+    private bool _lightsOn = true;
 
     // Liveliness (EnemySettings.Liveliness): this enemy's temperament and the little timers that make it move like
     // someone sizing the player up rather than a marker sliding at them.
@@ -124,6 +139,16 @@ public sealed class EnemyAgent : MonoBehaviour
     public EnemyTemperament Temperament => _temperament;
     public float HoverRadius => _ringRadius;
     public bool IsWindingUp => State == EnemyAgentState.Attack && !_attackHitChecked;
+    // Kind and damage, for effects, remains and tests.
+    public Color SkinColor => _skin;
+    public bool Tough => _hitsAtSpawn > 1;
+    public int HitsLeft => _hitsLeft;
+    // Took the hit that destroys it (knocked back or dying).
+    public bool Defeated => _acceptedHit;
+    // A tough enemy that has been hit and still stands.
+    public bool Damaged => !_acceptedHit && _hitsLeft < _hitsAtSpawn;
+    public bool Staggered => _staggerLeft > 0f;
+    public bool LightsOn => _lightsOn;
 
     private void Awake()
     {
@@ -168,7 +193,8 @@ public sealed class EnemyAgent : MonoBehaviour
     // variation (0..1) spreads speed, size and animation phase between enemies. 0.5 is the neutral enemy.
     // seedTick: the round whose seeds pick this enemy's temperament and attack looks; below 0 uses tick. A runtime
     // that gives every round the same layout passes the first round's tick here.
-    public void Activate(Vector3 position, int tick, float variation = 0.5f, int seedTick = -1)
+    // hits: how many hits destroy it (1 = the weak kind). skin: its tint and glow, null for the first prototype's red.
+    public void Activate(Vector3 position, int tick, float variation = 0.5f, int seedTick = -1, int hits = 1, Color? skin = null)
     {
         gameObject.SetActive(true);
         transform.SetPositionAndRotation(position, Quaternion.identity);
@@ -193,6 +219,13 @@ public sealed class EnemyAgent : MonoBehaviour
         _attackHitChecked = false;
         _attackCooldown = 0f;
         _stateTime = 0f;
+        _hitsAtSpawn = _hitsLeft = Mathf.Max(1, hits);
+        _skin = skin ?? DefaultSkin;
+        _hitImmunity = 0f;
+        _staggerLeft = 0f;
+        _staggerVelocity = Vector3.zero;
+        _flickerClock = 0f;
+        _flickerSeed = (uint)(Mathf.Clamp01(variation) * 16777215f) * 2654435761u + 1u;
         SetDrivenByPhysics(false);
         _body.useGravity = true;
         // An interpolated Rigidbody owns its physics pose independently of the
@@ -200,7 +233,7 @@ public sealed class EnemyAgent : MonoBehaviour
         // the prefab origin or the previous death/knockback position next frame.
         _body.position = position;
         _body.rotation = Quaternion.identity;
-        SetColor(ReadyColor);
+        ShowSkin();
     }
 
     // Puts a freshly activated enemy on the cells of a level with floors. Null keeps the flat-level movement.
@@ -254,6 +287,17 @@ public sealed class EnemyAgent : MonoBehaviour
             // Off an edge and in the air: nothing to decide until it lands (RunAction moves it).
             ChangeState(EnemyAgentState.Chase);
             ShowLocomotion(true, settings);
+            return;
+        }
+        if (_staggerLeft > 0f)
+        {
+            // Reeling from a hit it survived: it slides back, slower and slower, and decides nothing.
+            ChangeState(EnemyAgentState.Chase);
+            Vector3 slide = _staggerVelocity * Mathf.Clamp01(_staggerLeft / Mathf.Max(0.01f, _staggerSeconds));
+            _staggerLeft -= deltaTime;
+            if (slide.sqrMagnitude > 0.000001f)
+                Travel(slide * deltaTime, deltaTime, false, false);
+            _velocity = Vector3.zero;
             return;
         }
         Vector3 toTarget = target - transform.position;
@@ -356,8 +400,9 @@ public sealed class EnemyAgent : MonoBehaviour
 
     // Where a lively enemy wants to go this frame (m/s). Far away everyone runs in, flankers curving around the side.
     // Closer, they slow down and size the player up (the hesitant ones stop and go). In the ring around the player,
-    // the ones whose turn has not come keep their own distance, circle, now and then turn round or feint, and back
-    // off if they got too close; when their turn comes they step in to attack.
+    // the ones whose turn has not come stop closing in at their own distance, circle, now and then turn round or feint
+    // a step closer; when their turn comes they step in to attack. They never back away: a player who walks up to a
+    // waiting enemy finds it holding its ground (2026-11-25 playtest: backing off looked unnatural).
     private Vector3 LivelyMove(Vector3 toward, float distance, bool inRange, float strikeDistance, bool turnCome,
         Vector3 separation, EnemySettings settings, float deltaTime, out bool facePlayer)
     {
@@ -388,9 +433,10 @@ public sealed class EnemyAgent : MonoBehaviour
                 _circleSign = -_circleSign;
                 _strafeTimer = 1.6f + 2.4f * MindValue();
             }
-            float radial = Mathf.Clamp((distance - _ringRadius) * 1.5f, -1f, 1f);   // above 0: too far, step in
-            if (inRange) radial = Mathf.Min(radial, -0.7f);                          // too close without a turn: back off
-            want = toward * (speed * (radial * 0.6f + Feint(deltaTime))) + around * (speed * settings.CircleSpeedShare);
+            float radial = Mathf.Clamp((distance - _ringRadius) * 1.5f, 0f, 1f);    // too far: step in; closer: hold
+            float feint = Feint(deltaTime);
+            if (feint < 0f && distance < _ringRadius) feint = 0f;                    // a feint's pull-back stops at the ring
+            want = toward * (speed * (radial * 0.6f + feint)) + around * (speed * settings.CircleSpeedShare);
         }
         want += separation * (speed * 0.5f);
         want.y = 0f;
@@ -445,8 +491,8 @@ public sealed class EnemyAgent : MonoBehaviour
             : roll < shares.x + shares.y ? EnemyTemperament.Flanker
             : roll < shares.x + shares.y + shares.z ? EnemyTemperament.Circler
             : EnemyTemperament.Hesitant;
-        float near = settings != null ? settings.HoverRingMinimum : 2.8f;
-        float far = settings != null ? settings.HoverRingMaximum : 4.6f;
+        float near = settings != null ? settings.HoverRingMinimum : 2.2f;
+        float far = settings != null ? settings.HoverRingMaximum : 3.4f;
         _ringRadius = Mathf.Lerp(near, far, MindValue());
         _circleSign = MindValue() < 0.5f ? -1f : 1f;
         _flankSign = MindValue() < 0.5f ? -1f : 1f;
@@ -620,6 +666,10 @@ public sealed class EnemyAgent : MonoBehaviour
             return;
 
         Fall(deltaTime);
+        if (_hitImmunity > 0f)
+            _hitImmunity -= deltaTime;
+        if (Damaged)
+            FlickerLights(settings, deltaTime);
         if (State == EnemyAgentState.Attack)
         {
             _attackElapsed += deltaTime;
@@ -659,7 +709,7 @@ public sealed class EnemyAgent : MonoBehaviour
         _animationSpeed = 1f;   // the swing itself at full speed
         ApplyAnimatorSpeed();
         if (settings.TelegraphsAttacks)
-            SetColor(ReadyColor);
+            ShowSkin();
         if (_nav != null && Mathf.Abs(distance.y) > settings.VerticalReach)
             return false;   // the player left this floor during the wind-up
         distance.y = 0f;
@@ -671,11 +721,24 @@ public sealed class EnemyAgent : MonoBehaviour
         return Vector3.Angle(transform.forward, distance) <= settings.AttackArcDegrees * 0.5f;
     }
 
-    public bool ApplyHit(Vector3 impulse, EnemySettings settings, int tick)
+    // A hit by the player. hits: how many hits it counts for (a tough enemy takes EnemySettings.ToughHits). sweeping: a
+    // blow that reaches everyone at once (the special) and is not held off by the short immunity after a survived hit.
+    // Returns whether the hit was accepted; Defeated tells whether it was the one that destroys the enemy.
+    public bool ApplyHit(Vector3 impulse, EnemySettings settings, int tick, int hits = 1, bool sweeping = false)
     {
         if (tick != ActiveTick || _acceptedHit || State == EnemyAgentState.Pooled || State == EnemyAgentState.Dying)
             return false;
+        if (_hitImmunity > 0f && !sweeping)
+            return false;
 
+        _hitsLeft -= Mathf.Max(1, hits);
+        if (_hitsLeft > 0)
+        {
+            Stagger(impulse, settings);
+            return true;
+        }
+        _hitsLeft = 0;
+        _staggerLeft = 0f;
         _acceptedHit = true;
         _velocity = Vector3.zero;
         ChangeState(EnemyAgentState.Knockback);
@@ -685,6 +748,61 @@ public sealed class EnemyAgent : MonoBehaviour
         _body.AddForce(impulse, ForceMode.Impulse);
         SetColor(new Color(1f, 0.72f, 0.2f, 1f));
         return true;
+    }
+
+    // A hit it survives: it loses its attack and its turn, is shoved back along the floor and flinches. From now on its
+    // lights flicker (FlickerLights), which is how a damaged tough enemy is told from a fresh one.
+    private void Stagger(Vector3 impulse, EnemySettings settings)
+    {
+        if (State != EnemyAgentState.Chase)
+            ChangeState(EnemyAgentState.Chase);
+        _hitImmunity = settings.HitImmunitySeconds;
+        _staggerSeconds = settings.StaggerSeconds;
+        _staggerLeft = _staggerSeconds;
+        Vector3 push = impulse;
+        push.y = 0f;
+        _staggerVelocity = push.sqrMagnitude > 0.0001f ? push.normalized * settings.StaggerPushSpeed : Vector3.zero;
+        _velocity = Vector3.zero;
+        // No swing straight out of the stagger, and it waits for a new turn like after an attack of its own.
+        _attackCooldown = Mathf.Max(_attackCooldown, _staggerSeconds + 0.3f);
+        _hoverTime = 0f;
+        _animationSpeed = 1f;
+        Show(KnockbackState, StaggerBlendSeconds);
+        ApplyAnimatorSpeed();
+        _lightsOn = false;
+        _flickerFrame = -1;
+        SetColor(settings.DamagedColor);
+    }
+
+    // Its own skin, lights on. A damaged enemy starts flickering again from here on the next frame.
+    private void ShowSkin()
+    {
+        _lightsOn = true;
+        _flickerFrame = -1;
+        SetColor(_skin);
+    }
+
+    // No health bar (AGENTS.md): a tough enemy that has been hit shows it by lights that flicker unevenly, on a little
+    // more than half the time. Runs on game time from RunAction, so Pause holds it. The renderer is only touched when
+    // the lights change, and the warning colour of a wind-up is left alone.
+    private void FlickerLights(EnemySettings settings, float deltaTime)
+    {
+        if (IsWindingUp)
+            return;
+        _flickerClock += deltaTime;
+        int frame = Mathf.FloorToInt(_flickerClock * settings.DamagedFlickerHz);
+        if (frame == _flickerFrame)
+            return;
+        _flickerFrame = frame;
+        uint h = unchecked((uint)frame * 747796405u + _flickerSeed);
+        h ^= h >> 16;
+        h = unchecked(h * 2246822519u);
+        h ^= h >> 13;
+        bool on = (h & 0xFFu) < 150u;
+        if (on == _lightsOn)
+            return;
+        _lightsOn = on;
+        SetColor(on ? _skin : settings.DamagedColor);
     }
 
     public void DeactivateForPool(Transform poolRoot)
@@ -702,6 +820,9 @@ public sealed class EnemyAgent : MonoBehaviour
         _attackHitChecked = false;
         _attackCooldown = 0f;
         _stateTime = 0f;
+        _hitsAtSpawn = _hitsLeft = 1;
+        _hitImmunity = 0f;
+        _staggerLeft = 0f;
         _velocity = Vector3.zero;
         _nav = null;
         _navCell = EnemyNavField.None;
@@ -928,7 +1049,7 @@ public sealed class EnemyAgent : MonoBehaviour
             // The attack is over (or cut short by a hit): give the turn back and drop the warning colour.
             _owner?.ReleaseAttackSlot(this);
             if (!_attackHitChecked && _owner != null && _owner.Settings != null && _owner.Settings.TelegraphsAttacks)
-                SetColor(ReadyColor);
+                ShowSkin();
         }
         if (_animator == null)
             return;

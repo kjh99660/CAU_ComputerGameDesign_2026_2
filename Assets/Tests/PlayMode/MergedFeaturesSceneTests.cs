@@ -62,7 +62,8 @@ public sealed class MergedFeaturesSceneTests
         StringAssert.Contains("비상 재부팅", dialogue.intro[0].text, "The recommended dialogue (05 §3) is in use.");
         Assert.Greater(dialogue.outroManyHits.Length, 0, "The many-hits outro (05 §4.4) is on.");
         Assert.Greater(dialogue.outroPrecise.Length, 0, "The precise outro (05 §4.4) is on.");
-        Assert.AreEqual(2, dialogue.battleRadio.Length, "Noa's radio lines at 50 s and 10 s.");
+        Assert.AreEqual(1, dialogue.battleRadio.Length, "Noa's radio line at 10 s (the 50 s one became the 50% spawn warning).");
+        Assert.AreEqual(3, dialogue.spawnWarnings.Length, "Noa's warnings for the 25%, 50% and 75% spawn events.");
         Assert.AreEqual(0.05f, _combat.Settings.comboScoreStep, 0.0001f, "Combo bonus on: +5% per combo step (provisional).");
         Assert.AreEqual(0.5f, _combat.Settings.comboScoreMaxBonus, 0.0001f, "...up to +50% (provisional).");
         Assert.IsTrue(_enemies.Settings.SameLayoutEveryRound, "Every round starts from the same enemy layout.");

@@ -39,6 +39,31 @@ public sealed class EnemySettings : ScriptableObject
              "starts with the same enemies in the same places. Off: every round (Tick) gets its own layout.")]
     [SerializeField] private bool sameLayoutEveryRound = false;
 
+    // Two kinds of the same robot (2026-11-25 request). The weak kind is destroyed by one hit. The tough kind takes
+    // Tough Hits; after a hit it survives it is shoved back, flinches and its lights flicker (no health bar). Which
+    // kind a spawn is comes from its spawn phase (Tough Share). The defaults keep the first prototype: every enemy
+    // is the weak kind in the original red. The special attack destroys either kind at once.
+    [Header("Enemy kinds - provisional")]
+    [Tooltip("Skin (tint and glow) of the weak kind: one hit destroys it.")]
+    [SerializeField] private Color weakColor = new Color(0.9f, 0.22f, 0.18f, 1f);
+    [Tooltip("Skin of the tough kind.")]
+    [SerializeField] private Color toughColor = new Color(0.9f, 0.22f, 0.18f, 1f);
+    [Tooltip("Hits that destroy a tough enemy.")]
+    [SerializeField, Min(1)] private int toughHits = 2;
+    [Tooltip("A damaged tough enemy's lights flicker between its skin and this. A colour with little saturation gives no glow.")]
+    [SerializeField] private Color damagedColor = new Color(0.3f, 0.25f, 0.25f, 1f);
+    [Tooltip("Flicker steps per second of a damaged enemy's lights.")]
+    [SerializeField, Min(1f)] private float damagedFlickerHz = 14f;
+    [Tooltip("A hit it survives shoves it back for this long (s); it decides nothing meanwhile.")]
+    [SerializeField, Min(0f)] private float staggerSeconds = 0.3f;
+    [Tooltip("Speed of that shove at its start (m/s); it fades out over the stagger.")]
+    [SerializeField, Min(0f)] private float staggerPushSpeed = 5f;
+    [Tooltip("After a hit it survives, further hits are ignored this long (s), so one swing cannot count twice.")]
+    [SerializeField, Min(0f)] private float hitImmunitySeconds = 0.15f;
+    [Tooltip("Warning ring colours of the weak kind's spawns (the tough kind uses Spawn Warning Colour).")]
+    [SerializeField, ColorUsage(true, true)] private Color spawnWarningWeakColor = new Color(2.2f, 0.16f, 0.22f, 1f);
+    [SerializeField, ColorUsage(true, true)] private Color spawnWarningWeakHotColor = new Color(2.4f, 0.3f, 1.3f, 1f);
+
     [Header("AI - provisional")]
     [SerializeField, Min(0f)] private float moveSpeed = 3.5f;
     [SerializeField, Min(0.1f)] private float attackRange = 2f;
@@ -112,8 +137,8 @@ public sealed class EnemySettings : ScriptableObject
     [Tooltip("Shares of the four temperaments: straight in / around the side / circling / stop and go.")]
     [SerializeField] private Vector4 temperamentShares = new Vector4(0.25f, 0.25f, 0.3f, 0.2f);
     [Tooltip("Waiting enemies hover between these distances from the player (m).")]
-    [SerializeField, Min(0.5f)] private float hoverRingMinimum = 2.8f;
-    [SerializeField, Min(0.5f)] private float hoverRingMaximum = 4.6f;
+    [SerializeField, Min(0.5f)] private float hoverRingMinimum = 2.2f;
+    [SerializeField, Min(0.5f)] private float hoverRingMaximum = 3.4f;
     [Tooltip("Closer than the ring plus this (m), enemies stop running and size the player up.")]
     [SerializeField, Min(0f)] private float sizeUpDistance = 4f;
     [Tooltip("Circling speed as a share of Move Speed.")]
@@ -141,6 +166,16 @@ public sealed class EnemySettings : ScriptableObject
     public Color SpawnWarningColor => spawnWarningColor;
     public Color SpawnWarningHotColor => spawnWarningHotColor;
     public bool SameLayoutEveryRound => sameLayoutEveryRound;
+    public Color WeakColor => weakColor;
+    public Color ToughColor => toughColor;
+    public int ToughHits => Mathf.Max(1, toughHits);
+    public Color DamagedColor => damagedColor;
+    public float DamagedFlickerHz => Mathf.Max(1f, damagedFlickerHz);
+    public float StaggerSeconds => staggerSeconds;
+    public float StaggerPushSpeed => staggerPushSpeed;
+    public float HitImmunitySeconds => hitImmunitySeconds;
+    public Color SpawnWarningWeakColor => spawnWarningWeakColor;
+    public Color SpawnWarningWeakHotColor => spawnWarningWeakHotColor;
 
     // The schedule in effect at a moment of battle time: a phase, or the flat schedule when there are none.
     public EnemySpawnPhase SpawnPhaseAt(float battleSeconds)

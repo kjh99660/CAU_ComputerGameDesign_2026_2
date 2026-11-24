@@ -145,8 +145,9 @@ public sealed class EnemySpawnPhaseSceneTests
         Assert.IsTrue(rings.CanDraw, "The neon floor marking material is there.");
         Material material = rings.MaterialOf(0);
         Assert.AreEqual("REBOOT/Ground Indicator", material.shader.name);
-        Assert.AreEqual(_enemies.Settings.SpawnWarningColor, material.GetColor("_Color"));
-        Assert.AreEqual(_enemies.Settings.SpawnWarningHotColor, material.GetColor("_HotColor"));
+        // The first phase spawns the weak (blue) kind, and a ring shows the colour of the kind it announces.
+        Assert.AreEqual(_enemies.Settings.SpawnWarningWeakColor, material.GetColor("_Color"));
+        Assert.AreEqual(_enemies.Settings.SpawnWarningWeakHotColor, material.GetColor("_HotColor"));
     }
 
     [UnityTest]
@@ -232,6 +233,88 @@ public sealed class EnemySpawnPhaseSceneTests
         Use(settings);
         yield return Retry();
         Assert.IsFalse(Same(first, Positions()), "Off: a round gets its own layout.");
+    }
+
+    // Spawn events in the real scene, on a short phase list: each fires once as the battle clock passes its second, its
+    // mass spawn is announced at once with warning rings, Noa's warning shows on the HUD, Pause holds the clock, and a
+    // Retry brings the events back for the new round.
+    [UnityTest]
+    public IEnumerator SpawnEventsMassSpawnAndWarnOnceHoldInPauseAndComeBackAfterRetry()
+    {
+        yield return Load();
+        EnemySettings settings = CopyOfGameSettings();
+        SetField(settings, "spawnPhases", new[]
+        {
+            new EnemySpawnPhase(0f, 6, 1f, 1),
+            new EnemySpawnPhase(1f, 20, 1f, 1, 8, 1),
+            new EnemySpawnPhase(2f, 30, 0.5f, 1, 0, 2),
+            new EnemySpawnPhase(3f, 45, 0.5f, 1, 12, 3),
+        });
+        Use(settings);
+        DialogueSequenceData dialogue = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        HudRadioSubtitle radio = Object.FindFirstObjectByType<HudRadioSubtitle>(FindObjectsInactive.Include);
+        Assert.IsNotNull(radio);
+        var fired = new List<Vector2Int>();
+        System.Action<int, int, int> record = (phase, warning, tick) => fired.Add(new Vector2Int(phase, warning));
+        _enemies.SpawnPhaseStarted += record;
+        try
+        {
+            yield return EnterBattle();
+            yield return UntilBattleSeconds(0.9f);
+            Assert.AreEqual(0, fired.Count, "Nothing before its second.");
+            int onField = _enemies.Perf.ActiveEnemies.Count + _enemies.PendingSpawnCount;
+            yield return UntilBattleSeconds(1.02f);
+            Assert.AreEqual(1, fired.Count);
+            Assert.AreEqual(new Vector2Int(1, 0), fired[0], "The 1 s phase fires with warning number 1.");
+            Assert.GreaterOrEqual(_enemies.Perf.ActiveEnemies.Count + _enemies.PendingSpawnCount, onField + 8,
+                "Eight enemies announced at once.");
+            Assert.GreaterOrEqual(_enemies.ShownSpawnWarnings, 8, "Each with its warning ring.");
+            Assert.IsTrue(radio.IsShowing, "Noa's warning shows on the HUD.");
+            Assert.IsTrue(radio.ShowsWarning);
+            Assert.AreEqual("WARNING", radio.ChannelShown);
+            Assert.AreEqual(dialogue.spawnWarnings[0].speaker, radio.SpeakerShown);
+            Assert.AreEqual(dialogue.spawnWarnings[0].text, radio.TextShown);
+
+            // Pause holds the battle clock, so no event fires while paused.
+            _events.EnqueueRequest(new PauseRequest(_state.Tick));
+            yield return WaitFor(GameState.Paused);
+            float held = _enemies.BattleSeconds;
+            for (int i = 0; i < 90; i++) yield return null;
+            Assert.AreEqual(held, _enemies.BattleSeconds, 1e-5f);
+            Assert.AreEqual(1, fired.Count);
+            _events.EnqueueRequest(new ResumeRequest(_state.Tick));
+            yield return WaitFor(GameState.Battle);
+
+            yield return UntilBattleSeconds(3.05f);
+            Assert.AreEqual(3, fired.Count, "The 2 s and 3 s events fired.");
+            Assert.AreEqual(new Vector2Int(2, 1), fired[1]);
+            Assert.AreEqual(new Vector2Int(3, 2), fired[2]);
+            Assert.AreEqual(dialogue.spawnWarnings[2].text, radio.TextShown, "The latest warning shows.");
+            yield return UntilBattleSeconds(4f);
+            Assert.AreEqual(3, fired.Count, "No event fires twice in a round.");
+
+            // Retry clears the warning and brings the events back for the new round.
+            _events.EnqueueRequest(new PauseRequest(_state.Tick));
+            yield return WaitFor(GameState.Paused);
+            _events.EnqueueRequest(new RestartRequest(_state.Tick));
+            yield return WaitFor(GameState.Ready);
+            Assert.IsFalse(radio.IsShowing, "Retry clears the warning.");
+            fired.Clear();
+            yield return EnterBattle();
+            yield return UntilBattleSeconds(1.02f);
+            Assert.AreEqual(1, fired.Count, "The 1 s event fires again in the new round.");
+        }
+        finally
+        {
+            _enemies.SpawnPhaseStarted -= record;
+        }
+    }
+
+    private IEnumerator UntilBattleSeconds(float seconds)
+    {
+        for (int frame = 0; frame < 900 && _enemies.BattleSeconds < seconds; frame++)
+            yield return null;
+        Assert.GreaterOrEqual(_enemies.BattleSeconds, seconds, "The battle clock reached " + seconds + " s.");
     }
 
     // ---------------------------------------------------------------- helpers

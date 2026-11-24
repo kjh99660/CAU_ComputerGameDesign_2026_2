@@ -45,13 +45,19 @@ MonoBehaviour:
     text: "\uC774\uBC88\uC5D4 \uC544\uB974\uCE74\uAC00 \uC544\uBB34\uAC83\uB3C4 \uC9C0\uC6B0\uAC8C \uB450\uC9C0 \uC54A\uACA0\uC5B4. \uB188\uB4E4 \uBC11\uC5D0\uC11C \uB0B4\uAC00 \uD55C \uC9D3\uAE4C\uC9C0."
     leftSpeaker: 0
   battleRadio:
-  - remainingSeconds: 50
-    speaker: "\uB178\uC544"
-    text: "\uC808\uBC18 \uC9C0\uB0AC\uC5B4. \uACF5\uACA9 \uBA85\uB839\uC740 \uC544\uC9C1 \uC0B4\uC544 \uC788\uC5B4."
-    leftSpeaker: 1
   - remainingSeconds: 10
     speaker: "\uB178\uC544"
     text: "10\uCD08 \uB0A8\uC558\uC5B4. \uBC84\uD168."
+    leftSpeaker: 1
+  spawnWarnings:
+  - speaker: "\uB178\uC544"
+    text: "\uB85C\uBD07 \uC2E0\uD638\uAC00 \uD55C\uAEBC\uBC88\uC5D0 \uC7A1\uD614\uC5B4. \uD55C \uBB34\uB9AC\uAC00 \uBAB0\uB824\uC640."
+    leftSpeaker: 1
+  - speaker: "\uB178\uC544"
+    text: "\uC808\uBC18 \uC9C0\uB0AC\uC5B4. \uB85C\uBD07\uC774 \uB450 \uBC30\uB85C \uC3DF\uC544\uC838 \uB4E4\uC5B4\uC640."
+    leftSpeaker: 1
+  - speaker: "\uB178\uC544"
+    text: "\uB300\uADDC\uBAA8 \uC2E0\uD638\uC57C. \uC774 \uAD6C\uC5ED \uB85C\uBD07\uC774 \uC804\uBD80 \uBAB0\uB824\uC640!"
     leftSpeaker: 1
   outroManyHits:
   - speaker: "\uB178\uC544"

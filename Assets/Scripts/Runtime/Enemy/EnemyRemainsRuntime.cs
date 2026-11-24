@@ -63,6 +63,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
         public float Age;
         public float Started;
         public Color Tint;
+        public Color Glow;
         public Vector4 Seed;
         public RemainsLight.Kind Light;
         // The body topples over its feet, away from the blow that killed it.
@@ -90,6 +91,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
         public bool Resting;
         public Vector3 Probed;
         public Color Tint;
+        public Color Glow;
         public Vector4 Seed;
         public RemainsLight.Kind Light;
         public float Shown;
@@ -157,6 +159,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
     {
         if (!_advancing || tick != _tick || enemy == null || _settings == null) return;
         PartsOf(enemy).LastHit = direction;
+        if (!enemy.Defeated) return;   // a tough enemy that survives the hit stays whole
         EnemyDebrisSet set = _settings.debrisSet;
         if (set == null || set.parts.Length == 0 || _settings.remainsMaterial == null || _broken.Contains(enemy)) return;
         bool heavy = _special.IsSpecialHit || CombatHitWeights.FromPlayer(_player) == CombatHitWeight.Heavy;
@@ -179,10 +182,18 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
         if (!_advancing || _settings == null || _settings.remainsMaterial == null || _bodies.Count == 0) return;
         EnemyParts parts = PartsOf(enemy);
         if (parts.Skin == null || parts.SkinBones == null || !parts.Skin.gameObject.activeInHierarchy) return;
-        LeaveBody(parts);
+        LeaveBody(parts, GlowOf(enemy));
     }
 
-    private void LeaveBody(EnemyParts parts)
+    // What is left of a robot glows in the robot's own colour: the blue kind leaves blue embers, the red kind red ones.
+    // The first prototype's red (a settings instance that names no kinds) keeps the tuned remains colour.
+    private Color GlowOf(EnemyAgent enemy)
+    {
+        Color skin = enemy.SkinColor;
+        return skin.b > skin.r ? skin : _settings.remainsGlowHue;
+    }
+
+    private void LeaveBody(EnemyParts parts, Color glow)
     {
         Body body = TakeBody();
         Transform source = parts.Skin.transform.parent != null ? parts.Skin.transform.parent : parts.Skin.transform;
@@ -208,19 +219,23 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
         body.FallSpeed = 0f;
         body.FallTarget = 80f + 10f * _random.Value();
         body.Tint = TintOf(parts.Skin);
+        body.Glow = glow;
         body.Seed = NewSeed();
         body.Light = PickLight();
         body.Age = 0f;
         body.Started = Time.time;
         body.Active = true;
         body.Root.SetActive(true);
-        Write(body.Skin, body.Tint, body.Seed, 0f, 0f, false, 0);
+        Write(body.Skin, body.Tint, body.Glow, body.Seed, 0f, 0f, false, 0);
         enabled = _advancing;
     }
 
     private void Break(EnemyAgent enemy, EnemyParts parts, EnemyDebrisSet set, Vector3 direction)
     {
         Color tint = TintOf(parts.Skin);
+        Color glow = GlowOf(enemy);
+        // The struck enemy shows the knockback colour for a moment; a blue robot's parts keep its own blue instead.
+        if (enemy.SkinColor.b > enemy.SkinColor.r) tint = enemy.SkinColor;
         Vector3 centre = enemy.transform.position + Vector3.up;
         Vector3 away = direction;
         away.y = 0f;
@@ -253,6 +268,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
             piece.Probed = bone.position;
             piece.Resting = false;
             piece.Tint = tint;
+            piece.Glow = glow;
             piece.Seed = NewSeed();
             piece.Light = PickLight();
             piece.Shown = 1f;
@@ -261,7 +277,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
             piece.Started = Time.time;
             piece.Active = true;
             piece.Root.SetActive(true);
-            Write(piece.Renderer, piece.Tint, piece.Seed, 0f, 1f, false, 0);
+            Write(piece.Renderer, piece.Tint, piece.Glow, piece.Seed, 0f, 1f, false, 0);
         }
         Show(parts, false);
         _broken.Add(enemy);
@@ -289,7 +305,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
             bool sparking = Sparking(body.Light, body.Age, body.Seed.x) && eaten < 0.8f;
             float light = RemainsLight.Light(body.Light, body.Age, 0f, _settings.bodyLingerSeconds, _settings.remainsAfterglow,
                                              eaten, body.Seed.y, sparking);
-            Write(body.Skin, body.Tint, body.Seed, eaten, light, sparking, Flash(body.Age, body.Seed.x));
+            Write(body.Skin, body.Tint, body.Glow, body.Seed, eaten, light, sparking, Flash(body.Age, body.Seed.x));
             any = true;
         }
         for (int i = 0; i < _pieces.Count; i++)
@@ -307,7 +323,7 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
             piece.Sparking = Sparking(piece.Light, piece.Age, piece.Seed.x) && eaten < 0.8f;
             piece.Shown = RemainsLight.Light(piece.Light, piece.Age, 1f, _settings.pieceDimSeconds, _settings.remainsAfterglow,
                                              eaten, piece.Seed.y, piece.Sparking);
-            Write(piece.Renderer, piece.Tint, piece.Seed, eaten, piece.Shown, piece.Sparking, Flash(piece.Age, piece.Seed.x));
+            Write(piece.Renderer, piece.Tint, piece.Glow, piece.Seed, eaten, piece.Shown, piece.Sparking, Flash(piece.Age, piece.Seed.x));
             any = true;
         }
         if (!any) enabled = false;
@@ -394,11 +410,11 @@ public sealed class EnemyRemainsRuntime : MonoBehaviour, IRoundResettable
     // light: the share of the living enemy's light shown, in the remains' glow colour (a body keeps the dark tint its
     // enemy died with, so its light cannot come from the tint). While it sparks, flash picks the arcs drawn (a new set
     // every flash); the seed's spare w carries it so the bite pattern (x, y, z) stays put.
-    private void Write(Renderer renderer, Color tint, Vector4 seed, float eaten, float light, bool sparking, int flash)
+    private void Write(Renderer renderer, Color tint, Color glow, Vector4 seed, float eaten, float light, bool sparking, int flash)
     {
         renderer.GetPropertyBlock(_block);
         _block.SetColor(BaseColorId, tint);
-        _block.SetColor(GlowHueId, _settings.remainsGlowHue);
+        _block.SetColor(GlowHueId, glow);
         _block.SetFloat(DissolveId, eaten);
         _block.SetFloat(LightsOutId, 1f - light);
         _block.SetFloat(SparkId, sparking ? 1f - eaten : 0f);

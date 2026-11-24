@@ -312,7 +312,7 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual(EnemyAgentState.Attack, attacker.State);
         runtime.UpdateActions(runtime.Settings.AttackWindup, state.Tick);
         Assert.AreEqual(1, combat.Stats.HitCount);
-        Assert.AreEqual(109, combat.Stats.Score, "A hit on the player takes 1% of the score.");
+        Assert.AreEqual(99, combat.Stats.Score, "A hit on the player takes 10% of the score.");
         Assert.Greater(scoreText.color.r, scoreText.color.g);
         Image hitFlash = Find<Image>(battle.transform, "PlayerHitFlash");
         Assert.Greater(hitFlash.color.a, 0f);

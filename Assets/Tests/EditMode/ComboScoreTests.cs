@@ -34,6 +34,32 @@ public sealed class ComboScoreTests
         Assert.AreEqual(0f, _settings.comboScoreStep, "A new CombatSettings starts with the bonus off.");
     }
 
+    // A tough enemy survives its first hit: that hit scores as a hit only and counts toward the combo.
+    [Test]
+    public void AHitTheEnemySurvivesScoresAsAHitAndExtendsTheCombo()
+    {
+        var stats = Begin();
+        int hitScore = _settings.hitScore, killScore = _settings.killScore;
+        Assert.IsTrue(stats.RecordEnemyHit(1, true, 0f));
+        Assert.AreEqual(hitScore, stats.Score, "The hit's own score.");
+        Assert.AreEqual(0, stats.KillCount, "No kill yet.");
+        Assert.AreEqual(1, stats.ComboAt(0f));
+        Assert.AreEqual(_settings.hitGauge, stats.Gauge, 0.0001f, "The hit's own gauge.");
+        Assert.IsTrue(stats.RecordEnemyKill(1, true, 0.4f));
+        Assert.AreEqual(hitScore + hitScore + killScore, stats.Score, "The second hit destroys it: hit + kill score.");
+        Assert.AreEqual(1, stats.KillCount);
+        Assert.AreEqual(2, stats.MaxCombo, "Both hits count toward the combo.");
+        Assert.IsFalse(stats.RecordEnemyHit(2, true, 0.5f), "A hit of another round is ignored.");
+
+        // With the bonus on, the surviving hit takes it by the same rounding rule as a kill.
+        _settings.comboScoreStep = 0.25f;
+        _settings.comboScoreMaxBonus = 1f;
+        var bonus = Begin(3);
+        Assert.IsTrue(bonus.RecordEnemyHit(3, true, 0f));
+        Assert.IsTrue(bonus.RecordEnemyHit(3, true, 0.2f));
+        Assert.AreEqual(hitScore + RoundCombatStats.ComboKillScore(hitScore, 2, 0.25f, 1f), bonus.Score);
+    }
+
     [Test]
     public void BonusOffScoresEveryKillExactlyAsBefore()
     {

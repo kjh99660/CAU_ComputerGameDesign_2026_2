@@ -209,7 +209,7 @@ public static class RebootSfxBuilder
             // Enemy attacks: placed at the enemy (strong spatial blend), quiet, two voices at most and a gap between
             // starts, so the three attackers allowed at once stay below one landed blow even when their sounds line up.
             // The wind-up is slowed (0.7) to fill most of the 0.55 s wind-up.
-            case SfxCue.EnemyWindup: return Entry(cue, 0.16f, 0.7f, 0.04f, 2, 0.15f, 0.7f);
+            case SfxCue.EnemyWindup: return Entry(cue, 0.16f, 0.78f, 0.04f, 2, 0.15f, 0.7f);   // ends before the 0.41 s wind-up
             case SfxCue.EnemyStrike: return Entry(cue, 0.2f, 1.15f, 0.05f, 2, 0.1f, 0.7f);
             default: return Entry(cue, 0.35f, 1f, 0.04f, 2, 0.03f, 0f);
         }

@@ -127,6 +127,142 @@ public sealed class EnemyBehaviourTests
         Assert.Less(farthest, settings.HoverRingMaximum + 2.5f, "...or wandering off.");
     }
 
+    // 2026-11-25 playtest: enemies backing away as the player walked up looked unnatural. A waiting enemy now holds its
+    // ground (it may circle a little); it no longer steps back.
+    [Test]
+    public void AWaitingEnemyHoldsItsGroundWhenThePlayerWalksUpToIt()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 1, liveliness: 1f);
+        EnemyRuntime runtime = Runtime(settings);
+        Assert.IsTrue(runtime.TryTakeAttackSlot(Enemy(runtime)), "Someone else holds the only turn.");
+        EnemyAgent enemy = Enemy(runtime);
+        for (int i = 0; i < 50; i++)
+        {
+            enemy.Activate(Vector3.zero, 8, i / 50f);
+            if (enemy.Temperament == EnemyTemperament.Circler) break;
+        }
+        const float start = 1.3f;
+        Assert.Less(start, enemy.HoverRadius, "The player stands closer than the enemy would come by itself.");
+        var player = new Vector3(0f, 0f, start);
+        var none = new List<EnemyAgent>();
+        float farthest = 0f;
+        for (int i = 0; i < 20; i++)
+        {
+            enemy.RunAI(player, none, settings, 0.05f, 8);
+            Assert.AreNotEqual(EnemyAgentState.Attack, enemy.State, "No turn, no attack.");
+            Vector3 gap = player - enemy.transform.position;
+            gap.y = 0f;
+            farthest = Mathf.Max(farthest, gap.magnitude);
+        }
+        Assert.Less(farthest, start + 0.35f, "It does not back away from the player.");
+    }
+
+    // 2026-11-25 request: the red robot takes two hits. There is no health bar: the hit it survives shoves it back,
+    // cancels its attack and leaves its lights flickering.
+    [Test]
+    public void AToughEnemySurvivesItsFirstHitStaggersAndFallsToTheSecond()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 0, liveliness: 0f);
+        EnemyAgent enemy = Enemy(null);
+        var red = new Color(0.9f, 0.22f, 0.18f, 1f);
+        enemy.Activate(Vector3.zero, 4, 0.5f, -1, 2, red);
+        Assert.IsTrue(enemy.Tough);
+        Assert.AreEqual(red, enemy.SkinColor);
+        Assert.AreEqual(2, enemy.HitsLeft);
+        Assert.IsFalse(enemy.Damaged);
+
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back * 3f, settings, 4), "The first hit lands.");
+        Assert.IsFalse(enemy.Defeated, "...but it still stands.");
+        Assert.IsTrue(enemy.Damaged);
+        Assert.AreEqual(1, enemy.HitsLeft);
+        Assert.AreEqual(EnemyAgentState.Chase, enemy.State);
+        Assert.IsTrue(enemy.Staggered);
+        Assert.IsFalse(enemy.ApplyHit(Vector3.back, settings, 4), "The same swing cannot count twice.");
+
+        // It slides back from the blow and does not attack while it reels, even with the player in reach.
+        var player = new Vector3(0f, 0f, 1.2f);
+        var none = new List<EnemyAgent>();
+        float startZ = enemy.transform.position.z;
+        for (int i = 0; i < 12; i++)
+        {
+            enemy.RunAI(player, none, settings, 0.02f, 4);
+            enemy.RunAction(settings, 0.02f, 4);
+            Assert.AreNotEqual(EnemyAgentState.Attack, enemy.State, "No attack while it reels.");
+        }
+        Assert.Less(enemy.transform.position.z, startZ - 0.2f, "Shoved back along the blow.");
+
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back * 3f, settings, 4), "The second hit lands once the short immunity is over.");
+        Assert.IsTrue(enemy.Defeated);
+        Assert.AreEqual(EnemyAgentState.Knockback, enemy.State);
+        Assert.IsFalse(enemy.Damaged, "Destroyed is not damaged.");
+    }
+
+    [Test]
+    public void AHitInterruptsAToughEnemysWindupAndHandsItsTurnBack()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 360f, reach: 0f, attackers: 1, liveliness: 0f);
+        EnemyRuntime runtime = Runtime(settings);
+        EnemyAgent enemy = Enemy(runtime);
+        enemy.Activate(Vector3.zero, 9, 0.5f, -1, 2);
+        var player = new Vector3(0f, 0f, 1f);
+        enemy.RunAI(player, new List<EnemyAgent>(), settings, 0.01f, 9);
+        Assert.IsTrue(enemy.IsWindingUp);
+        Assert.AreEqual(1, runtime.ActiveAttackers);
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 9));
+        Assert.IsFalse(enemy.IsWindingUp, "The hit cancels the wind-up.");
+        Assert.AreEqual(0, runtime.ActiveAttackers, "...and gives the turn back.");
+        Assert.IsFalse(enemy.TryAttackHit(player, settings, 1f, 9), "The cancelled attack never lands.");
+    }
+
+    [Test]
+    public void TheSpecialDestroysAToughEnemyAtOnceEvenRightAfterAHit()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 0, liveliness: 0f);
+        EnemyAgent enemy = Enemy(null);
+        enemy.Activate(Vector3.zero, 5, 0.5f, -1, 2);
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 5, 1000, true));
+        Assert.IsTrue(enemy.Defeated, "One sweeping blow destroys it.");
+
+        enemy.Activate(Vector3.zero, 6, 0.5f, -1, 3);
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 6));
+        Assert.IsFalse(enemy.ApplyHit(Vector3.back, settings, 6), "Ordinary hits are held off for a moment.");
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 6, 1000, true), "The special is not.");
+        Assert.IsTrue(enemy.Defeated);
+
+        enemy.Activate(Vector3.zero, 7);
+        Assert.IsFalse(enemy.Tough, "The weak kind is the default.");
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 7));
+        Assert.IsTrue(enemy.Defeated, "One hit destroys the weak kind.");
+    }
+
+    [Test]
+    public void ADamagedEnemysLightsFlickerAndAFreshOnesStayOn()
+    {
+        EnemySettings settings = Settings(windup: 0.5f, arc: 120f, reach: 1.8f, attackers: 0, liveliness: 0f);
+        EnemyAgent enemy = Enemy(null);
+        enemy.Activate(Vector3.zero, 3, 0.5f, -1, 2);
+        const float frame = 1f / 60f;
+        for (int i = 0; i < 60; i++)
+        {
+            enemy.RunAction(settings, frame, 3);
+            Assert.IsTrue(enemy.LightsOn, "A fresh enemy's lights stay on.");
+        }
+        Assert.IsTrue(enemy.ApplyHit(Vector3.back, settings, 3));
+        Assert.IsFalse(enemy.LightsOn, "The hit knocks its lights out for a moment.");
+        int on = 0, off = 0, changes = 0;
+        bool last = enemy.LightsOn;
+        for (int i = 0; i < 240; i++)
+        {
+            enemy.RunAction(settings, frame, 3);
+            if (enemy.LightsOn) on++; else off++;
+            if (enemy.LightsOn != last) changes++;
+            last = enemy.LightsOn;
+        }
+        Assert.Greater(on, 60, "Mostly on...");
+        Assert.Greater(off, 30, "...but cutting out again and again.");
+        Assert.Greater(changes, 8, "An uneven flicker, not one blink.");
+    }
+
     // Starts an attack at "start" and checks the strike against "at" once the wind-up is over.
     private static bool Strike(EnemyAgent enemy, EnemySettings settings, Vector3 start, Vector3 at, int tick)
     {

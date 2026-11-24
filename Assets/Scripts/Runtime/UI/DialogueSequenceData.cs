@@ -50,10 +50,20 @@ public sealed class DialogueSequenceData : ScriptableObject
     };
 
     // 전투 중 무전. 비어 있으면 쓰지 않는다. 대사와 시각은 4.6의 예문이며 임시값이다.
+    // 50초 무전은 2026-11-25에 50% 생성 경고(spawnWarnings 2번)로 바뀌어 10초 한 줄만 남았다.
     [Header("Battle radio (4.6) - provisional. Empty = off")]
     public BattleRadioLine[] battleRadio = {
-        new BattleRadioLine { remainingSeconds = 50f, speaker = "노아", text = "절반 지났어. 공격 명령은 아직 살아 있어.", leftSpeaker = true },
         new BattleRadioLine { remainingSeconds = 10f, speaker = "노아", text = "10초 남았어. 버텨.", leftSpeaker = true }
+    };
+
+    // 생성 이벤트 때 노아가 띄우는 경고(무전 자막을 경고 모양으로 쓴다). EnemySettings의 생성 단계가
+    // warningNumber N으로 N번째 줄을 고른다. 비어 있으면 경고를 띄우지 않는다. 대사는 임시값이다.
+    // 기본 순서: 25% 소규모 대량 생성, 50% 생성 속도 2배, 75% 대규모 대량 생성.
+    [Header("Spawn warnings - provisional. Empty = off")]
+    public DialogueLine[] spawnWarnings = {
+        new DialogueLine { speaker = "노아", text = "로봇 신호가 한꺼번에 잡혔어. 한 무리가 몰려와.", leftSpeaker = true },
+        new DialogueLine { speaker = "노아", text = "절반 지났어. 로봇이 두 배로 쏟아져 들어와.", leftSpeaker = true },
+        new DialogueLine { speaker = "노아", text = "대규모 신호야. 이 구역 로봇이 전부 몰려와!", leftSpeaker = true }
     };
 
     // 성과에 반응하는 마무리(4.4). 변형 배열이 비어 있으면 그 변형은 꺼지고 기본 마무리(outro)를 쓴다.

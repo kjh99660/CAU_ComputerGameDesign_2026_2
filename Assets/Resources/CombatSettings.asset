@@ -18,7 +18,7 @@ MonoBehaviour:
   killGauge: 5
   playerHitGauge: 8
   maximumGauge: 100
-  playerHitPenalty: 0.01
+  playerHitPenalty: 0.1
   invulnerabilitySeconds: 0.8
   attackRadius: 1.5
   attackForwardOffset: 1.25

@@ -24,20 +24,46 @@ MonoBehaviour:
     activeCap: 40
     spawnInterval: 1
     countPerWave: 3
-  - startSecond: 30
-    activeCap: 70
+    burstOnStart: 0
+    warningNumber: 0
+    toughShare: 0
+  - startSecond: 25
+    activeCap: 55
     spawnInterval: 1
-    countPerWave: 4
-  - startSecond: 70
+    countPerWave: 3
+    burstOnStart: 15
+    warningNumber: 1
+    toughShare: 0
+  - startSecond: 50
+    activeCap: 70
+    spawnInterval: 0.5
+    countPerWave: 3
+    burstOnStart: 0
+    warningNumber: 2
+    toughShare: 0.5
+  - startSecond: 75
     activeCap: 100
-    spawnInterval: 0.7
-    countPerWave: 5
+    spawnInterval: 0.5
+    countPerWave: 3
+    burstOnStart: 30
+    warningNumber: 3
+    toughShare: 1
   spawnWarningSeconds: 0.6
   spawnWarningRadius: 1.3
   spawnWarningColor: {r: 2.2, g: 0.16, b: 0.22, a: 1}
   spawnWarningHotColor: {r: 2.4, g: 0.3, b: 1.3, a: 1}
   sameLayoutEveryRound: 1
-  moveSpeed: 3.5
+  weakColor: {r: 0.2, g: 0.55, b: 1, a: 1}
+  toughColor: {r: 0.9, g: 0.22, b: 0.18, a: 1}
+  toughHits: 2
+  damagedColor: {r: 0.3, g: 0.25, b: 0.25, a: 1}
+  damagedFlickerHz: 14
+  staggerSeconds: 0.3
+  staggerPushSpeed: 5
+  hitImmunitySeconds: 0.15
+  spawnWarningWeakColor: {r: 0.16, g: 0.7, b: 2.4, a: 1}
+  spawnWarningWeakHotColor: {r: 0.3, g: 1.5, b: 2.6, a: 1}
+  moveSpeed: 4.375
   attackRange: 2
   attackInterval: 1.5
   attackDuration: 0.35
@@ -48,7 +74,7 @@ MonoBehaviour:
   knockbackUpwardForce: 3
   knockbackFallbackDuration: 1.25
   deathDuration: 0.25
-  attackWindup: 0.55
+  attackWindup: 0.41
   attackRecovery: 0.3
   attackReach: 1.8
   attackArcDegrees: 120
@@ -56,8 +82,8 @@ MonoBehaviour:
   maximumAttackers: 3
   liveliness: 1
   temperamentShares: {x: 0.25, y: 0.25, z: 0.3, w: 0.2}
-  hoverRingMinimum: 2.8
-  hoverRingMaximum: 4.6
+  hoverRingMinimum: 2.2
+  hoverRingMaximum: 3.4
   sizeUpDistance: 4
   circleSpeedShare: 0.45
   flankAngle: 55

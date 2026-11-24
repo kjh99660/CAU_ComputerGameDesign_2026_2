@@ -149,9 +149,15 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
         if (!Accepts(tick)) return;
         Play(SfxCue.Hit, position);
         Play(SfxCue.HitMetal, position);
-        Play(SfxCue.EnemyDown, position);
         if (!_special.IsSpecialHit && CombatHitWeights.FromPlayer(_player) == CombatHitWeight.Heavy)
             Play(SfxCue.HitSub, position);
+    }
+
+    // The enemy going down is heard only for the hit that destroys it (a tough enemy survives its first hits).
+    private void OnStruck(EnemyAgent enemy, Vector3 direction, int tick)
+    {
+        if (enemy != null && enemy.Defeated && Accepts(tick))
+            Play(SfxCue.EnemyDown, enemy.transform.position);
     }
 
     private void OnSpecial(Vector3 center, float radius, int tick)
@@ -284,12 +290,14 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
             if (on)
             {
                 _enemies.HitPresented += OnHit;
+                _enemies.EnemyStruck += OnStruck;
                 _enemies.AttackWindupStarted += OnEnemyWindup;
                 _enemies.AttackSwung += OnEnemyStrike;
             }
             else
             {
                 _enemies.HitPresented -= OnHit;
+                _enemies.EnemyStruck -= OnStruck;
                 _enemies.AttackWindupStarted -= OnEnemyWindup;
                 _enemies.AttackSwung -= OnEnemyStrike;
             }

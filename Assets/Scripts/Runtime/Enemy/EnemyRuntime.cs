@@ -12,6 +12,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     // The round the game starts with (GameStateManager's first Tick). Its seeds are every round's seeds when
     // EnemySettings.SameLayoutEveryRound is on.
     public const int FirstRoundTick = 1;
+    // Hits the special counts for: more than any tough enemy takes.
+    private const int SpecialHits = 1000;
 
     [SerializeField] private EnemyAgent enemyPrefab;
     [SerializeField] private EnemySettings settings;
@@ -32,6 +34,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private PhysicsPauseManager _physics;
     private System.Random _random;
     private System.Random _variationRandom;   // separate stream, so per-enemy variety does not shift spawn positions
+    private System.Random _kindRandom;        // separate stream for weak/tough, so kinds do not shift positions or variety
     private int _spawnObstacleMask;
     private EnemyNavField _nav;               // null in a flat level
     private bool _navigationMeasured;
@@ -73,6 +76,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public EnemySpawnWarnings SpawnWarnings => _warnings;
     // A warning ring went up where an enemy will appear (position, tick).
     public event Action<Vector3, int> SpawnAnnounced;
+    // A spawn phase with an event began: (phase index, Noa's warning index or -1, tick). Its mass spawn, if any, has just
+    // been announced. Raised once per phase and round, only in Battle.
+    public event Action<int, int, int> SpawnPhaseStarted;
     // An enemy began an attack: its wind-up (the warning colour) starts now. Position and tick.
     public event Action<Vector3, int> AttackWindupStarted;
     // An enemy's wind-up ended in its strike, whether or not the strike reaches the player. Position and tick.
@@ -100,7 +106,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public Transform TargetTransform => target;
     // The walkable cells of a level with floors. Null in a flat level and before the first round is prepared.
     public EnemyNavField Navigation => _nav;
-    public event Action<int, bool> HitAccepted;
+    // An accepted hit: (tick, whether it may charge the gauge, whether it destroyed the enemy). A tough enemy survives
+    // its first hits (EnemySettings.ToughHits); HitPresented and EnemyStruck follow for every accepted hit.
+    public event Action<int, bool, bool> HitAccepted;
     public event Action<Vector3, Vector3, int> HitPresented;
     public event Action<int> PlayerHit;
     // The enemy an accepted hit landed on, for effects that need the body itself (hit flash, breaking apart).
@@ -197,8 +205,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         if (_stopRequested || _state != GameState.Battle || tick != _tick)
             return;
 
+        float before = _battleSeconds;
         _battleSeconds += Mathf.Max(0f, battleDelta);
         AdvancePendingSpawns(deltaTime, tick);
+        if (UsesSpawnPhases)
+            StartPhaseEvents(before, _battleSeconds, tick);
         EnemySpawnPhase phase = CurrentSpawnPhase;
         int cap = CurrentSpawnCap;
         if (_registry.Count + _pending.Count >= cap)
@@ -210,7 +221,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             _spawnElapsed -= phase.Interval;
             int count = Mathf.Min(phase.PerWave, cap - _registry.Count - _pending.Count);
             for (int i = 0; i < count; i++)
-                SpawnOrAnnounce(tick);
+                SpawnOrAnnounce(tick, DrawTough(phase));
         }
     }
 
@@ -278,7 +289,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         }
     }
 
-    public bool TryApplyHit(EnemyAgent enemy, Vector3 direction, float forceMultiplier, int tick, bool chargeGauge = true)
+    // hits: how many hits the blow counts for against a tough enemy. sweeping: the special, which reaches everyone at
+    // once and is not held off by the short immunity after a survived hit.
+    public bool TryApplyHit(EnemyAgent enemy, Vector3 direction, float forceMultiplier, int tick, bool chargeGauge = true,
+        int hits = 1, bool sweeping = false)
     {
         if (enemy == null || tick != _tick || (_state != GameState.Battle && _state != GameState.Finishing))
             return false;
@@ -290,10 +304,10 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         horizontal.Normalize();
         Vector3 impulse = horizontal * (settings.NormalKnockbackForce * Mathf.Max(0f, forceMultiplier));
         impulse.y = settings.KnockbackUpwardForce * Mathf.Max(0f, forceMultiplier);
-        bool accepted = enemy.ApplyHit(impulse, settings, tick);
+        bool accepted = enemy.ApplyHit(impulse, settings, tick, hits, sweeping);
         if (accepted)
         {
-            HitAccepted?.Invoke(tick, chargeGauge);
+            HitAccepted?.Invoke(tick, chargeGauge, enemy.Defeated);
             HitPresented?.Invoke(enemy.transform.position, horizontal, tick);
             EnemyStruck?.Invoke(enemy, horizontal, tick);
         }
@@ -315,7 +329,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             if (_nav != null && Mathf.Abs(offset.y) > settings.VerticalReach)
                 continue;   // another floor
             offset.y = 0f;
-            if (offset.sqrMagnitude <= safeRadius * safeRadius && TryApplyHit(enemy, offset, forceMultiplier, tick, chargeGauge))
+            // The special destroys either kind at once.
+            if (offset.sqrMagnitude <= safeRadius * safeRadius &&
+                TryApplyHit(enemy, offset, forceMultiplier, tick, chargeGauge, SpecialHits, true))
                 hits++;
         }
         _specialCandidates.Clear();
@@ -362,6 +378,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _seedTick = settings.SameLayoutEveryRound ? FirstRoundTick : tick;
         _random = new System.Random(unchecked(7919 + _seedTick * 104729));
         _variationRandom = new System.Random(unchecked(104729 + _seedTick * 7919));
+        _kindRandom = new System.Random(unchecked(15485863 + _seedTick * 32452843));
         // Movement AI is planar and enemies stay kinematic until hit. Inherit only
         // the player's restored starting height, never a later jump/step elevation.
         _roundSpawnY = TargetPosition.y + settings.SpawnHeight;
@@ -373,24 +390,36 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             _pathAge = 0f;
         }
         int initialCount = Mathf.Min(settings.InitialEnemyCount, settings.MaximumEnemyCount);
+        EnemySpawnPhase first = CurrentSpawnPhase;
         for (int i = 0; i < initialCount; i++)
-            SpawnOne(tick);
+            SpawnOne(tick, DrawTough(first));
     }
 
-    private void SpawnOne(int tick)
+    // Weak or tough for the next spawn of a phase (EnemySpawnPhase.ToughShare). Drawn from its own stream, and only
+    // when the share leaves a choice.
+    private bool DrawTough(EnemySpawnPhase phase)
+    {
+        float share = phase.Tough;
+        if (share <= 0f) return false;
+        if (share >= 1f) return true;
+        return _kindRandom.NextDouble() < share;
+    }
+
+    private void SpawnOne(int tick, bool tough)
     {
         if (_registry.Count >= MaximumEnemies)
             return;
 
         Vector3 center = TargetPosition;
         Vector3 position = _nav != null ? SampleSpawnOnCells(center) : SampleSpawnPosition(center);
-        Place(position, (float)_variationRandom.NextDouble(), center, tick);
+        Place(position, (float)_variationRandom.NextDouble(), center, tick, tough);
     }
 
-    private void Place(Vector3 position, float variation, Vector3 faceTo, int tick)
+    private void Place(Vector3 position, float variation, Vector3 faceTo, int tick, bool tough)
     {
         EnemyAgent enemy = _pool.Get();
-        enemy.Activate(position, tick, variation, _seedTick);
+        enemy.Activate(position, tick, variation, _seedTick, tough ? settings.ToughHits : 1,
+            tough ? settings.ToughColor : settings.WeakColor);
         enemy.UseNavigation(_nav);
         enemy.Face(faceTo);
         _registry.Add(enemy);
@@ -400,11 +429,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
 
     // A Battle spawn: at once, or announced by a warning ring and placed when its warning time is over. The position and
     // the variety are drawn when the wave is due either way, so both ways draw the same random numbers in the same order.
-    private void SpawnOrAnnounce(int tick)
+    private void SpawnOrAnnounce(int tick, bool tough)
     {
         if (!UsesSpawnWarnings)
         {
-            SpawnOne(tick);
+            SpawnOne(tick, tough);
             return;
         }
         if (_registry.Count + _pending.Count >= MaximumEnemies)
@@ -415,10 +444,31 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         float variation = (float)_variationRandom.NextDouble();
         _warnings ??= new EnemySpawnWarnings(transform, WarningMaterial());
         // The ring lies on the floor the enemy will stand on (spawn points are Spawn Height above it).
+        // The ring's colour tells which kind is coming.
         int marker = _warnings.Show(position - Vector3.up * settings.SpawnHeight, settings.SpawnWarningRadius,
-            settings.SpawnWarningColor, settings.SpawnWarningHotColor);
-        _pending.Add(position, variation, settings.SpawnWarningSeconds, tick, marker);
+            tough ? settings.SpawnWarningColor : settings.SpawnWarningWeakColor,
+            tough ? settings.SpawnWarningHotColor : settings.SpawnWarningWeakHotColor);
+        _pending.Add(position, variation, settings.SpawnWarningSeconds, tick, marker, tough);
         SpawnAnnounced?.Invoke(position, tick);
+    }
+
+    // Phases whose start second the battle clock passed this frame: announce their mass spawn at once (warning rings
+    // like any Battle spawn; past the phase cap, never past the global maximum) and tell listeners (Noa's warning).
+    // Battle time holds in Pause and starts over on Reset, so each event fires once per round. List order decides
+    // when two phases start in the same frame; the list need not be sorted.
+    private void StartPhaseEvents(float from, float to, int tick)
+    {
+        IReadOnlyList<EnemySpawnPhase> phases = settings.SpawnPhases;
+        for (int i = 0; i < phases.Count; i++)
+        {
+            EnemySpawnPhase phase = phases[i];
+            if (!phase.HasEvent || !phase.StartsBetween(from, to))
+                continue;
+            int burst = Mathf.Min(phase.Burst, Mathf.Max(0, MaximumEnemies - _registry.Count - _pending.Count));
+            for (int n = 0; n < burst; n++)
+                SpawnOrAnnounce(tick, DrawTough(phase));
+            SpawnPhaseStarted?.Invoke(i, phase.WarningIndex, tick);
+        }
     }
 
     // Counts the announced spawns down (game time, so Pause holds them) and places the ones whose time is over, at the
@@ -437,7 +487,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         {
             _warnings?.Hide(due.Marker);
             if (due.Tick == tick && _registry.Count < MaximumEnemies)
-                Place(due.Position, due.Variation, TargetPosition, tick);
+                Place(due.Position, due.Variation, TargetPosition, tick, due.Tough);
         }
     }
 

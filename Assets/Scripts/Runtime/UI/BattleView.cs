@@ -100,12 +100,12 @@ public sealed class BattleView : UIScreenView
         if (comboCounter != null) comboCounter.Render(model, isActiveAndEnabled);
     }
 
-    // 전투 중 무전 한 줄. 정해진 시간 동안 보였다가 사라진다(UpdateHud).
-    public void ShowRadio(string speaker, string text, bool leftSpeaker)
+    // 전투 중 무전 한 줄. 정해진 시간 동안 보였다가 사라진다(UpdateHud). warning이면 생성 이벤트 경고 모양으로 띄운다.
+    public void ShowRadio(string speaker, string text, bool leftSpeaker, bool warning = false)
     {
         if (radioSubtitle == null) return;
         EnsureRadioFont();
-        radioSubtitle.Show(speaker, text, leftSpeaker);
+        radioSubtitle.Show(speaker, text, leftSpeaker, warning);
     }
 
     // 무전 대사에 쓰일 글자. 폰트를 빌릴 때 미리 아틀라스에 넣어 자막이 뜨는 순간 글자를 굽지 않게 한다.

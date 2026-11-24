@@ -128,10 +128,14 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         Present();
     }
 
-    private void RecordEnemyHit(int tick, bool chargeGauge)
+    // destroyed: the hit finished the enemy (always, for the weak kind). A hit a tough enemy survives scores as a hit only.
+    private void RecordEnemyHit(int tick, bool chargeGauge, bool destroyed)
     {
         int previous = _stats.Score;
-        if (_stats.RecordEnemyKill(tick, chargeGauge, _combatTime, _recordingSpecialKills) && _state == GameState.Battle)
+        bool recorded = destroyed
+            ? _stats.RecordEnemyKill(tick, chargeGauge, _combatTime, _recordingSpecialKills)
+            : _stats.RecordEnemyHit(tick, chargeGauge, _combatTime);
+        if (recorded && _state == GameState.Battle)
             _ui.PresentScoreChange(_stats.Score - previous);
     }
 
