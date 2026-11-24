@@ -32,12 +32,43 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [SerializeField, Min(0f)] private float rotationSpeed = 720f;
     [SerializeField, Min(0f)] private float acceleration = 20f;
 
+    // Provisional feel values. Tune in the Inspector; none of them changes score, gauge or hit rules.
+    [Header("Movement feel - provisional")]
+    [Tooltip("Braking rate (m/s^2) once the move input is released.")]
+    [SerializeField, Min(0f)] private float deceleration = 120f;
+    [Tooltip("Acceleration multiplier while the input points against the current velocity (quick turn-around).")]
+    [SerializeField, Min(1f)] private float reverseBoost = 1.6f;
+    [SerializeField, Min(0f)] private float gravity = 30f;
+    [Tooltip("Downward speed that keeps the controller on the ground while walking down steps and slopes.")]
+    [SerializeField, Min(0f)] private float groundStickSpeed = 4f;
+    [Tooltip("Layers the controller walks through instead of being body-blocked (the enemy crowd). Enemies step aside themselves.")]
+    [SerializeField] private LayerMask crowdPassThroughLayers = 1 << 8;
+    [Tooltip("Root speed (m/s) the run loop clip was authored for. Used to speed the run cycle up toward the real speed.")]
+    [SerializeField, Min(0.1f)] private float runAnimationReferenceSpeed = 4.72f;
+    [SerializeField, Min(1f)] private float runAnimationMaxScale = 1.25f;
+    [Tooltip("Playback speed of the run-stop clip once the body has stopped, so it does not keep stepping in place for a second.")]
+    [SerializeField, Min(1f)] private float runStopAnimationSpeed = 2f;
+
+    [Header("Input buffering - provisional")]
+    [Tooltip("An attack press that arrives early is kept this long and fires as soon as the combo or cancel window opens.")]
+    [SerializeField, Min(0f)] private float attackBufferSeconds = 0.4f;
+
     [Header("Camera")]
     [SerializeField, Min(0.1f)] private float cameraDistance = 4f;
     [SerializeField] private float cameraHeightOffset = 1.5f;
     [SerializeField, Min(0f)] private float lookSensitivity = 0.2f;
     [SerializeField] private float minimumPitch = -20f;
     [SerializeField] private float maximumPitch = 60f;
+
+    [Header("Camera feel - provisional")]
+    [Tooltip("Smoothing of the point the camera orbits. Absorbs attack lunges and steps; looking around stays immediate.")]
+    [SerializeField, Min(0f)] private float cameraFollowSmoothTime = 0.06f;
+    [Tooltip("Level geometry the camera must not pass through.")]
+    [SerializeField] private LayerMask cameraCollisionLayers = 1 << 0;
+    [SerializeField, Min(0f)] private float cameraCollisionRadius = 0.25f;
+    [SerializeField, Min(0f)] private float cameraMinimumDistance = 0.7f;
+    [Tooltip("How fast (m/s) the camera moves back out after an obstacle is gone. Pulling in is immediate.")]
+    [SerializeField, Min(0f)] private float cameraDistanceRecoverSpeed = 6f;
 
     [Header("Animator Attack Policy")]
     [SerializeField, Range(0f, 1f)] private float comboWindowStart = 0.3f;
@@ -54,10 +85,17 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private bool _attackHeld;
     private bool _attackReleased;
     private bool _specialPressed;
-    private float _currentSpeed;
+    private Vector3 _velocity;                 // planar velocity (m/s)
+    private float _verticalVelocity;
+    private bool _grounded;
     private Vector3 _lastMoveDirection = Vector3.forward;
+    private float _attackBuffer;               // seconds an early attack press is still remembered
     private float _cameraYaw;
     private float _cameraPitch = 20f;
+    private Vector3 _cameraFocus;
+    private Vector3 _cameraFocusVelocity;
+    private float _cameraCurrentDistance;
+    private bool _cameraSettled;
     private int _tick;
     private bool _battleActive;
     private bool _stopRequested;
@@ -77,6 +115,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private GameState _gameState = GameState.Initializing;
 
     public Transform TargetTransform => transform;
+
+    // Planar speed in m/s. Read by tests and tuning tools.
+    public float PlanarSpeed => _velocity.magnitude;
+    public bool IsGrounded => _grounded;
 
     // [WH] 켜져 있는 무적 컴포넌트(회피 등) 중 하나라도 무적이면 true. CombatRoundRuntime이 피격 처리 전에 확인한다.
     public bool IsInvulnerable
@@ -153,7 +195,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
         if (!_battleActive)
         {
-            _currentSpeed = 0f;
+            _velocity = Vector3.zero;
+            _attackBuffer = 0f;
             SetRunning(false);
         }
 
@@ -183,9 +226,14 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         if (animator == null || characterController == null)
             return;
 
-        UpdateCamera();
+        ApplyLookInput();
+        ApplyGravity(deltaTime);
         AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
         bool attackState = IsAttackState(stateInfo);
+        // While a transition is blending, the state being entered is the one the player is really in.
+        // Judging by the state being left let a second click during Idle -> Attack1 skip straight to Attack2.
+        bool inTransition = animator.IsInTransition(0);
+        AnimatorStateInfo logicalState = inTransition ? animator.GetNextAnimatorStateInfo(0) : stateInfo;
 
         if (_battleActive && attackState)
             _attackStartedInBattle = true;
@@ -198,18 +246,26 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         {
             if (_specialPressed)
                 _combatRound?.TryUseSpecial(_tick, transform.position);
+            if (_attackPressed)
+                _attackBuffer = Mathf.Max(attackBufferSeconds, 0.0001f);
             // [WH] 후딜 캔슬 구간이면 공격 상태여도 이동과 재공격(AttackRestart)을 허용한다.
             bool cancelOpen = IsCancelOpen();
             // [WH] 공격 상태뿐 아니라 Animator에서 "Action" 태그를 단 상태(회피, 이후 스킬)도 이동을 잠근다.
-            bool actionLocked = attackState || stateInfo.IsTag("Action");
-            UpdateAttack(stateInfo, cancelOpen);
+            bool actionLocked = IsAttackState(logicalState) || logicalState.IsTag("Action");
+            UpdateAttack(logicalState, cancelOpen);
             UpdateMovement(deltaTime, !actionLocked || cancelOpen);
+            if (_attackBuffer > 0f)
+                _attackBuffer = Mathf.Max(0f, _attackBuffer - deltaTime);
         }
         else
         {
-            _currentSpeed = 0f;
+            _velocity = Vector3.zero;
+            _attackBuffer = 0f;
             SetRunning(false);
         }
+
+        UpdateRunAnimationSpeed(stateInfo, inTransition);
+        PlaceCamera(deltaTime, false);
 
         // Finishing 진입 등 입력이 닫힌 경우 차지 상태를 계속 붙잡지 않는다.
         if (!_battleActive && (stateInfo.IsName("Charge_Windup") || stateInfo.IsName("Charge_Hold")))
@@ -218,23 +274,20 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         ClearFrameInput();
     }
 
+    // Velocity model: the body reaches full speed and stops within a few frames, turns around through zero
+    // instead of sliding backwards, and a short tap still moves a useful distance.
     private void UpdateMovement(float deltaTime, bool canMove)
     {
         Vector2 input = Vector2.ClampMagnitude(_moveInput, 1f);
         bool hasInput = input.sqrMagnitude > 0.01f;
         if (!canMove)
         {
-            _currentSpeed = 0f;
+            _velocity = Vector3.zero;
             SetRunning(false);
             return;
         }
 
-        float targetSpeed = hasInput ? moveSpeed : 0f;
-        _currentSpeed = Mathf.MoveTowards(_currentSpeed, targetSpeed, acceleration * deltaTime);
-        SetRunning(hasInput);
-        if (_currentSpeed <= 0.01f)
-            return;
-
+        Vector3 desired = Vector3.zero;
         if (hasInput)
         {
             Transform movementCamera = cameraTransform != null ? cameraTransform : transform;
@@ -248,30 +301,74 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             if (direction.sqrMagnitude > 0.0001f)
             {
                 _lastMoveDirection = direction.normalized;
+                desired = _lastMoveDirection * (moveSpeed * Mathf.Clamp01(input.magnitude));
                 Quaternion rotation = Quaternion.LookRotation(_lastMoveDirection);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, rotation, rotationSpeed * deltaTime);
             }
         }
 
-        characterController.Move(_lastMoveDirection * (_currentSpeed * deltaTime));
+        _velocity = PlayerLocomotion.Step(_velocity, desired, acceleration, deceleration, reverseBoost, deltaTime);
+        SetRunning(hasInput);
+        if (_velocity.sqrMagnitude > 0.0001f)
+            characterController.Move(_velocity * deltaTime);
+    }
+
+    // Keeps the controller on the floor. Attacks and dodges move the controller themselves, so this
+    // runs every frame regardless of the current action.
+    private void ApplyGravity(float deltaTime)
+    {
+        if (deltaTime <= 0f || gravity <= 0f || !characterController.enabled)
+            return;
+
+        if (_grounded && _verticalVelocity <= 0f)
+            _verticalVelocity = -Mathf.Max(groundStickSpeed, _velocity.magnitude);
+        else
+            _verticalVelocity -= gravity * deltaTime;
+
+        CollisionFlags flags = characterController.Move(Vector3.up * (_verticalVelocity * deltaTime));
+        _grounded = (flags & CollisionFlags.Below) != 0;
+        if ((flags & CollisionFlags.Above) != 0 && _verticalVelocity > 0f)
+            _verticalVelocity = 0f;
+    }
+
+    // The run loop covers runAnimationReferenceSpeed m/s, so it is played faster while running to narrow the gap to
+    // the real speed. The run-stop clip is hurried once the body has stopped. Only Animator.speed is touched, so the
+    // state machine keeps its own (interruptible) transitions.
+    private void UpdateRunAnimationSpeed(AnimatorStateInfo stateInfo, bool inTransition)
+    {
+        float scale = 1f;
+        bool running = stateInfo.IsTag("RunMotion") &&
+                       (!inTransition || animator.GetNextAnimatorStateInfo(0).IsTag("RunMotion"));
+        if (running)
+        {
+            if (stateInfo.IsName("Run_Combat_Fast_Stop"))
+                scale = _velocity.sqrMagnitude < 0.25f ? Mathf.Max(1f, runStopAnimationSpeed) : 1f;
+            else if (runAnimationReferenceSpeed > 0f)
+                scale = Mathf.Clamp(_velocity.magnitude / runAnimationReferenceSpeed, 1f, Mathf.Max(1f, runAnimationMaxScale));
+        }
+        animator.speed = _animationSpeed * scale;
     }
 
     // Animator에 실제 존재하는 Attack1 -> Attack2 -> Charge 상태 전이만 구동한다.
+    // stateInfo is the logical state (the one being entered while a transition blends).
     private void UpdateAttack(AnimatorStateInfo stateInfo, bool cancelOpen)
     {
         float normalizedTime = stateInfo.normalizedTime % 1f;
-        if (_attackPressed)
+        // A press is remembered for attackBufferSeconds, so mashing lands on the first frame a window opens.
+        if (_attackBuffer > 0f)
         {
             if (stateInfo.IsName("Idle") || stateInfo.IsTag("RunMotion"))
             {
                 _attackStartedInBattle = true;
                 animator.SetTrigger(AttackHash);
+                _attackBuffer = 0f;
             }
             else if ((stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2")) &&
                      normalizedTime >= comboWindowStart && normalizedTime <= comboWindowEnd)
             {
                 _attackStartedInBattle = true;
                 animator.SetTrigger(AttackHash);
+                _attackBuffer = 0f;
             }
             // [WH] 콤보 구간 밖이지만 후딜 캔슬 구간이면 Attack1부터 다시 시작한다. (Attack1/Attack2/Charge_Release → Attack1 트랜지션)
             // [WH] 회피 등 "Action" 태그 상태의 후반에서도 같은 방식으로 Attack1 재시작을 허용한다.
@@ -279,6 +376,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             {
                 _attackStartedInBattle = true;
                 animator.SetTrigger(AttackRestartHash);
+                _attackBuffer = 0f;
             }
         }
         // [WH] 캔슬 구간이 아니면 쓰이지 않은 재시작 트리거가 남아 나중에 발동하지 않도록 지운다.
@@ -291,7 +389,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             animator.SetBool(IsHoldingHash, false);
     }
 
-    private void UpdateCamera()
+    // Orbit camera. Looking around is immediate (applied before movement, which is camera-relative).
+    private void ApplyLookInput()
     {
         if (cameraTransform == null)
             return;
@@ -301,11 +400,48 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             _cameraYaw += _lookInput.x * lookSensitivity;
             _cameraPitch = Mathf.Clamp(_cameraPitch - _lookInput.y * lookSensitivity, minimumPitch, maximumPitch);
         }
+        cameraTransform.rotation = Quaternion.Euler(_cameraPitch, _cameraYaw, 0f);
+    }
+
+    // Places the camera after the body has moved. Only the followed point is smoothed, and level geometry between
+    // the player and the camera pulls the camera in instead of hiding the player behind a wall.
+    private void PlaceCamera(float deltaTime, bool snap)
+    {
+        if (cameraTransform == null)
+            return;
+
+        Vector3 focus = transform.position + Vector3.up * cameraHeightOffset;
+        if (snap || !_cameraSettled || cameraFollowSmoothTime <= 0f || deltaTime <= 0f)
+        {
+            _cameraFocus = focus;
+            _cameraFocusVelocity = Vector3.zero;
+        }
+        else
+        {
+            _cameraFocus = Vector3.SmoothDamp(_cameraFocus, focus, ref _cameraFocusVelocity, cameraFollowSmoothTime, Mathf.Infinity, deltaTime);
+        }
 
         Quaternion rotation = Quaternion.Euler(_cameraPitch, _cameraYaw, 0f);
-        Vector3 target = transform.position + Vector3.up * cameraHeightOffset;
-        cameraTransform.position = target - rotation * Vector3.forward * cameraDistance;
-        cameraTransform.rotation = Quaternion.LookRotation(target - cameraTransform.position, Vector3.up);
+        Vector3 back = rotation * Vector3.back;
+        float wanted = cameraDistance;
+        if (cameraCollisionLayers.value != 0)
+        {
+            // Cast from the player (always in free space) so a wall next to the smoothed point cannot be skipped.
+            Vector3 toCamera = _cameraFocus + back * cameraDistance - focus;
+            float length = toCamera.magnitude;
+            if (length > 0.001f &&
+                Physics.SphereCast(focus, Mathf.Max(0.01f, cameraCollisionRadius), toCamera / length, out RaycastHit hit, length,
+                    cameraCollisionLayers, QueryTriggerInteraction.Ignore))
+                wanted = Mathf.Clamp(hit.distance, Mathf.Min(cameraMinimumDistance, cameraDistance), cameraDistance);
+        }
+
+        if (snap || !_cameraSettled || wanted < _cameraCurrentDistance)
+            _cameraCurrentDistance = wanted;
+        else
+            _cameraCurrentDistance = Mathf.MoveTowards(_cameraCurrentDistance, wanted, cameraDistanceRecoverSpeed * deltaTime);
+        _cameraSettled = true;
+
+        cameraTransform.SetPositionAndRotation(_cameraFocus + back * _cameraCurrentDistance, rotation);
     }
 
     private void ResetPlayer(int tick)
@@ -316,7 +452,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _attackStartedInBattle = false;
         _gameState = GameState.Ready;
         DisableInput();
-        _currentSpeed = 0f;
+        _velocity = Vector3.zero;
+        _verticalVelocity = 0f;
+        _grounded = false;
+        _attackBuffer = 0f;
         _lastMoveDirection = Vector3.forward;
 
         if (spawnPoint == null)
@@ -345,7 +484,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
 
         _cameraYaw = spawnPoint.eulerAngles.y;
         _cameraPitch = 20f;
-        UpdateCamera();
+        PlaceCamera(0f, true);
     }
 
     private void CacheReferences()
@@ -360,6 +499,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             cameraTransform = Camera.main.transform;
         if (animator == null || characterController == null)
             throw new InvalidOperationException("PlayerRuntime requires an Animator and CharacterController.");
+        // The crowd no longer body-blocks the player; enemies give way instead (EnemyAgent.YieldTo).
+        characterController.excludeLayers |= crowdPassThroughLayers;
         _animationSpeed = animator.speed;
         foreach (MonoBehaviour component in GetComponentsInChildren<MonoBehaviour>(true))
         {

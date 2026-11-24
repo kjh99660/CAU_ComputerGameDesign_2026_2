@@ -4460,8 +4460,8 @@ MonoBehaviour:
   attackActionName: Attack
   specialActionName: Interact
   moveSpeed: 10
-  rotationSpeed: 720
-  acceleration: 20
+  rotationSpeed: 1440
+  acceleration: 90
   cameraDistance: 4
   cameraHeightOffset: 1.5
   lookSensitivity: 0.2
