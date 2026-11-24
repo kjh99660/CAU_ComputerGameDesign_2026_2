@@ -34,6 +34,30 @@ public sealed class ComboScoreTests
         Assert.AreEqual(0f, _settings.comboScoreStep, "A new CombatSettings starts with the bonus off.");
     }
 
+    // Score gain raised by 50% on 2026-11-25 (user request, provisional): the game asset scores a hit at 15 and a kill
+    // at 150 more, so a one-hit kill is 165 and a hit a tough enemy survives is 15. A new CombatSettings keeps the base
+    // 10 and 100 that the other tests here calculate with.
+    [Test]
+    public void TheGameAssetScoresHalfAgainAsMuchAsTheBaseValues()
+    {
+        var asset = Resources.Load<CombatSettings>("CombatSettings");
+        Assert.IsNotNull(asset, "Resources/CombatSettings.asset is missing.");
+        Assert.AreEqual(10, _settings.hitScore);
+        Assert.AreEqual(100, _settings.killScore);
+        Assert.AreEqual(_settings.hitScore * 3 / 2, asset.hitScore);
+        Assert.AreEqual(_settings.killScore * 3 / 2, asset.killScore);
+
+        var stats = new RoundCombatStats(asset);
+        stats.Reset(1);
+        stats.SetAccepting(true);
+        Assert.IsTrue(stats.RecordEnemyHit(1, true, 0f));
+        Assert.AreEqual(15, stats.Score, "A hit the enemy survives.");
+        // The second landed hit is combo 2: the kill's 165 with the asset's combo bonus, by the one rounding rule.
+        Assert.IsTrue(stats.RecordEnemyKill(1, true, 0.1f));
+        Assert.AreEqual(15 + RoundCombatStats.ComboKillScore(165, 2, asset.comboScoreStep, asset.comboScoreMaxBonus), stats.Score);
+        Assert.AreEqual(15 + 173, stats.Score, "165 x 1.05 = 173.25, rounded down.");
+    }
+
     // A tough enemy survives its first hit: that hit scores as a hit only and counts toward the combo.
     [Test]
     public void AHitTheEnemySurvivesScoresAsAHitAndExtendsTheCombo()

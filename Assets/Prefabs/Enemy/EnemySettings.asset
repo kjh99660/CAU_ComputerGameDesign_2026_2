@@ -74,7 +74,7 @@ MonoBehaviour:
   knockbackUpwardForce: 3
   knockbackFallbackDuration: 1.25
   deathDuration: 0.25
-  attackWindup: 0.41
+  attackWindup: 0.37
   attackRecovery: 0.3
   attackReach: 1.8
   attackArcDegrees: 120

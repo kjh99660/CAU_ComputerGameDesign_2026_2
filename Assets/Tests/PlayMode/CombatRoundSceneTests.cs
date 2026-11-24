@@ -225,11 +225,12 @@ public sealed class CombatRoundSceneTests
             var enemy = Object.FindFirstObjectByType<EnemyAgent>();
             var combat = Object.FindFirstObjectByType<CombatRoundRuntime>();
             Assert.IsTrue(runtime.TryApplyHit(enemy, Vector3.forward, 1f, state.Tick));
-            Assert.AreEqual(110, combat.Stats.Score);
+            // One kill in the game's settings: hit 15 + kill 150 (the 2026-11-25 values, 50% above 10 + 100).
+            Assert.AreEqual(165, combat.Stats.Score);
             yield return WaitFor(state, GameState.OutroDialogue);
             Assert.AreEqual(1f, Time.timeScale);
             Assert.IsFalse(combat.Stats.RecordEnemyKill(state.Tick));
-            Assert.AreEqual(110, combat.Stats.Score);
+            Assert.AreEqual(165, combat.Stats.Score);
         }
         finally
         {
@@ -281,8 +282,8 @@ public sealed class CombatRoundSceneTests
             yield return null;
         Assert.AreEqual(1, combat.Stats.KillCount, "The active attack should hit the nearby enemy.");
         Assert.IsFalse(runtime.TryApplyHit(enemy, Vector3.forward, 1f, state.Tick));
-        Assert.AreEqual(110, combat.Stats.Score);
-        Assert.AreEqual("000110", Find<TMP_Text>(battle.transform, "ScoreValue").text);
+        Assert.AreEqual(165, combat.Stats.Score);
+        Assert.AreEqual("000165", Find<TMP_Text>(battle.transform, "ScoreValue").text);
         var scoreText = Find<TMP_Text>(battle.transform, "ScoreValue");
         Assert.Greater(scoreText.color.g, scoreText.color.r);
         var fill = Find<Image>(battle.transform, "SpecialGaugeFill");
@@ -312,7 +313,7 @@ public sealed class CombatRoundSceneTests
         Assert.AreEqual(EnemyAgentState.Attack, attacker.State);
         runtime.UpdateActions(runtime.Settings.AttackWindup, state.Tick);
         Assert.AreEqual(1, combat.Stats.HitCount);
-        Assert.AreEqual(99, combat.Stats.Score, "A hit on the player takes 10% of the score.");
+        Assert.AreEqual(149, combat.Stats.Score, "A hit on the player takes 10% of the score, rounded down (165 - 16).");
         Assert.Greater(scoreText.color.r, scoreText.color.g);
         Image hitFlash = Find<Image>(battle.transform, "PlayerHitFlash");
         Assert.Greater(hitFlash.color.a, 0f);

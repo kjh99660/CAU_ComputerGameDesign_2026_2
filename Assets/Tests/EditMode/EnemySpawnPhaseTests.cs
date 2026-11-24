@@ -417,7 +417,8 @@ public sealed class EnemySpawnPhaseTests
     }
 
     // 2026-11-25 request: blue one-hit robots first, red two-hit robots mixed in from half time, only red from 75%
-    // (starting with the large mass spawn); wind-up 25% shorter and move speed 25% higher.
+    // (starting with the large mass spawn); wind-up 25% shorter and move speed 25% higher. A later request the same
+    // day took another 10% off the wind-up (0.55 s -> 0.41 s -> 0.37 s).
     [Test]
     public void TheGameSendsBlueRobotsFirstMixesInRedFromHalfTimeAndOnlyRedFromThreeQuarters()
     {
@@ -434,7 +435,7 @@ public sealed class EnemySpawnPhaseTests
         Assert.Greater(settings.WeakColor.b, settings.WeakColor.r, "The weak kind is blue.");
         Assert.Greater(settings.ToughColor.r, settings.ToughColor.b, "The tough kind is the red robot.");
         Assert.AreNotEqual(settings.SpawnWarningWeakColor, settings.SpawnWarningColor, "Their warning rings differ too.");
-        Assert.AreEqual(0.41f, settings.AttackWindup, 0.001f, "Wind-up 25% shorter than 0.55 s.");
+        Assert.AreEqual(0.37f, settings.AttackWindup, 0.001f, "Wind-up 25% and then another 10% shorter than 0.55 s.");
         Assert.AreEqual(4.375f, settings.MoveSpeed, 0.001f, "Move speed 25% above 3.5 m/s.");
     }
 

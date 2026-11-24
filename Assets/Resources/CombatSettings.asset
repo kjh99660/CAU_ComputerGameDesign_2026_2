@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb1ffc1e662254d70a67b48e7a2d1b6b, type: 3}
   m_Name: CombatSettings
   m_EditorClassIdentifier: GameDemo.Systems::CombatSettings
-  hitScore: 10
-  killScore: 100
+  hitScore: 15
+  killScore: 150
   hitGauge: 3
   killGauge: 5
   playerHitGauge: 8
