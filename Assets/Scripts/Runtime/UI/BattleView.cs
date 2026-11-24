@@ -17,6 +17,11 @@ public sealed class BattleView : UIScreenView
     [SerializeField, Min(0.05f)] private float hitGlitchDuration = 0.18f;
     [SerializeField, Range(0f, 1.5f)] private float hitGlitchStrength = 1f;
     [SerializeField, Min(0f)] private float hudShakePixels = 8f;
+    // 맞은 뒤 3D 화면이 흐려졌다가 천천히 돌아온다. 연달아 맞으면 흐린 시간이 쌓인다. 세기가 0이면 쓰지 않는다.
+    [Header("Hit blur - provisional")]
+    [SerializeField, Min(0.05f)] private float hitBlurSeconds = 1f;
+    [SerializeField, Range(0f, 1f)] private float hitBlurStrength = 0.6f;
+    [SerializeField, Min(0.05f)] private float hitBlurMaxSeconds = 1.5f;
     // 남은 시간과 준비된 게이지를 눈에 띄게 하는 강조. 모두 임시값이며 unscaled time으로 재생한다.
     [Header("HUD emphasis - provisional")]
     // 남은 시간이 이 값(초) 이하로 표시되면 타이머를 경고색으로 바꾼다. 0이면 쓰지 않는다.
@@ -39,6 +44,7 @@ public sealed class BattleView : UIScreenView
     private Sprite _hitEdgeSprite;
     private Texture2D _hitEdgeTexture;
     private float _glitchRemaining;
+    private float _blurRemaining;
     private RectTransform _rect;
     private Vector2 _restPosition;
     private float _scoreFeedbackRemaining;
@@ -78,6 +84,7 @@ public sealed class BattleView : UIScreenView
     {
         if (pauseButton != null) pauseButton.onClick.RemoveListener(HandlePauseClicked);
         StopGlitch();
+        StopBlur();
     }
 
     public void Render(BattleUiModel model)
@@ -106,16 +113,33 @@ public sealed class BattleView : UIScreenView
     }
 
     // 피격: 화면 가장자리만 옅게 붉어지고(위험 신호), 짧은 블록 깨짐 글리치와 HUD 흔들림이 지나간다.
+    // 그 뒤로 3D 화면의 흐림이 남아 천천히 걷힌다.
     public void PlayPlayerHitFeedback()
     {
         EnsureHitFlash();
         _hitFlashRemaining = Mathf.Max(0.05f, hitFlashDuration);
         _hitFlash.color = UiPalette.WithAlpha(UiPalette.Alert, hitFlashOpacity);
         _glitchRemaining = Mathf.Max(0.05f, hitGlitchDuration);
+        if (hitBlurStrength > 0f)
+        {
+            // 처음 맞으면 기본 길이, 흐림이 남은 채 또 맞으면 남은 시간의 절반이 더해진다(상한까지).
+            float span = Mathf.Max(0.05f, hitBlurSeconds);
+            _blurRemaining = Mathf.Min(Mathf.Max(span, hitBlurMaxSeconds), _blurRemaining * 0.5f + span);
+        }
     }
+
+    // 지금 화면에 걸려 있는 흐림 시간(초). 테스트와 조절 도구가 읽는다.
+    public float HitBlurRemaining => _blurRemaining;
 
     public void UpdateFeedback(float deltaTime)
     {
+        if (_blurRemaining > 0f)
+        {
+            _blurRemaining = Mathf.Max(0f, _blurRemaining - deltaTime);
+            // 기본 길이보다 많이 남았으면(연달아 맞음) 최대 세기를 유지하고, 그 아래에서는 부드럽게 걷힌다.
+            float left = UiMotion.Clamp01(_blurRemaining / Mathf.Max(0.05f, hitBlurSeconds));
+            ScreenGlitchState.SetBlur(hitBlurStrength * left * left * (3f - 2f * left));
+        }
         if (_scoreFeedbackRemaining > 0f)
         {
             _scoreFeedbackRemaining = Mathf.Max(0f, _scoreFeedbackRemaining - deltaTime);
@@ -168,8 +192,14 @@ public sealed class BattleView : UIScreenView
     private void StopGlitch()
     {
         _glitchRemaining = 0f;
-        ScreenGlitchState.Clear();
+        ScreenGlitchState.ClearGlitch();
         if (_rect != null) _rect.anchoredPosition = _restPosition;
+    }
+
+    private void StopBlur()
+    {
+        _blurRemaining = 0f;
+        ScreenGlitchState.SetBlur(0f);
     }
 
     private void CacheScoreStyle()
@@ -217,6 +247,7 @@ public sealed class BattleView : UIScreenView
     private void ClearFeedback()
     {
         StopGlitch();
+        StopBlur();
         _scoreFeedbackRemaining = _hitFlashRemaining = 0f;
         if (_hitFlash != null) _hitFlash.color = Color.clear;
         if (_scoreStyleCached && scoreValue != null)

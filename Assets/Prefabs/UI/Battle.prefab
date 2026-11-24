@@ -426,6 +426,9 @@ MonoBehaviour:
   hitGlitchDuration: 0.18
   hitGlitchStrength: 1
   hudShakePixels: 8
+  hitBlurSeconds: 1
+  hitBlurStrength: 0.6
+  hitBlurMaxSeconds: 1.5
   timerWarningSeconds: 10
   timerTickScale: 1.14
   timerTickSeconds: 0.25

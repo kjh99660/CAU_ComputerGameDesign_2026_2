@@ -4,14 +4,16 @@ using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RenderGraphModule.Util;
 using UnityEngine.Rendering.Universal;
 
-// 피격 글리치 렌더러 기능. ScreenGlitchState.Amount가 0보다 클 때만 패스를 추가하므로 평소 비용은 없다.
-// 후처리 뒤(AfterRenderingPostProcessing)에 적용되어 3D 화면만 깨지고, Screen Space Overlay UI는 영향을 받지 않는다
+// 피격 화면 연출 렌더러 기능: 블록 깨짐 글리치와 그 뒤에 남는 흐림. ScreenGlitchState의 두 값 가운데 하나라도
+// 0보다 클 때만 패스를 추가하므로 평소 비용은 없다.
+// 후처리 뒤(AfterRenderingPostProcessing)에 적용되어 3D 화면만 바뀌고, Screen Space Overlay UI는 영향을 받지 않는다
 // (HUD 흔들림은 BattleView가 따로 처리한다).
 public sealed class RebootHitGlitchFeature : ScriptableRendererFeature
 {
     [SerializeField] private Shader shader;
 
     private static readonly int AmountId = Shader.PropertyToID("_Amount");
+    private static readonly int BlurId = Shader.PropertyToID("_Blur");
     private static readonly int SeedId = Shader.PropertyToID("_Seed");
     private static readonly int AlertId = Shader.PropertyToID("_AlertColor");
     private static readonly int AccentId = Shader.PropertyToID("_AccentColor");
@@ -30,12 +32,13 @@ public sealed class RebootHitGlitchFeature : ScriptableRendererFeature
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        if (_material == null || ScreenGlitchState.Amount <= 0.001f)
+        if (_material == null || (ScreenGlitchState.Amount <= 0.001f && ScreenGlitchState.Blur <= 0.001f))
             return;
         if (renderingData.cameraData.cameraType != CameraType.Game)
             return;
 
         _material.SetFloat(AmountId, ScreenGlitchState.Amount);
+        _material.SetFloat(BlurId, ScreenGlitchState.Blur);
         _material.SetFloat(SeedId, ScreenGlitchState.Seed);
         _material.SetColor(AlertId, UiPalette.Alert);
         _material.SetColor(AccentId, UiPalette.Accent);
