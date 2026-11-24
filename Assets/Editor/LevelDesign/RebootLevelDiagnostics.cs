@@ -11,7 +11,8 @@ using Object = UnityEngine.Object;
 // 레벨 디자인 검증용 Editor 도구.
 // Scene을 저장하지 않고 계층 요약, 적 스폰 위치/접근 경로 분석, 고정 시점 캡처를 만든다.
 // 배치 실행: Unity -batchmode -projectPath <path> -executeMethod RebootLevelDiagnostics.RunAll -rebootOut <dir> -rebootTag before
-public static class RebootLevelDiagnostics
+// 검토용 강조 캡처: -rebootHighlight Env_RebootHub/ArenaProps_CC0 (RebootLevelDiagnostics.Highlight.cs)
+public static partial class RebootLevelDiagnostics
 {
     // 기본은 미리보기 씬. -rebootScene main 으로 팀 공용 Main.unity를 진단할 수 있다(저장하지 않음).
     private static string ScenePath => GetArg("-rebootScene") == "main"
@@ -97,7 +98,11 @@ public static class RebootLevelDiagnostics
         }
 
         if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null)
+        {
+            BeginHighlight();
             Capture(outputDirectory, tag, spawn, report);
+            EndHighlight(outputDirectory, tag, report);
+        }
         else
             report.AppendLine("Captures skipped: no graphics device (-nographics).");
 
@@ -560,6 +565,8 @@ public static class RebootLevelDiagnostics
         texture.Apply();
         RenderTexture.active = previous;
         camera.targetTexture = null;
+        if (_highlightItems != null)
+            DrawHighlights(camera, texture, Path.GetFileNameWithoutExtension(path));
         File.WriteAllBytes(path, texture.EncodeToPNG());
         Object.DestroyImmediate(texture);
         rt.Release();
