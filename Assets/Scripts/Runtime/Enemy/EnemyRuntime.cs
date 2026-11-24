@@ -10,6 +10,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     [SerializeField] private EnemyAgent enemyPrefab;
     [SerializeField] private EnemySettings settings;
     [SerializeField] private Transform target;
+    [Tooltip("Optional. Set it in a level with floors above each other; leave it empty in a flat arena.")]
+    [SerializeField] private EnemyNavVolume navigation;
 
     private readonly List<EnemyAgent> _candidates = new();
     private readonly List<EnemyAgent> _specialCandidates = new();
@@ -21,6 +23,9 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private System.Random _random;
     private System.Random _variationRandom;   // separate stream, so per-enemy variety does not shift spawn positions
     private int _spawnObstacleMask;
+    private EnemyNavField _nav;               // null in a flat level
+    private bool _navigationMeasured;
+    private float _pathAge;
     private Transform _poolRoot;
     private GameState _state = GameState.Initializing;
     private int _tick;
@@ -36,6 +41,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     // 활성 Enemy 상한. 일반 플레이에서는 설정값이고, 성능 실험 중에만 측정기가 더 큰 값을 건다.
     private int MaximumEnemies => _probe != null ? _probe.MaximumEnemies(settings.MaximumEnemyCount) : settings.MaximumEnemyCount;
     public Transform TargetTransform => target;
+    // The walkable cells of a level with floors. Null in a flat level and before the first round is prepared.
+    public EnemyNavField Navigation => _nav;
     public event Action<int, bool> HitAccepted;
     public event Action<Vector3, Vector3, int> HitPresented;
     public event Action<int> PlayerHit;
@@ -43,6 +50,14 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public void SetTarget(Transform value)
     {
         target = value != null ? value : throw new ArgumentNullException(nameof(value));
+    }
+
+    // Must be called before the first round is prepared.
+    public void SetNavigation(EnemyNavVolume value)
+    {
+        navigation = value;
+        _navigationMeasured = false;
+        _nav = null;
     }
 
     public void Configure(PhysicsPauseManager physics)
@@ -120,6 +135,16 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         long started = _probe.BeginTiming();
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         Vector3 targetPosition = TargetPosition;
+        if (_nav != null)
+        {
+            // One path pass serves every enemy, and only when the player has moved to another cell.
+            _pathAge += deltaTime;
+            if (_pathAge >= settings.PathRefreshSeconds)
+            {
+                _pathAge = 0f;
+                _nav.SetGoal(targetPosition);
+            }
+        }
         for (int i = 0; i < active.Count; i++)
         {
             EnemyAgent enemy = active[i];
@@ -186,6 +211,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             EnemyAgent enemy = candidates[i];
             if (enemy == null) continue;
             Vector3 offset = enemy.transform.position - center;
+            if (_nav != null && Mathf.Abs(offset.y) > settings.VerticalReach)
+                continue;   // another floor
             offset.y = 0f;
             if (offset.sqrMagnitude <= safeRadius * safeRadius && TryApplyHit(enemy, offset, forceMultiplier, tick, chargeGauge))
                 hits++;
@@ -234,6 +261,13 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         // Movement AI is planar and enemies stay kinematic until hit. Inherit only
         // the player's restored starting height, never a later jump/step elevation.
         _roundSpawnY = TargetPosition.y + settings.SpawnHeight;
+        MeasureNavigation();
+        if (_nav != null)
+        {
+            _nav.ClearGoal();
+            _nav.SetGoal(TargetPosition);
+            _pathAge = 0f;
+        }
         int initialCount = Mathf.Min(settings.InitialEnemyCount, settings.MaximumEnemyCount);
         for (int i = 0; i < initialCount; i++)
             SpawnOne(tick);
@@ -245,10 +279,11 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             return;
 
         Vector3 center = TargetPosition;
-        Vector3 position = SampleSpawnPosition(center);
+        Vector3 position = _nav != null ? SampleSpawnOnCells(center) : SampleSpawnPosition(center);
 
         EnemyAgent enemy = _pool.Get();
         enemy.Activate(position, tick, (float)_variationRandom.NextDouble());
+        enemy.UseNavigation(_nav);
         enemy.Face(center);
         _registry.Add(enemy);
         _probe.Track(enemy);
@@ -274,6 +309,95 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
                 break;
         }
         return position;
+    }
+
+    // The level is measured once, when the first round is prepared: by then every collider of the scene exists.
+    private void MeasureNavigation()
+    {
+        if (_navigationMeasured)
+            return;
+        _navigationMeasured = true;
+        if (navigation == null)
+            return;
+        _nav = navigation.Bake(TargetPosition);
+        if (_nav.CellCount == 0)
+        {
+            Debug.LogError("EnemyNavVolume found nowhere to stand around the player. Enemies fall back to straight-line movement.", navigation);
+            _nav = null;
+        }
+    }
+
+    // Level with floors: the same ring around the player, but only where an enemy can stand (on any floor) and
+    // from where the walk to the player is not absurdly long. A spot the player cannot see is preferred, so a
+    // wave walks in from around a corner instead of appearing in view.
+    private Vector3 SampleSpawnOnCells(Vector3 center)
+    {
+        const float eyeHeight = 1.5f, chestHeight = 1f;
+        int draws = 1 + Mathf.Max(0, settings.SpawnVisibilityAttempts);
+        float longestWalk = settings.MaximumSpawnDistance * settings.SpawnDetourLimit;
+        int chosen = EnemyNavField.None;
+        int shortestWalk = EnemyNavField.None;   // used when every drawn spot is further to walk than wanted
+        Vector3 point = center;
+        for (int draw = 0; draw < draws; draw++)
+        {
+            double angle = _random.NextDouble() * Math.PI * 2d;
+            float distance = Mathf.Lerp(settings.MinimumSpawnDistance, settings.MaximumSpawnDistance,
+                (float)_random.NextDouble());
+            float floor = (float)_random.NextDouble();
+            point = new Vector3(center.x + Mathf.Cos((float)angle) * distance, center.y,
+                center.z + Mathf.Sin((float)angle) * distance);
+            int cell = _nav.CellAt(point.x, point.z, floor);
+            if (cell == EnemyNavField.None)
+                continue;
+            float walk = _nav.PathDistance(cell);
+            if (walk > longestWalk)
+            {
+                if (!float.IsPositiveInfinity(walk) &&
+                    (shortestWalk == EnemyNavField.None || walk < _nav.PathDistance(shortestWalk)))
+                    shortestWalk = cell;
+                continue;
+            }
+            if (chosen == EnemyNavField.None)
+                chosen = cell;
+            if (Physics.Linecast(center + Vector3.up * eyeHeight, _nav.Position(cell) + Vector3.up * chestHeight,
+                    _spawnObstacleMask, QueryTriggerInteraction.Ignore))
+            {
+                chosen = cell;
+                break;
+            }
+        }
+
+        // The player is somewhere hard to reach (a far roof): keep the spawn distance and accept the long walk.
+        if (chosen == EnemyNavField.None)
+            chosen = shortestWalk;
+        if (chosen == EnemyNavField.None)
+        {
+            // Nothing drawn was ground at all (the player stands at the rim of the level and most of the ring is
+            // outside it). Go round the ring once and take the first ground found.
+            const int steps = 24;
+            double start = _random.NextDouble() * Math.PI * 2d;
+            float middle = (settings.MinimumSpawnDistance + settings.MaximumSpawnDistance) * 0.5f;
+            for (int step = 0; step < steps && chosen == EnemyNavField.None; step++)
+            {
+                float angle = (float)(start + step * Math.PI * 2d / steps);
+                point = new Vector3(center.x + Mathf.Cos(angle) * middle, center.y, center.z + Mathf.Sin(angle) * middle);
+                int cell = _nav.CellAt(point.x, point.z, 0.999f);
+                if (cell != EnemyNavField.None && !float.IsPositiveInfinity(_nav.PathDistance(cell)))
+                    chosen = cell;
+            }
+        }
+        if (chosen == EnemyNavField.None)
+            chosen = _nav.FindNearestCell(point, 32, float.PositiveInfinity);
+        if (chosen == EnemyNavField.None)
+            return new Vector3(point.x, _roundSpawnY, point.z);
+
+        // Somewhere inside the cell, so two enemies given the same cell do not start on top of each other.
+        Vector3 spot = _nav.Position(chosen);
+        float spread = _nav.CellSize * 0.8f;
+        spot.x += ((float)_random.NextDouble() - 0.5f) * spread;
+        spot.z += ((float)_random.NextDouble() - 0.5f) * spread;
+        spot.y = _nav.SampleHeight(chosen, spot) + settings.SpawnHeight;
+        return spot;
     }
 
     private bool HasClearPath(Vector3 center, Vector3 position)

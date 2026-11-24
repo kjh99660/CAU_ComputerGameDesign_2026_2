@@ -43,8 +43,17 @@ public sealed class EnemySettings : ScriptableObject
     [Tooltip("Enemies closer to the player than this step back, because the player is no longer body-blocked by the crowd. 0 turns it off.")]
     [SerializeField, Min(0f)] private float playerPersonalRadius = 0.9f;
     [SerializeField, Min(0f)] private float playerPushSpeed = 12f;
-    [Tooltip("How many times a spawn position is re-drawn when level geometry stands between it and the player.")]
+    [Tooltip("How many times a spawn position is re-drawn. Flat level: while level geometry stands between it and the player. Level with floors: while it is not a walkable spot out of the player's sight.")]
     [SerializeField, Range(0, 16)] private int spawnVisibilityAttempts = 8;
+
+    // Only read where the scene has an EnemyNavVolume. A flat arena ignores all three.
+    [Header("Levels with floors above each other - provisional")]
+    [Tooltip("Enemies and the player only reach each other within this height difference (m), so an enemy under a deck cannot hit the player on it. Keep it below the height of one storey.")]
+    [SerializeField, Min(0.1f)] private float verticalReach = 2.2f;
+    [Tooltip("How often the shared path to the player is refreshed (s).")]
+    [SerializeField, Min(0f)] private float pathRefreshSeconds = 0.1f;
+    [Tooltip("A spawn point is skipped when the walk from it to the player is longer than the maximum spawn distance times this.")]
+    [SerializeField, Min(1f)] private float spawnDetourLimit = 2f;
 
     [Header("Hit - provisional")]
     [SerializeField, Min(0f)] private float normalKnockbackForce = 8f;
@@ -77,6 +86,9 @@ public sealed class EnemySettings : ScriptableObject
     public float PlayerPersonalRadius => playerPersonalRadius;
     public float PlayerPushSpeed => playerPushSpeed;
     public int SpawnVisibilityAttempts => spawnVisibilityAttempts;
+    public float VerticalReach => verticalReach;
+    public float PathRefreshSeconds => pathRefreshSeconds;
+    public float SpawnDetourLimit => spawnDetourLimit;
     public float NormalKnockbackForce => normalKnockbackForce;
     public float KnockbackUpwardForce => knockbackUpwardForce;
     public float KnockbackFallbackDuration => knockbackFallbackDuration;

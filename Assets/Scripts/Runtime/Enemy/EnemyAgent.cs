@@ -16,6 +16,11 @@ public sealed class EnemyAgent : MonoBehaviour
     private const float RecoverBlendSeconds = 0.15f;
     private const float FacePlayerDistanceFactor = 2.5f; // within AttackRange * this, look at the player rather than the path
     private const float GaitSwitchBand = 0.2f;           // m/s either side of WalkToRunSpeed, so the gait does not flicker
+    private const float PathSlack = 1.5f;                // a walk to the player this much longer than AttackRange still counts as "next to them"
+    private const float FallStartHeight = 0.6f;          // further above the ground than this is a fall, not a step down
+    private const float FallGravity = 25f;               // m/s^2 for an enemy that stepped off an edge
+    private const float GroundFollowSpeed = 6f;          // m/s the feet may rise or sink while walking: stairs need 2.6
+    private const float LeapSpeed = 4f;                  // m/s away from the edge at least, so a falling enemy clears the wall
 
     // Directions to the bodies right in front of the enemy being updated. Filled by ScanNeighbours and read by
     // AvoidBlockers within the same RunAI call (main thread only), so the neighbour list is walked once per enemy.
@@ -53,6 +58,17 @@ public sealed class EnemyAgent : MonoBehaviour
     private float _idleClipLength = 2f;
     private bool _hasWalkClip;
 
+    // Level with floors above each other: the cells this enemy walks on. Null in a flat level.
+    private EnemyNavField _nav;
+    private int _navCell = EnemyNavField.None;
+    private int _steerCell = EnemyNavField.None;
+    private int _steerVersion = -1;
+    private Vector3 _steerPoint;
+    private bool _falling;
+    private float _fallSpeed;
+    private Vector3 _fallTarget;       // where the fall lands
+    private float _fallDrift;          // m/s toward it, so the enemy arrives as it touches down
+
     private static readonly int IdleState = Animator.StringToHash("Idle");
     private static readonly int ChaseState = Animator.StringToHash("Chase");   // run cycle
     private static readonly int WalkState = Animator.StringToHash("Walk");
@@ -68,6 +84,8 @@ public sealed class EnemyAgent : MonoBehaviour
     public Vector3 PlanarVelocity => _velocity;
     // True while a walk or run cycle is the animation being shown (or blended into).
     public bool ShowsLocomotion => _shownAnimation == ChaseState || _shownAnimation == WalkState;
+    // The cell the enemy stands on in a level with floors, EnemyNavField.None otherwise.
+    public int NavCell => _navCell;
 
     private void Awake()
     {
@@ -140,6 +158,19 @@ public sealed class EnemyAgent : MonoBehaviour
         SetColor(new Color(0.9f, 0.22f, 0.18f, 1f));
     }
 
+    // Puts a freshly activated enemy on the cells of a level with floors. Null keeps the flat-level movement.
+    public void UseNavigation(EnemyNavField nav)
+    {
+        _nav = nav;
+        _navCell = nav != null ? nav.FindNearestCell(transform.position, 6, 3f) : EnemyNavField.None;
+        _steerCell = EnemyNavField.None;
+        _steerVersion = -1;
+        _falling = false;
+        _fallSpeed = 0f;
+        if (_navCell == EnemyNavField.None)
+            _nav = null;   // spawned off the cells: move as in a flat level rather than not at all
+    }
+
     // Turns a freshly spawned enemy toward a point so a wave does not appear facing the same way.
     public void Face(Vector3 worldPoint)
     {
@@ -173,11 +204,23 @@ public sealed class EnemyAgent : MonoBehaviour
             return;
 
         _attackCooldown = Mathf.Max(0f, _attackCooldown - deltaTime);
+        if (_falling)
+        {
+            // Off an edge and in the air: nothing to decide until it lands (RunAction moves it).
+            ChangeState(EnemyAgentState.Chase);
+            ShowLocomotion(true, settings);
+            return;
+        }
         Vector3 toTarget = target - transform.position;
+        float heightGap = Mathf.Abs(toTarget.y);
         toTarget.y = 0f;
         float distance = toTarget.magnitude;
         Vector3 toward = distance > 0.0001f ? toTarget / distance : transform.forward;
-        bool inRange = distance <= settings.AttackRange;
+        // Flat level: range is measured on the plane, as before. Level with floors: the player must also be on this
+        // floor and a short walk away, so nobody attacks through a deck, a wall or a railing.
+        bool onCells = _nav != null;
+        bool inRange = distance <= settings.AttackRange &&
+            (!onCells || (heightGap <= settings.VerticalReach && _nav.PathDistance(_navCell) <= settings.AttackRange + PathSlack));
         if (inRange && _attackCooldown <= 0f)
         {
             _velocity = Vector3.zero;
@@ -191,12 +234,19 @@ public sealed class EnemyAgent : MonoBehaviour
         // Out of range: close in, slowing down where the crowd pushes back instead of side-stepping at full speed.
         // In range but cooling down: hold the distance, watch the player and only shuffle sideways to make room,
         // so the ring around the player spreads out instead of piling up or pulsing in and out of range.
-        Vector3 separation = ScanNeighbours(neighbours, settings.SeparationDistance, settings.BodySpacing, tick) * settings.SeparationWeight;
+        Vector3 separation = ScanNeighbours(neighbours, settings.SeparationDistance, settings.BodySpacing,
+            onCells ? settings.VerticalReach : float.PositiveInfinity, tick) * settings.SeparationWeight;
+        // Where to walk: straight at the player on open ground, along the shared path where a wall, a drop or
+        // another floor is in the way.
+        Vector3 heading = toward;
+        bool direct = !onCells || _nav.Goal == EnemyNavField.None || _nav.HasDirectPath(_navCell);
+        if (!direct)
+            heading = PathHeading(toward);
         Vector3 desired = Vector3.zero;
         if (!inRange)
         {
             ChangeState(EnemyAgentState.Chase);
-            Vector3 steer = toward + separation;
+            Vector3 steer = heading + separation;
             steer.y = 0f;
             float strength = steer.magnitude;
             if (strength > SteerDeadZone)
@@ -218,9 +268,10 @@ public sealed class EnemyAgent : MonoBehaviour
         // A body already in the way stops the enemy now, not after it has coasted into it.
         _velocity = AvoidBlockers(_velocity);
         if (_velocity.sqrMagnitude > 0.000001f)
-            transform.position += _velocity * deltaTime;
+            Travel(_velocity * deltaTime, deltaTime, !inRange, true);
 
-        bool followPath = !inRange && _velocity.sqrMagnitude > 1f && distance > settings.AttackRange * FacePlayerDistanceFactor;
+        bool followPath = !inRange && _velocity.sqrMagnitude > 1f &&
+            (!direct || distance > settings.AttackRange * FacePlayerDistanceFactor);
         Vector3 facing = followPath ? _velocity : toward;
         if (facing.sqrMagnitude > 0.0001f)
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(facing, Vector3.up), settings.TurnSpeed * deltaTime);
@@ -240,6 +291,8 @@ public sealed class EnemyAgent : MonoBehaviour
         if (radius <= 0f)
             return;
         Vector3 away = transform.position - target;
+        if (_nav != null && Mathf.Abs(away.y) > settings.VerticalReach)
+            return;   // the player is on another floor
         away.y = 0f;
         float squared = away.sqrMagnitude;
         if (squared >= radius * radius)
@@ -247,7 +300,101 @@ public sealed class EnemyAgent : MonoBehaviour
 
         float distance = Mathf.Sqrt(squared);
         Vector3 direction = distance > 0.001f ? away / distance : -transform.forward;
-        transform.position += direction * Mathf.Min(radius - distance, settings.PlayerPushSpeed * deltaTime);
+        Travel(direction * Mathf.Min(radius - distance, settings.PlayerPushSpeed * deltaTime), deltaTime, false, false);
+    }
+
+    // Moves the enemy. On the cells of a level with floors the move stops at walls and drops and follows the
+    // ground. The velocity is then cut to what was really walked, so an enemy pressed against a wall stands or
+    // slides along it instead of running on the spot.
+    // chasing: the enemy is following the path to the player and may step off an edge where the path does.
+    // ownMove: the step is the enemy's own walking (not a push), so its velocity should match what came of it.
+    private void Travel(Vector3 step, float deltaTime, bool chasing, bool ownMove)
+    {
+        if (_nav == null)
+        {
+            transform.position += step;
+            return;
+        }
+        if (_falling)
+            return;   // in the air: Fall() moves it
+
+        Vector3 from = transform.position;
+        Vector3 to = from + step;
+        _navCell = _nav.Move(_navCell, ref to, chasing);
+        float ground = _nav.SampleHeight(_navCell, to);
+        if (from.y - ground > FallStartHeight)
+        {
+            // Stepped off an edge. Leave the wall behind in one arc and be over the landing spot before touching down.
+            Vector3 landing = _nav.Position(_navCell);
+            float airTime = Mathf.Sqrt(2f * (from.y - landing.y) / FallGravity);
+            Vector3 across = landing - to;
+            across.y = 0f;
+            _falling = true;
+            _fallSpeed = 0f;
+            _fallTarget = landing;
+            _fallDrift = Mathf.Max(LeapSpeed, across.magnitude / Mathf.Max(0.05f, airTime));
+            if (across.sqrMagnitude > 0.0001f)
+                _velocity = across.normalized * _fallDrift;
+            to.y = from.y;
+            transform.position = to;
+            return;
+        }
+        // Feet follow the ground at a limited rate, so a kerb or a cell seam is a short ramp and not a pop.
+        to.y = Mathf.MoveTowards(from.y, ground, GroundFollowSpeed * Mathf.Max(deltaTime, 0.001f));
+        transform.position = to;
+        if (!ownMove || deltaTime <= 0f)
+            return;
+        Vector3 walked = to - from;
+        walked.y = 0f;
+        if (walked.sqrMagnitude < step.sqrMagnitude * 0.98f)
+            _velocity = walked / deltaTime;
+    }
+
+    // Brings down an enemy that stepped off an edge. Runs with the other results already in progress, so a fall
+    // that began before the round ended still lands.
+    private void Fall(float deltaTime)
+    {
+        if (!_falling)
+            return;
+        if (_nav == null || _navCell == EnemyNavField.None || (State != EnemyAgentState.Idle && State != EnemyAgentState.Chase))
+        {
+            _falling = false;
+            _fallSpeed = 0f;
+            return;
+        }
+
+        Vector3 position = transform.position;
+        Vector3 across = _fallTarget - position;
+        across.y = 0f;
+        float distance = across.magnitude;
+        if (distance > 0.001f)
+            position += across * (Mathf.Min(distance, _fallDrift * deltaTime) / distance);
+        float ground = _nav.SampleHeight(_navCell, position);
+        _fallSpeed += FallGravity * deltaTime;
+        position.y -= _fallSpeed * deltaTime;
+        if (position.y <= ground)
+        {
+            position.y = ground;
+            _falling = false;
+            _fallSpeed = 0f;
+        }
+        transform.position = position;
+    }
+
+    // Direction along the shared path. The point walked to is looked up again only when the enemy has entered
+    // another cell or the path has been refreshed.
+    private Vector3 PathHeading(Vector3 fallback)
+    {
+        if (_steerCell != _navCell || _steerVersion != _nav.Version)
+        {
+            _steerCell = _navCell;
+            _steerVersion = _nav.Version;
+            _steerPoint = _nav.SteerPoint(_navCell);
+        }
+        Vector3 to = _steerPoint - transform.position;
+        to.y = 0f;
+        float length = to.magnitude;
+        return length > 0.05f ? to / length : fallback;
     }
 
     // AI has stopped issuing moves (Finishing). Settle instead of walking on the spot.
@@ -265,6 +412,7 @@ public sealed class EnemyAgent : MonoBehaviour
         if (tick != ActiveTick)
             return;
 
+        Fall(deltaTime);
         if (State == EnemyAgentState.Attack)
         {
             _stateTime -= deltaTime;
@@ -292,6 +440,8 @@ public sealed class EnemyAgent : MonoBehaviour
 
         _attackHitChecked = true;
         Vector3 distance = target - transform.position;
+        if (_nav != null && Mathf.Abs(distance.y) > settings.VerticalReach)
+            return false;   // the player left this floor during the wind-up
         distance.y = 0f;
         return distance.sqrMagnitude <= settings.AttackRange * settings.AttackRange;
     }
@@ -327,6 +477,11 @@ public sealed class EnemyAgent : MonoBehaviour
         _attackCooldown = 0f;
         _stateTime = 0f;
         _velocity = Vector3.zero;
+        _nav = null;
+        _navCell = EnemyNavField.None;
+        _steerCell = EnemyNavField.None;
+        _falling = false;
+        _fallSpeed = 0f;
         _speedScale = 1f;
         _phaseOffset = 0f;
         _visualScale = _visualDefaultScale;
@@ -432,7 +587,8 @@ public sealed class EnemyAgent : MonoBehaviour
 
     // One walk over the neighbours: returns the separation push (same rule as before) and remembers the direction to
     // every body closer than bodySpacing, for AvoidBlockers.
-    private Vector3 ScanNeighbours(IReadOnlyList<EnemyAgent> neighbours, float distance, float bodySpacing, int tick)
+    // verticalGap: neighbours further above or below than this are on another floor and ignored (infinity in a flat level).
+    private Vector3 ScanNeighbours(IReadOnlyList<EnemyAgent> neighbours, float distance, float bodySpacing, float verticalGap, int tick)
     {
         Vector3 result = Vector3.zero;
         _blockerCount = 0;
@@ -446,6 +602,8 @@ public sealed class EnemyAgent : MonoBehaviour
                 continue;
 
             Vector3 away = self - other.transform.position;
+            if (Mathf.Abs(away.y) > verticalGap)
+                continue;
             away.y = 0f;
             float squared = away.sqrMagnitude;
             if (squared <= 0.0001f || squared > distanceSquared)
