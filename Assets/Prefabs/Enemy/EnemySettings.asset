@@ -30,3 +30,18 @@ MonoBehaviour:
   knockbackUpwardForce: 3
   knockbackFallbackDuration: 1.25
   deathDuration: 0.25
+  attackWindup: 0.55
+  attackRecovery: 0.3
+  attackReach: 1.8
+  attackArcDegrees: 120
+  windupTurnSpeed: 140
+  maximumAttackers: 3
+  liveliness: 1
+  temperamentShares: {x: 0.25, y: 0.25, z: 0.3, w: 0.2}
+  hoverRingMinimum: 2.8
+  hoverRingMaximum: 4.6
+  sizeUpDistance: 4
+  circleSpeedShare: 0.45
+  flankAngle: 55
+  commitDelay: {x: 0.3, y: 2.6}
+  attackIntervalSpread: 0.35

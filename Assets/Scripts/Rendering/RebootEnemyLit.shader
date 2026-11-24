@@ -18,6 +18,9 @@ Shader "REBOOT/Enemy Lit"
         _GlowStrength("Glow of the marked parts", Range(0, 16)) = 6
         _RimStrength("Rim light", Range(0, 8)) = 1.2
         _RimPower("Rim width (higher is thinner)", Range(0.5, 8)) = 3
+        // Set for a moment by the game when a blow lands (0 = off).
+        _HitFlash("Hit flash", Range(0, 1)) = 0
+        [HDR] _HitFlashColor("Hit flash colour", Color) = (2.5, 2.5, 2.5, 1)
         [HideInInspector] _Cutoff("Alpha cutoff", Range(0, 1)) = 0.5
     }
 
@@ -34,12 +37,14 @@ Shader "REBOOT/Enemy Lit"
         float4 _BaseMap_TexelSize;
         half4 _BaseColor;
         half4 _GlowColor;
+        half4 _HitFlashColor;
         half _Cutoff;
         half _Metallic;
         half _Smoothness;
         half _GlowStrength;
         half _RimStrength;
         half _RimPower;
+        half _HitFlash;
         CBUFFER_END
 
         TEXTURE2D(_GlowMap);
@@ -148,6 +153,8 @@ Shader "REBOOT/Enemy Lit"
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 surface.emission = hue * _GlowColor.rgb * (mask * _GlowStrength + rim * _RimStrength) * lit;
+                // Hit flash: the whole body lights up for a moment, strongest along the silhouette.
+                surface.emission += _HitFlashColor.rgb * _HitFlash * (0.55 + 0.45 * rim);
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = positionWS;

@@ -253,7 +253,10 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             // [WH] 공격 상태뿐 아니라 Animator에서 "Action" 태그를 단 상태(회피, 이후 스킬)도 이동을 잠근다.
             bool actionLocked = IsAttackState(logicalState) || logicalState.IsTag("Action");
             UpdateAttack(logicalState, cancelOpen);
-            UpdateMovement(deltaTime, !actionLocked || cancelOpen);
+            // 남아 있는 공격 입력은 곧 콤보로 이어지므로, 그동안은 이동 캔슬로 공격을 끊지 않는다.
+            // (이동 캔슬 시점을 콤보 구간보다 앞당겨도 W를 누른 채 연타하면 콤보가 이어진다.)
+            bool attackPending = _attackBuffer > 0f;
+            UpdateMovement(deltaTime, !actionLocked || (cancelOpen && !attackPending));
             if (_attackBuffer > 0f)
                 _attackBuffer = Mathf.Max(0f, _attackBuffer - deltaTime);
         }
@@ -372,7 +375,9 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             }
             // [WH] 콤보 구간 밖이지만 후딜 캔슬 구간이면 Attack1부터 다시 시작한다. (Attack1/Attack2/Charge_Release → Attack1 트랜지션)
             // [WH] 회피 등 "Action" 태그 상태의 후반에서도 같은 방식으로 Attack1 재시작을 허용한다.
-            else if (cancelOpen && HasAttackRestartParam() && (IsAttackState(stateInfo) || stateInfo.IsTag("Action")))
+            // 콤보 구간이 아직 오지 않은 Attack1/Attack2에서는 재시작하지 않고 입력을 남겨 두어 다음 타로 잇는다.
+            else if (cancelOpen && HasAttackRestartParam() && (IsAttackState(stateInfo) || stateInfo.IsTag("Action")) &&
+                     !ComboWindowAhead(stateInfo, normalizedTime))
             {
                 _attackStartedInBattle = true;
                 animator.SetTrigger(AttackRestartHash);
@@ -605,4 +610,8 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2") ||
         stateInfo.IsName("Charge_Windup") || stateInfo.IsName("Charge_Hold") ||
         stateInfo.IsName("Charge_Release");
+
+    // Attack1/Attack2 whose combo window has not opened yet: a press now should wait for the next hit, not restart.
+    private bool ComboWindowAhead(AnimatorStateInfo stateInfo, float normalizedTime) =>
+        (stateInfo.IsName("Attack1") || stateInfo.IsName("Attack2")) && normalizedTime < comboWindowStart;
 }

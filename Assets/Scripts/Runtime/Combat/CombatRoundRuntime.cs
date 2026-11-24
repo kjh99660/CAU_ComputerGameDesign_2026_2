@@ -20,10 +20,47 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private float _finishingRemaining;
     private bool _timerEnded;
     private bool _finishingEnded;
+    private float _hitStopRemaining;
+    private bool _hitStopsEnabled = true;
+    private const float MaxHitStopSeconds = 0.3f;
+    private const float MinHitStopTimeScale = 0.02f;
 
     public RoundCombatStats Stats => _stats;
     public CombatSettings Settings => _settings;
     public event Action<Vector3, float, int> SpecialActivated;
+
+    // Real seconds left of the current hit stop, and of the round clock. Read by tests and tuning tools.
+    public float HitStopRemaining => _hitStopRemaining;
+    public float RoundRemaining => _remaining;
+
+    // Holds the round still for a moment of real time when a blow lands (Time.timeScale drops to timeScale).
+    // Only in Battle: Finishing keeps its own slow motion. A longer request extends the current stop and a shorter one
+    // is ignored. This runtime already owns the Finishing time scale, so it also owns this one, and every way out
+    // (the stop ending, any state change, Reset, destroy) puts the time scale back.
+    public void RequestHitStop(float seconds, float timeScale)
+    {
+        if (!_hitStopsEnabled || _state != GameState.Battle || _timerEnded || seconds <= _hitStopRemaining) return;
+        _hitStopRemaining = Mathf.Min(seconds, MaxHitStopSeconds);
+        Time.timeScale = Mathf.Clamp(timeScale, MinHitStopTimeScale, 1f);
+    }
+
+    // Benchmarks turn hit stops off: a stop changes the time scale and would skew the frame timings they compare.
+    public bool HitStopsEnabled
+    {
+        get => _hitStopsEnabled;
+        set
+        {
+            _hitStopsEnabled = value;
+            if (!value) EndHitStop();
+        }
+    }
+
+    private void EndHitStop()
+    {
+        if (_hitStopRemaining <= 0f) return;
+        _hitStopRemaining = 0f;
+        if (_state != GameState.Finishing) Time.timeScale = 1f;
+    }
 
     public void Configure(EnemyRuntime enemy, UIRoot ui, CombatSettings settings, EventManager events = null, PlayerRuntime player = null)
     {
@@ -53,7 +90,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         yield break;
     }
 
-    public void StopProducing() { _stats.SetAccepting(false); _clockActive = false; }
+    public void StopProducing() { _stats.SetAccepting(false); _clockActive = false; EndHitStop(); }
 
     public IEnumerator ResetRound(int tick)
     {
@@ -67,6 +104,12 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     public void ApplyState(GameStateChangedEvent state)
     {
         if (state.Tick != _stats.Tick) return;
+        // A hit stop never outlives Battle; Finishing sets its own slow motion just below.
+        if (_hitStopRemaining > 0f)
+        {
+            _hitStopRemaining = 0f;
+            Time.timeScale = 1f;
+        }
         if (_state == GameState.Finishing && state.Current != GameState.Finishing)
             Time.timeScale = 1f;
         _state = state.Current;
@@ -106,10 +149,22 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     }
     public void Advance(float deltaTime, float unscaledDeltaTime)
     {
+        // Hit stops must not lengthen the round: while one holds, the round clock runs on real time.
+        float realDelta = FeedbackTime.RealDelta(unscaledDeltaTime);
+        float clockDelta = _hitStopRemaining > 0f ? realDelta : deltaTime;
+        if (_hitStopRemaining > 0f)
+        {
+            _hitStopRemaining -= realDelta;
+            if (_hitStopRemaining <= 0f)
+            {
+                _hitStopRemaining = 0f;
+                if (_state != GameState.Finishing) Time.timeScale = 1f;
+            }
+        }
         if (_clockActive) _combatTime += deltaTime;
         if (_state == GameState.Battle && !_timerEnded)
         {
-            _remaining = Mathf.Max(0f, _remaining - deltaTime);
+            _remaining = Mathf.Max(0f, _remaining - clockDelta);
             _ui.PresentBattleTimer(_remaining);
             if (_remaining <= 0f && _events != null)
             {
@@ -134,6 +189,11 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         _remaining = Mathf.Max(0.1f, _settings.roundDuration);
         _timerEnded = false;
         _finishingEnded = false;
+        if (_hitStopRemaining > 0f)
+        {
+            _hitStopRemaining = 0f;
+            Time.timeScale = 1f;
+        }
         if (_state == GameState.Finishing) Time.timeScale = 1f;
         _state = GameState.Ready;
     }
@@ -156,6 +216,6 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         }
         if (_stats != null) _stats.Changed -= Present;
         if (_ownsSettings && _settings != null) Destroy(_settings);
-        if (_state == GameState.Finishing) Time.timeScale = 1f;
+        if (_state == GameState.Finishing || _hitStopRemaining > 0f) Time.timeScale = 1f;
     }
 }

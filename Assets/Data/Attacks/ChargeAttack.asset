@@ -24,7 +24,7 @@ MonoBehaviour:
   lungeStartTime: 0
   lungeEndTime: 0.15
   lungeDistance: 0
-  cancelTime: 1.3
+  cancelTime: 0.34
   chargeMode: 1
   chargeMaxTime: 1
   chargeMaxScale: 2.5

@@ -40,3 +40,54 @@ MonoBehaviour:
   playerOutlineColor: {r: 1, g: 1, b: 1, a: 1}
   playerOutlinePixels: 2.5
   playerOutlineThroughOccluders: 1
+  hitStopLight: 0.05
+  hitStopMedium: 0.06
+  hitStopHeavy: 0.12
+  hitStopSpecial: 0.15
+  hitStopTimeScale: 0.05
+  cameraShakeAmount: 1
+  shakeLight: 0
+  shakeMedium: 0.15
+  shakeHeavy: 0.45
+  shakeSpecial: 0.7
+  shakePlayerHurt: 0.35
+  shakeMaxOffset: 0.08
+  shakeMaxAngle: 3
+  shakeFrequency: 20
+  shakeDecay: 2.5
+  kickLight: 0.04
+  kickHeavy: 0.12
+  kickSpecial: 0.2
+  kickReturnSeconds: 0.1
+  hitFlashSeconds: 0.08
+  hitFlashColor: {r: 1.8, g: 1.6, b: 1.3, a: 1}
+  groundIndicatorMaterial: {fileID: 2100000, guid: a5cd6cc0696c04c1ca34c5515a4171f8, type: 2}
+  hurtOutlineColor: {r: 1.6, g: 0.2, b: 0.32, a: 1}
+  hurtSolidSeconds: 0.12
+  hurtBlinkHz: 10
+  remainsMaterial: {fileID: 2100000, guid: 9c214dce7094c4d2c96bdfe0d55b2151, type: 2}
+  debrisSet: {fileID: 11400000, guid: 7729e405b3ac14df7b268af0ba9fc58a, type: 2}
+  remainsBodyModel: {fileID: 919132149155446097, guid: d1c0e219840f96849995cf1dbbed9822, type: 3}
+  bodyLingerSeconds: 0.6
+  bodyEatenSeconds: 0.9
+  bodyPoolSize: 32
+  piecePoolSize: 240
+  lightKillBreakChance: 0.25
+  pieceSpeed: 1.4
+  pieceBurst: 1.2
+  pieceUpSpeed: 2.2
+  pieceSpread: 0.6
+  pieceSpinDegrees: 380
+  pieceGravity: 22
+  pieceBounce: 0.35
+  pieceFriction: 0.55
+  pieceLifeSeconds: 2.6
+  pieceEatenSeconds: 1
+  pieceDimSeconds: 0.6
+  remainsAfterglow: 0.16
+  remainsGlowShare: 0.45
+  remainsCrackleShare: 0.3
+  remainsGlowHue: {r: 1, g: 0.35, b: 0.15, a: 1}
+  crackleColor: {r: 0.55, g: 1.35, b: 4, a: 1}
+  crackleBurstsPerSecond: 2.5
+  crackleFlickerHz: 30

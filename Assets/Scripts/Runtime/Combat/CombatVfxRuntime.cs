@@ -33,6 +33,9 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
     // Raised when a swing effect is really shown (same tick, combat running). Used for the camera pulse.
     public event Action<int> SlashPlayed;
 
+    // Charge scale of the latest swing, for SlashPlayed listeners (a charged swing has a heavier sound).
+    public float LastSlashScale { get; private set; } = 1f;
+
     // Effects currently alive in each pool. Read by tests.
     public int ActiveSpecialEffects => CountActive(_specialBursts) + CountActive(_specialRadials);
     // Instances created so far for the special, alive or waiting in the pool.
@@ -55,6 +58,7 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
         Quaternion facing = forward.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(forward, Vector3.up) : Quaternion.identity;
         Play(_slashes, _settings.slashPrefab, player.position + facing * _settings.slashOffset,
             facing * Quaternion.Euler(_settings.slashEulerOffset), _settings.slashScale * Mathf.Max(0.01f, chargeScale));
+        LastSlashScale = chargeScale;
         SlashPlayed?.Invoke(tick);
     }
 

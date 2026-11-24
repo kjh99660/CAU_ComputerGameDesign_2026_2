@@ -172,7 +172,7 @@ Skip 버튼은 별도 우회 전이를 만들지 않고 현재 Dialogue를 완�
 - Combo 입력 기본 창은 0.4초이며 설정 가능해야 한다.
 - 피격 무적 기본값은 0.8초이며 설정 가능해야 한다.
 - Enemy는 유효 타격 한 번에 죽는다. 체력 바와 Damage Number를 만들지 않는다.
-- Player 피격 시 HP 대신 현재 Score의 10%를 감소시킨다. 반올림 정책은 한 곳에서 정의하고 테스트한다.
+- Player 피격 시 HP 대신 현재 Score의 1%를 감소시킨다(2026-11-24 사용자 요청으로 10%에서 변경, 값은 `CombatSettings.playerHitPenalty`). 반올림 정책은 한 곳에서 정의하고 테스트한다.
 - 공격 적중 또는 피격으로 Special Gauge가 증가한다. 정확한 증가량과 Skill 소모량은 설정 데이터로 둔다.
 - Score 증가량, Kill 보너스, Combo 배율은 확정값이 없으면 하드코딩하지 말고 설정 가능하게 둔다.
 - 타격 피드백은 Animation, VFX, SFX, Hit Stop, Camera 반응, Score/Gauge UI Animation으로 제공한다.
@@ -307,7 +307,7 @@ Assets/Tests/PlayMode
 - 같은 프레임의 중복 요청이 FIFO 및 변경된 현재 상태 기준으로 처리된다.
 - StateChanged 알림은 성공한 전환에만 정확히 한 번 발행된다.
 - `Battle` 외 Pause 요청, `Paused` 외 Resume 요청이 상태를 바꾸지 않는다.
-- Player 피격 시 현재 Score의 10% 감소 정책과 반올림이 일관된다.
+- Player 피격 시 현재 Score의 1% 감소 정책과 반올림이 일관된다.
 - `Tick`이 다른 지연 이벤트는 무시된다.
 - Reset을 연속 호출해도 결과가 동일하다.
 

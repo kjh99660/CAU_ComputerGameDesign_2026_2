@@ -301,10 +301,14 @@ public sealed class CombatRoundSceneTests
         Assert.IsNotNull(attacker);
         attacker.transform.position = player.transform.position + Vector3.forward * 0.5f;
         Physics.SyncTransforms();
-        runtime.UpdateAI(0f, state.Tick);
-        runtime.UpdateActions(runtime.Settings.AttackDuration, state.Tick);
+        // An enemy attacks when its turn comes (it may hover a moment first), and its strike lands when the
+        // telegraphed wind-up ends.
+        for (int i = 0; i < 200 && attacker.State != EnemyAgentState.Attack; i++)
+            runtime.UpdateAI(0.05f, state.Tick);
+        Assert.AreEqual(EnemyAgentState.Attack, attacker.State);
+        runtime.UpdateActions(runtime.Settings.AttackWindup, state.Tick);
         Assert.AreEqual(1, combat.Stats.HitCount);
-        Assert.AreEqual(99, combat.Stats.Score);
+        Assert.AreEqual(109, combat.Stats.Score, "A hit on the player takes 1% of the score.");
         Assert.Greater(scoreText.color.r, scoreText.color.g);
         Image hitFlash = Find<Image>(battle.transform, "PlayerHitFlash");
         Assert.Greater(hitFlash.color.a, 0f);

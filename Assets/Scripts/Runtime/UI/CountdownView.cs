@@ -1,9 +1,14 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 public sealed class CountdownView : UIScreenView
 {
+    // 숫자와 START가 나타나는 순간을 알린다. 효과음이 이 순간에 맞춰 소리를 낸다.
+    public event Action<int> NumberShown;
+    public event Action StartShown;
+
     [SerializeField] private TMP_Text numberText;
     [SerializeField] private TMP_Text readyText;
     [SerializeField] private Graphic numberFrame;
@@ -56,6 +61,7 @@ public sealed class CountdownView : UIScreenView
         SetText(numberText, number.ToString());
         SetText(readyText, "READY");
         AnimateNumber(0f);
+        NumberShown?.Invoke(number);
     }
 
     public void ShowStart()
@@ -63,6 +69,7 @@ public sealed class CountdownView : UIScreenView
         SetText(numberText, string.Empty);
         SetText(readyText, "START");
         AnimateStart(0f);
+        StartShown?.Invoke();
     }
 
     // 숫자 한 단계가 시작된 뒤 지난 시간으로 자세를 정한다.

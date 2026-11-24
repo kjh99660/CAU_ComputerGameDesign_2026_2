@@ -14,14 +14,14 @@ public sealed class BattleView : UIScreenView
     [SerializeField, Min(0.05f)] private float hitFlashDuration = 0.35f;
     [SerializeField, Range(0f, 0.5f)] private float hitFlashOpacity = 0.18f;
     [Header("Hit glitch - provisional (UI Lab H3 블록 깨짐)")]
-    [SerializeField, Min(0.05f)] private float hitGlitchDuration = 0.18f;
-    [SerializeField, Range(0f, 1.5f)] private float hitGlitchStrength = 1f;
+    [SerializeField, Min(0.05f)] private float hitGlitchDuration = 0.24f;
+    [SerializeField, Range(0f, 1.5f)] private float hitGlitchStrength = 0.8f;
     [SerializeField, Min(0f)] private float hudShakePixels = 8f;
     // 맞은 뒤 3D 화면이 흐려졌다가 천천히 돌아온다. 연달아 맞으면 흐린 시간이 쌓인다. 세기가 0이면 쓰지 않는다.
     [Header("Hit blur - provisional")]
-    [SerializeField, Min(0.05f)] private float hitBlurSeconds = 1f;
-    [SerializeField, Range(0f, 1f)] private float hitBlurStrength = 0.6f;
-    [SerializeField, Min(0.05f)] private float hitBlurMaxSeconds = 1.5f;
+    [SerializeField, Min(0.05f)] private float hitBlurSeconds = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float hitBlurStrength = 0.4f;
+    [SerializeField, Min(0.05f)] private float hitBlurMaxSeconds = 1f;
     // 남은 시간과 준비된 게이지를 눈에 띄게 하는 강조. 모두 임시값이며 unscaled time으로 재생한다.
     [Header("HUD emphasis - provisional")]
     // 남은 시간이 이 값(초) 이하로 표시되면 타이머를 경고색으로 바꾼다. 0이면 쓰지 않는다.

@@ -24,6 +24,9 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private SpecialFeedback _specialFeedback;
     private CombatVfxRuntime _combatVfx;
     private CombatCameraFeedback _cameraFeedback;
+    private CombatImpactFeedback _impactFeedback;
+    private EnemyRemainsRuntime _remains;
+    private SfxRuntime _sfx;
 
     // 필수 서비스 참조를 검증하고 서로 연결한다.
     private void Awake()
@@ -60,19 +63,31 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
             combatSettings = Resources.Load<CombatSettings>("CombatSettings");
         _combat = gameObject.AddComponent<CombatRoundRuntime>();
         _combat.Configure(enemyRuntime, uiRoot, combatSettings, eventManager, playerRuntime);
-        _specialFeedback = gameObject.AddComponent<SpecialFeedback>();
-        _specialFeedback.Configure(_combat);
         var vfxSettings = Resources.Load<CombatVfxSettings>("CombatVfxSettings");
+        _specialFeedback = gameObject.AddComponent<SpecialFeedback>();
+        _specialFeedback.Configure(_combat, vfxSettings != null ? vfxSettings.groundIndicatorMaterial : null);
         _combatVfx = gameObject.AddComponent<CombatVfxRuntime>();
         _combatVfx.Configure(enemyRuntime, vfxSettings, _combat);
         roundResetCoordinator.RegisterParticipant(_combatVfx);
         // 전투 연출: 공격·적중·특수 공격 때의 카메라 줌 펄스와, 군중 속에서도 보이는 주인공 테두리.
+        Animator playerAnimator = playerRuntime.GetComponent<Animator>();
         _cameraFeedback = gameObject.AddComponent<CombatCameraFeedback>();
-        _cameraFeedback.Configure(Camera.main, enemyRuntime, _combatVfx, _combat, vfxSettings);
+        _cameraFeedback.Configure(Camera.main, enemyRuntime, _combatVfx, _combat, vfxSettings, playerAnimator);
         roundResetCoordinator.RegisterParticipant(_cameraFeedback);
+        // 타격감: 맞는 순간의 히트스톱과 적 번쩍임, 그리고 쓰러진 적의 시체(갉아먹히듯 사라짐)와 부서진 파츠.
+        _impactFeedback = gameObject.AddComponent<CombatImpactFeedback>();
+        _impactFeedback.Configure(vfxSettings, enemyRuntime, _combat, playerAnimator);
+        roundResetCoordinator.RegisterParticipant(_impactFeedback);
+        _remains = gameObject.AddComponent<EnemyRemainsRuntime>();
+        _remains.Configure(vfxSettings, enemyRuntime, _combat, playerAnimator);
+        roundResetCoordinator.RegisterParticipant(_remains);
         if (vfxSettings != null)
             playerRuntime.gameObject.AddComponent<PlayerOutline>().Configure(vfxSettings.playerOutlineShader,
                 vfxSettings.playerOutlineColor, vfxSettings.playerOutlinePixels, vfxSettings.playerOutlineThroughOccluders);
+        // 효과음: 전투 이벤트, UI 버튼, 상태 변경에 맞춰 소리를 낸다. Pause는 소리를 멈추고 Retry는 끊는다.
+        _sfx = gameObject.AddComponent<SfxRuntime>();
+        _sfx.Configure(Resources.Load<SfxSettings>("SfxSettings"), enemyRuntime, _combatVfx, _combat, uiRoot, playerAnimator);
+        roundResetCoordinator.RegisterParticipant(_sfx);
         playerRuntime.ConfigureCombat(enemyRuntime, _combat.Settings, _combat);
         initializationCoordinator.RegisterParticipant(_combat);
         roundResetCoordinator.RegisterParticipant(_combat);
@@ -155,6 +170,9 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _specialFeedback?.ApplyState(notification);
         _combatVfx?.ApplyState(notification);
         _cameraFeedback?.ApplyState(notification);
+        _impactFeedback?.ApplyState(notification);
+        _remains?.ApplyState(notification);
+        _sfx?.ApplyState(notification);
         _physics.OnGameStateChanged(notification);
     }
 

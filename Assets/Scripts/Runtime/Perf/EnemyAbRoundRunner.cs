@@ -138,6 +138,8 @@ public sealed class EnemyAbRoundRunner : MonoBehaviour
             result.Error = "The scene is missing GameStateManager, EventManager, EnemyRuntime, CombatRoundRuntime or PlayerRuntime.";
             yield break;
         }
+        // 히트스톱은 시간 배율을 바꿔 두 방식의 프레임 시간 비교를 흐트러뜨리므로, 측정하는 판(매번 새로 불러온 씬)에서는 끈다.
+        combat.HitStopsEnabled = false;
 
         yield return WaitFor(state, GameState.Ready, result);
         if (result.Error != null) yield break;

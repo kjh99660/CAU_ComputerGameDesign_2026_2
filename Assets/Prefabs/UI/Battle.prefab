@@ -423,12 +423,12 @@ MonoBehaviour:
   scoreFeedbackDuration: 0.3
   hitFlashDuration: 0.35
   hitFlashOpacity: 0.18
-  hitGlitchDuration: 0.18
-  hitGlitchStrength: 1
+  hitGlitchDuration: 0.24
+  hitGlitchStrength: 0.8
   hudShakePixels: 8
-  hitBlurSeconds: 1
-  hitBlurStrength: 0.6
-  hitBlurMaxSeconds: 1.5
+  hitBlurSeconds: 0.6
+  hitBlurStrength: 0.4
+  hitBlurMaxSeconds: 1
   timerWarningSeconds: 10
   timerTickScale: 1.14
   timerTickSeconds: 0.25

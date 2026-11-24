@@ -86,6 +86,26 @@ public sealed class EnemyAgent : MonoBehaviour
     private int _attackLook;           // index of the look shown by the current or last attack
     private uint _attackRandom = 1u;
 
+    // Attack telegraph: the enemy glows this colour while it winds up, then goes back to its usual colour.
+    private static readonly Color ReadyColor = new Color(0.9f, 0.22f, 0.18f, 1f);
+    private static readonly Color WarningColor = new Color(1f, 0.82f, 0.2f, 1f);
+    private float _attackElapsed;
+
+    // Liveliness (EnemySettings.Liveliness): this enemy's temperament and the little timers that make it move like
+    // someone sizing the player up rather than a marker sliding at them.
+    private uint _mindRandom = 1u;
+    private EnemyTemperament _temperament;
+    private float _ringRadius = 3.5f;      // the distance it keeps while waiting for its turn
+    private float _circleSign = 1f;        // which way it circles
+    private float _flankSign = 1f;         // which side a flanker swings around
+    private float _strafeTimer;            // until it turns round and circles the other way
+    private float _hoverTime;              // time spent waiting in the ring
+    private float _commitAfter;            // how long it waits there before stepping in
+    private float _paceTimer;              // stop-and-go rhythm of a hesitant enemy
+    private bool _pacePaused;
+    private float _feintTimer;             // until the next feint
+    private float _feintLeft;              // seconds left of the feint in progress
+
     public Rigidbody Body => _body;
     public EnemyAgentState State { get; private set; } = EnemyAgentState.Pooled;
     public int ActiveTick { get; private set; } = -1;
@@ -99,6 +119,10 @@ public sealed class EnemyAgent : MonoBehaviour
     // How many attack looks the controller offers, and which one the current or last attack shows.
     public int AttackLookCount => _attackLookCount;
     public int AttackLook => _attackLook;
+    // Read by tests and tuning tools.
+    public EnemyTemperament Temperament => _temperament;
+    public float HoverRadius => _ringRadius;
+    public bool IsWindingUp => State == EnemyAgentState.Attack && !_attackHitChecked;
 
     private void Awake()
     {
@@ -172,7 +196,7 @@ public sealed class EnemyAgent : MonoBehaviour
         // the prefab origin or the previous death/knockback position next frame.
         _body.position = position;
         _body.rotation = Quaternion.identity;
-        SetColor(new Color(0.9f, 0.22f, 0.18f, 1f));
+        SetColor(ReadyColor);
     }
 
     // Puts a freshly activated enemy on the cells of a level with floors. Null keeps the flat-level movement.
@@ -238,13 +262,16 @@ public sealed class EnemyAgent : MonoBehaviour
         bool onCells = _nav != null;
         bool inRange = distance <= settings.AttackRange &&
             (!onCells || (heightGap <= settings.VerticalReach && _nav.PathDistance(_navCell) <= settings.AttackRange + PathSlack));
-        if (inRange && _attackCooldown <= 0f)
+        // A lively enemy attacks only when its turn has come: a few may attack at once (EnemyRuntime hands out the
+        // turns) and the careful ones hover a while first.
+        bool lively = settings.Liveliness > 0f;
+        bool turnCome = !lively || _temperament == EnemyTemperament.Rusher || _hoverTime >= _commitAfter;
+        // A lively enemy steps in well inside its reach before it swings, so the strike it telegraphs can land.
+        float strikeDistance = lively ? Mathf.Min(settings.AttackRange, settings.AttackReach * 0.8f) : settings.AttackRange;
+        bool canStrike = inRange && distance <= strikeDistance;
+        if (canStrike && _attackCooldown <= 0f && turnCome && TakeAttackSlot())
         {
-            _velocity = Vector3.zero;
-            ChangeState(EnemyAgentState.Attack);
-            _attackHitChecked = false;
-            _stateTime = settings.AttackDuration;
-            _attackCooldown = settings.AttackInterval;
+            StartAttack(settings);
             return;
         }
 
@@ -260,7 +287,13 @@ public sealed class EnemyAgent : MonoBehaviour
         if (!direct)
             heading = PathHeading(toward);
         Vector3 desired = Vector3.zero;
-        if (!inRange)
+        bool facePlayer = false;
+        if (lively && direct)
+        {
+            ChangeState(EnemyAgentState.Chase);
+            desired = LivelyMove(toward, distance, inRange, strikeDistance, turnCome, separation, settings, deltaTime, out facePlayer);
+        }
+        else if (!inRange)
         {
             ChangeState(EnemyAgentState.Chase);
             Vector3 steer = heading + separation;
@@ -290,10 +323,163 @@ public sealed class EnemyAgent : MonoBehaviour
         bool followPath = !inRange && _velocity.sqrMagnitude > 1f &&
             (!direct || distance > settings.AttackRange * FacePlayerDistanceFactor);
         Vector3 facing = followPath ? _velocity : toward;
+        if (lively && direct)
+            facing = facePlayer || _velocity.sqrMagnitude < 0.25f ? toward : _velocity;   // eyes on the player up close
         if (facing.sqrMagnitude > 0.0001f)
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(facing, Vector3.up), settings.TurnSpeed * deltaTime);
 
         ShowLocomotion(desired.sqrMagnitude > 0.0001f, settings);
+    }
+
+    private void StartAttack(EnemySettings settings)
+    {
+        _velocity = Vector3.zero;
+        ChangeState(EnemyAgentState.Attack);
+        _attackHitChecked = false;
+        _attackElapsed = 0f;
+        _stateTime = settings.AttackTotal;
+        float spread = settings.Liveliness > 0f ? settings.AttackIntervalSpread : 0f;
+        _attackCooldown = settings.AttackInterval * (1f + spread * (MindValue() * 2f - 1f));
+        // The swing reaches its contact frame exactly when the wind-up ends: a long wind-up raises the arm slowly.
+        _animationSpeed = Mathf.Clamp(settings.AttackDuration * 0.5f / Mathf.Max(0.01f, settings.AttackWindup), 0.05f, 1f);
+        ApplyAnimatorSpeed();
+        if (settings.TelegraphsAttacks)
+            SetColor(WarningColor);
+        // After a swing it backs off and waits again, a little less long than the first time.
+        _hoverTime = 0f;
+        _commitAfter = CommitDelay(settings) * 0.6f;
+    }
+
+    // Where a lively enemy wants to go this frame (m/s). Far away everyone runs in, flankers curving around the side.
+    // Closer, they slow down and size the player up (the hesitant ones stop and go). In the ring around the player,
+    // the ones whose turn has not come keep their own distance, circle, now and then turn round or feint, and back
+    // off if they got too close; when their turn comes they step in to attack.
+    private Vector3 LivelyMove(Vector3 toward, float distance, bool inRange, float strikeDistance, bool turnCome,
+        Vector3 separation, EnemySettings settings, float deltaTime, out bool facePlayer)
+    {
+        float speed = settings.MoveSpeed * _speedScale;
+        float sizeUp = settings.HoverRingMaximum + settings.SizeUpDistance;
+        var around = new Vector3(toward.z, 0f, -toward.x) * _circleSign;
+        bool stepIn = turnCome && _attackCooldown <= 0f && AttackSlotOpen();
+        facePlayer = distance < sizeUp;
+        Vector3 want;
+        if (distance > sizeUp)
+        {
+            float swing = _temperament == EnemyTemperament.Flanker
+                ? settings.FlankAngle * _flankSign * Mathf.Clamp01((distance - sizeUp) / 6f) : 0f;
+            want = Quaternion.AngleAxis(swing, Vector3.up) * toward * speed;
+        }
+        else if (distance > _ringRadius + 0.6f || (stepIn && distance > strikeDistance))
+        {
+            float pace = stepIn ? 0.9f : 0.6f;
+            if (!stepIn && _temperament == EnemyTemperament.Hesitant && Pace(deltaTime)) pace = 0f;
+            want = toward * (speed * pace) + around * (speed * settings.CircleSpeedShare * 0.35f);
+        }
+        else
+        {
+            _hoverTime += deltaTime;
+            _strafeTimer -= deltaTime;
+            if (_strafeTimer <= 0f)
+            {
+                _circleSign = -_circleSign;
+                _strafeTimer = 1.6f + 2.4f * MindValue();
+            }
+            float radial = Mathf.Clamp((distance - _ringRadius) * 1.5f, -1f, 1f);   // above 0: too far, step in
+            if (inRange) radial = Mathf.Min(radial, -0.7f);                          // too close without a turn: back off
+            want = toward * (speed * (radial * 0.6f + Feint(deltaTime))) + around * (speed * settings.CircleSpeedShare);
+        }
+        want += separation * (speed * 0.5f);
+        want.y = 0f;
+        float length = want.magnitude;
+        return length > speed ? want * (speed / length) : want;
+    }
+
+    // Stop and go: walks a little, stops to look, walks on.
+    private bool Pace(float deltaTime)
+    {
+        _paceTimer -= deltaTime;
+        if (_paceTimer <= 0f)
+        {
+            _pacePaused = !_pacePaused;
+            _paceTimer = _pacePaused ? 0.3f + 0.45f * MindValue() : 0.7f + 0.6f * MindValue();
+        }
+        return _pacePaused;
+    }
+
+    // Circlers and hesitant enemies now and then dart in a step and pull back: a share of Move Speed toward the player.
+    private float Feint(float deltaTime)
+    {
+        if (_temperament != EnemyTemperament.Circler && _temperament != EnemyTemperament.Hesitant)
+            return 0f;
+        if (_feintLeft > 0f)
+        {
+            _feintLeft -= deltaTime;
+            return _feintLeft > 0.25f ? 1.1f : -0.9f;
+        }
+        _feintTimer -= deltaTime;
+        if (_feintTimer > 0f)
+            return 0f;
+        _feintLeft = 0.45f;
+        _feintTimer = 2.5f + 3f * MindValue();
+        return 1.1f;
+    }
+
+    private bool AttackSlotOpen() => _owner == null || _owner.AttackSlotOpen;
+
+    private bool TakeAttackSlot() => _owner == null || _owner.TryTakeAttackSlot(this);
+
+    // Picks this enemy's temperament and its own rhythm. Uses its own random stream, so the same enemy in the same
+    // round always behaves the same way.
+    private void PickTemperament(EnemySettings settings, float variation)
+    {
+        _mindRandom = (uint)(Mathf.Clamp01(variation) * 16777215f) * 2246822519u + (uint)ActiveTick * 3266489917u + 7u;
+        if (_mindRandom == 0u) _mindRandom = 1u;
+        Vector4 shares = settings != null ? settings.TemperamentShares : new Vector4(1f, 0f, 0f, 0f);
+        float total = Mathf.Max(0.0001f, shares.x + shares.y + shares.z + shares.w);
+        float roll = MindValue() * total;
+        _temperament = roll < shares.x ? EnemyTemperament.Rusher
+            : roll < shares.x + shares.y ? EnemyTemperament.Flanker
+            : roll < shares.x + shares.y + shares.z ? EnemyTemperament.Circler
+            : EnemyTemperament.Hesitant;
+        float near = settings != null ? settings.HoverRingMinimum : 2.8f;
+        float far = settings != null ? settings.HoverRingMaximum : 4.6f;
+        _ringRadius = Mathf.Lerp(near, far, MindValue());
+        _circleSign = MindValue() < 0.5f ? -1f : 1f;
+        _flankSign = MindValue() < 0.5f ? -1f : 1f;
+        _strafeTimer = 1.5f + 2f * MindValue();
+        _hoverTime = 0f;
+        _commitAfter = CommitDelay(settings);
+        _paceTimer = 0.6f + 0.6f * MindValue();
+        _pacePaused = false;
+        _feintTimer = 1.5f + 2.5f * MindValue();
+        _feintLeft = 0f;
+    }
+
+    // How long this enemy hovers before it steps in: rushers hardly at all, circlers longest.
+    private float CommitDelay(EnemySettings settings)
+    {
+        if (settings == null) return 0f;
+        float care = _temperament == EnemyTemperament.Rusher ? 0f
+            : _temperament == EnemyTemperament.Flanker ? 0.35f
+            : _temperament == EnemyTemperament.Hesitant ? 0.65f : 1f;
+        Vector2 range = settings.CommitDelay;
+        return Mathf.Lerp(range.x, range.y, Mathf.Clamp01(care * (0.7f + 0.6f * MindValue())));
+    }
+
+    private float MindValue()
+    {
+        _mindRandom ^= _mindRandom << 13;
+        _mindRandom ^= _mindRandom >> 17;
+        _mindRandom ^= _mindRandom << 5;
+        return (_mindRandom >> 8) * (1f / 16777216f);
+    }
+
+    private void TurnToward(Vector3 direction, float maxDegrees)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f || maxDegrees <= 0f)
+            return;
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction, Vector3.up), maxDegrees);
     }
 
     // The player walks through the crowd instead of being walled in by it, so whoever stands in the player's
@@ -432,6 +618,7 @@ public sealed class EnemyAgent : MonoBehaviour
         Fall(deltaTime);
         if (State == EnemyAgentState.Attack)
         {
+            _attackElapsed += deltaTime;
             _stateTime -= deltaTime;
             if (_stateTime <= 0f)
                 ChangeState(EnemyAgentState.Chase);
@@ -448,19 +635,36 @@ public sealed class EnemyAgent : MonoBehaviour
         }
     }
 
-    // A single provisional hit check halfway through each existing attack.
+    // The strike: checked once, when the wind-up ends (halfway through the attack animation unless a wind-up is set).
+    // While a telegraphed attack winds up, the enemy keeps turning toward the player, but slowly, so stepping aside
+    // can beat it. The strike lands only within Attack Reach and inside the Attack Arc in front of the enemy.
     public bool TryAttackHit(Vector3 target, EnemySettings settings, float deltaTime, int tick)
     {
-        if (tick != ActiveTick || State != EnemyAgentState.Attack || _attackHitChecked ||
-            _stateTime - deltaTime > settings.AttackDuration * 0.5f)
+        if (tick != ActiveTick || State != EnemyAgentState.Attack || _attackHitChecked)
             return false;
 
-        _attackHitChecked = true;
         Vector3 distance = target - transform.position;
+        if (_attackElapsed + deltaTime < settings.AttackWindup)
+        {
+            if (settings.TelegraphsAttacks)
+                TurnToward(distance, settings.WindupTurnSpeed * deltaTime);
+            return false;
+        }
+
+        _attackHitChecked = true;
+        _animationSpeed = 1f;   // the swing itself at full speed
+        ApplyAnimatorSpeed();
+        if (settings.TelegraphsAttacks)
+            SetColor(ReadyColor);
         if (_nav != null && Mathf.Abs(distance.y) > settings.VerticalReach)
             return false;   // the player left this floor during the wind-up
         distance.y = 0f;
-        return distance.sqrMagnitude <= settings.AttackRange * settings.AttackRange;
+        float reach = settings.AttackReach;
+        if (distance.sqrMagnitude > reach * reach)
+            return false;
+        if (settings.AttackArcDegrees >= 359.9f || distance.sqrMagnitude < 0.0001f)
+            return true;
+        return Vector3.Angle(transform.forward, distance) <= settings.AttackArcDegrees * 0.5f;
     }
 
     public bool ApplyHit(Vector3 impulse, EnemySettings settings, int tick)
@@ -487,6 +691,7 @@ public sealed class EnemyAgent : MonoBehaviour
             _body.angularVelocity = Vector3.zero;
         }
         SetDrivenByPhysics(false);
+        _owner?.ReleaseAttackSlot(this);
         State = EnemyAgentState.Pooled;
         ActiveTick = -1;
         _acceptedHit = false;
@@ -544,6 +749,7 @@ public sealed class EnemyAgent : MonoBehaviour
         // A different mix of the same number, so the fastest enemy is not also always the largest.
         float size = 1f + Mathf.Sin(centered * 12.9f) * (settings != null ? settings.ScaleVariance : 0f);
         _visualScale = _visualDefaultScale * size;
+        PickTemperament(settings, variation);
     }
 
     // Shows a gait only while the enemy is really going somewhere, picks walk or run from the real speed and plays
@@ -713,6 +919,13 @@ public sealed class EnemyAgent : MonoBehaviour
 
         EnemyAgentState previous = State;
         State = state;
+        if (previous == EnemyAgentState.Attack)
+        {
+            // The attack is over (or cut short by a hit): give the turn back and drop the warning colour.
+            _owner?.ReleaseAttackSlot(this);
+            if (!_attackHitChecked && _owner != null && _owner.Settings != null && _owner.Settings.TelegraphsAttacks)
+                SetColor(ReadyColor);
+        }
         if (_animator == null)
             return;
 

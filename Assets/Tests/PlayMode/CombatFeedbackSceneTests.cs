@@ -210,8 +210,8 @@ public sealed class CombatFeedbackSceneTests
             Assert.AreNotEqual(previous, enemy.AttackLook, "The same look is not shown twice in a row.");
             previous = enemy.AttackLook;
             seen.Add(previous);
-            enemy.RunAction(settings, settings.AttackDuration + 0.01f, _state.Tick);
-            Assert.AreNotEqual(EnemyAgentState.Attack, enemy.State, "Every look ends after the same attack duration.");
+            enemy.RunAction(settings, settings.AttackTotal + 0.01f, _state.Tick);
+            Assert.AreNotEqual(EnemyAgentState.Attack, enemy.State, "Every look ends after the same attack time.");
         }
         Assert.GreaterOrEqual(seen.Count, 2, "More than one look is used.");
     }

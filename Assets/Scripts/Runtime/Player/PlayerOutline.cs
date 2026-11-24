@@ -19,9 +19,20 @@ public sealed class PlayerOutline : MonoBehaviour
     private readonly List<Material[]> _originals = new();
     private Material _mask;
     private Material _hull;
+    private Color _restColor = Color.white;
 
     public bool IsShown => _hull != null;
     public int RendererCount => _renderers.Count;
+    // The colour the outline normally has, and the one it shows now (a hit tints it for a moment).
+    public Color RestColor => _restColor;
+    public Color CurrentColor => _hull != null ? _hull.GetColor(ColorId) : _restColor;
+
+    public void ShowColor(Color color)
+    {
+        if (_hull != null) _hull.SetColor(ColorId, color);
+    }
+
+    public void ShowRestColor() => ShowColor(_restColor);
 
     // Width 0 or a missing shader leaves the character as it is.
     public void Configure(Shader shader, Color color, float pixels, bool throughOccluders)
@@ -40,6 +51,7 @@ public sealed class PlayerOutline : MonoBehaviour
         _mask.SetFloat(ZTestId, depthTest);
 
         _hull = new Material(shader) { name = "Player Outline", renderQueue = (int)RenderQueue.Transparent - 50 };
+        _restColor = color;
         _hull.SetColor(ColorId, color);
         _hull.SetFloat(PixelsId, pixels);
         _hull.SetFloat(ColorMaskId, 15f);

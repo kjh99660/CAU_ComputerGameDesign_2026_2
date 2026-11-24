@@ -61,6 +61,44 @@ public sealed class EnemySettings : ScriptableObject
     [SerializeField, Min(0.05f)] private float knockbackFallbackDuration = 1.25f;
     [SerializeField, Min(0f)] private float deathDuration = 0.25f;
 
+    // How an attack reads and lands. The defaults keep the first prototype's attack (a strike halfway through
+    // AttackDuration that reaches all around the enemy); the game's settings asset sets a readable wind-up instead.
+    [Header("Attack telegraph and hit - provisional")]
+    [Tooltip("Seconds from the start of an attack to its strike. The enemy glows the warning colour and raises its arm " +
+             "slowly meanwhile. 0 keeps the strike halfway through Attack Duration.")]
+    [SerializeField, Min(0f)] private float attackWindup = 0f;
+    [Tooltip("Seconds the enemy stays in its attack after the swing, before it can move again.")]
+    [SerializeField, Min(0f)] private float attackRecovery = 0f;
+    [Tooltip("How far the strike reaches (m). 0 uses Attack Range.")]
+    [SerializeField, Min(0f)] private float attackReach = 0f;
+    [Tooltip("Width of the strike in front of the enemy (degrees). 360 reaches all around.")]
+    [SerializeField, Range(10f, 360f)] private float attackArcDegrees = 360f;
+    [Tooltip("Degrees per second the enemy can still turn toward the player while winding up, so a sidestep can beat it.")]
+    [SerializeField, Min(0f)] private float windupTurnSpeed = 140f;
+    [Tooltip("How many enemies may attack at the same time. 0 is no limit.")]
+    [SerializeField, Min(0)] private int maximumAttackers = 0;
+
+    // A living crowd: each enemy gets a temperament and comes in its own way, and near the player the ones that may
+    // not attack yet circle, hold back and feint instead of standing still. 0 keeps the first prototype's straight
+    // approach and hold.
+    [Header("Liveliness - provisional")]
+    [SerializeField, Range(0f, 1f)] private float liveliness = 0f;
+    [Tooltip("Shares of the four temperaments: straight in / around the side / circling / stop and go.")]
+    [SerializeField] private Vector4 temperamentShares = new Vector4(0.25f, 0.25f, 0.3f, 0.2f);
+    [Tooltip("Waiting enemies hover between these distances from the player (m).")]
+    [SerializeField, Min(0.5f)] private float hoverRingMinimum = 2.8f;
+    [SerializeField, Min(0.5f)] private float hoverRingMaximum = 4.6f;
+    [Tooltip("Closer than the ring plus this (m), enemies stop running and size the player up.")]
+    [SerializeField, Min(0f)] private float sizeUpDistance = 4f;
+    [Tooltip("Circling speed as a share of Move Speed.")]
+    [SerializeField, Range(0f, 1f)] private float circleSpeedShare = 0.45f;
+    [Tooltip("How far around (degrees) a flanker swings its approach.")]
+    [SerializeField, Range(0f, 90f)] private float flankAngle = 55f;
+    [Tooltip("Seconds a waiting enemy hovers before it steps in, for the most eager and the most careful temperament.")]
+    [SerializeField] private Vector2 commitDelay = new Vector2(0.3f, 2.6f);
+    [Tooltip("Spread of the time between one enemy's attacks, as a share of Attack Interval.")]
+    [SerializeField, Range(0f, 1f)] private float attackIntervalSpread = 0.35f;
+
     public int InitialEnemyCount => initialEnemyCount;
     public float SpawnInterval => spawnInterval;
     public int SpawnCountPerWave => spawnCountPerWave;
@@ -93,4 +131,24 @@ public sealed class EnemySettings : ScriptableObject
     public float KnockbackUpwardForce => knockbackUpwardForce;
     public float KnockbackFallbackDuration => knockbackFallbackDuration;
     public float DeathDuration => deathDuration;
+
+    // Seconds from the start of an attack to its strike (halfway through the attack animation when not set).
+    public float AttackWindup => attackWindup > 0f ? attackWindup : attackDuration * 0.5f;
+    public bool TelegraphsAttacks => attackWindup > 0f;
+    public float AttackRecovery => attackRecovery;
+    // Whole attack: the wind-up, the rest of the swing animation and the recovery.
+    public float AttackTotal => AttackWindup + attackDuration * 0.5f + attackRecovery;
+    public float AttackReach => attackReach > 0f ? attackReach : attackRange;
+    public float AttackArcDegrees => attackArcDegrees;
+    public float WindupTurnSpeed => windupTurnSpeed;
+    public int MaximumAttackers => maximumAttackers;
+    public float Liveliness => liveliness;
+    public Vector4 TemperamentShares => temperamentShares;
+    public float HoverRingMinimum => Mathf.Min(hoverRingMinimum, hoverRingMaximum);
+    public float HoverRingMaximum => Mathf.Max(hoverRingMinimum, hoverRingMaximum);
+    public float SizeUpDistance => sizeUpDistance;
+    public float CircleSpeedShare => circleSpeedShare;
+    public float FlankAngle => flankAngle;
+    public Vector2 CommitDelay => commitDelay;
+    public float AttackIntervalSpread => attackIntervalSpread;
 }

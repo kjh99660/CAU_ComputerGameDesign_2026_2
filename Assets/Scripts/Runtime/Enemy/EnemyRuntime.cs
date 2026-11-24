@@ -14,6 +14,8 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     [SerializeField] private EnemyNavVolume navigation;
 
     private readonly List<EnemyAgent> _candidates = new();
+    // Enemies attacking right now, for the limit on simultaneous attackers (EnemySettings.MaximumAttackers).
+    private readonly List<EnemyAgent> _attackers = new(8);
     private readonly List<EnemyAgent> _specialCandidates = new();
     private EnemyRegistry _registry;
     private EnemySpatialGrid _grid;
@@ -35,6 +37,21 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     private bool _configured;
 
     public EnemySettings Settings => settings;
+
+    // Turns to attack: only a few enemies swing at the player at once, the rest wait (and circle, when lively).
+    public int ActiveAttackers => _attackers.Count;
+    public bool AttackSlotOpen => settings == null || settings.MaximumAttackers <= 0 || _attackers.Count < settings.MaximumAttackers;
+
+    public bool TryTakeAttackSlot(EnemyAgent enemy)
+    {
+        if (enemy == null) return false;
+        if (_attackers.Contains(enemy)) return true;
+        if (!AttackSlotOpen) return false;
+        _attackers.Add(enemy);
+        return true;
+    }
+
+    public void ReleaseAttackSlot(EnemyAgent enemy) => _attackers.Remove(enemy);
     public int ActiveEnemyCount => _registry?.Count ?? 0;
     // 성능 비교용 창구(공간 분할 켜기·끄기, 후보 수, 시간). 구성 전에는 null이다. 기본은 공간 분할이고 측정은 꺼져 있다.
     public EnemyPerfProbe Perf => _probe;
@@ -46,6 +63,15 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
     public event Action<int, bool> HitAccepted;
     public event Action<Vector3, Vector3, int> HitPresented;
     public event Action<int> PlayerHit;
+    // The enemy an accepted hit landed on, for effects that need the body itself (hit flash, breaking apart).
+    // Raised right after HitPresented with the same direction and tick.
+    public event Action<EnemyAgent, Vector3, int> EnemyStruck;
+    // An enemy whose death has played out, just before it goes back to the pool (so its last pose can be kept).
+    // Not raised when a Reset clears the round.
+    public event Action<EnemyAgent> EnemyDied;
+    // Where the enemy whose strike just reached the player stands. Raised right before PlayerHit, so feedback can
+    // push the view away from the blow; whether the round accepts the hit is decided by PlayerHit's listeners.
+    public event Action<Vector3, int> PlayerStruckFrom;
 
     public void SetTarget(Transform value)
     {
@@ -171,10 +197,16 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
             if (enemy == null)
                 continue;
             if (enemy.TryAttackHit(TargetPosition, settings, deltaTime, tick))
+            {
+                PlayerStruckFrom?.Invoke(enemy.transform.position, tick);
                 PlayerHit?.Invoke(tick);
+            }
             enemy.RunAction(settings, deltaTime, tick);
             if (enemy.WantsPoolReturn)
+            {
+                EnemyDied?.Invoke(enemy);
                 Release(enemy);
+            }
         }
     }
 
@@ -195,6 +227,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         {
             HitAccepted?.Invoke(tick, chargeGauge);
             HitPresented?.Invoke(enemy.transform.position, horizontal, tick);
+            EnemyStruck?.Invoke(enemy, horizontal, tick);
         }
         return accepted;
     }
@@ -423,6 +456,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         IReadOnlyList<EnemyAgent> active = _registry.Active;
         for (int i = active.Count - 1; i >= 0; i--)
             Release(active[i]);
+        _attackers.Clear();
         _probe.Clear();
     }
 

@@ -15,6 +15,15 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     [SerializeField] private DialogueSequenceData dialogueData;
     private UiLayer _layer;
 
+    // 효과음처럼 버튼과 연출을 듣기만 하는 쪽을 위한 읽기 전용 참조다. View는 계속 Presenter가 움직인다.
+    public StartView StartScreen => startView;
+    public DialogueView DialogueScreen => dialogueView;
+    public CountdownView CountdownScreen => countdownView;
+    public BattleView BattleScreen => battleView;
+    public PauseView PauseScreen => pauseView;
+    public RetryConfirmationView RetryConfirmationScreen => retryConfirmationView;
+    public ResultView ResultScreen => resultView;
+
     public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager)
     {
         AutoBind();
