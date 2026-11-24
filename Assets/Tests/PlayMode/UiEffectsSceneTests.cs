@@ -318,6 +318,80 @@ public sealed class UiEffectsSceneTests
         StringAssert.Contains(KeyboardKeyLabel(action) + " DODGE", hint, "The control hint must name the key that dodge is bound to.");
     }
 
+    // 전투가 끝난 화면에는 점수와 시간(00:00)만 남고, 일시정지 버튼과 게이지는 사라진다.
+    [UnityTest]
+    public IEnumerator FinishingKeepsScoreAndZeroTimerAndDropsPauseAndGauge()
+    {
+        yield return LoadMainAndWaitReady();
+        yield return EnterCountdown();
+        _events.EnqueueRequest(new CountdownCompleteRequest(_state.Tick));
+        yield return WaitFor(GameState.Battle);
+
+        var battle = Object.FindFirstObjectByType<BattleView>();
+        var combat = Object.FindFirstObjectByType<CombatRoundRuntime>();
+        for (int i = 0; i < 3; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        int score = combat.Stats.Score;
+        Assert.Greater(score, 0);
+
+        _events.EnqueueRequest(new TimerReachedZeroRequest(_state.Tick));
+        yield return WaitFor(GameState.Finishing);
+        try
+        {
+            var finishing = Object.FindFirstObjectByType<FinishingView>();
+            Assert.IsNotNull(finishing, "The finishing screen must be shown.");
+            var panel = Find<RectTransform>(finishing.transform, "TimerPanel");
+            var timer = Find<TMP_Text>(finishing.transform, "TimerValue");
+            Assert.IsTrue(timer.gameObject.activeInHierarchy, "The timer must stay on screen while finishing.");
+            Assert.AreEqual("00:00", timer.text);
+            AssertColor(UiPalette.Alert, timer.color);
+            Assert.AreSame(panel, timer.transform.parent, "The timer value belongs to the timer panel.");
+
+            // 시간 패널은 오른쪽 위에서 점수 패널과 같은 높이에 있고, 화면 밖으로 나가거나 다른 요소를 덮지 않는다.
+            var scorePanel = Find<RectTransform>(finishing.transform, "ScorePanel");
+            Assert.AreEqual(Vector2.one, panel.anchorMin);
+            Assert.AreEqual(scorePanel.anchoredPosition.y, panel.anchoredPosition.y, 0.01f, "The timer panel must sit level with the score panel.");
+            Rect screen = WorldRect((RectTransform)finishing.transform);
+            Rect panelRect = WorldRect(panel);
+            foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>(true))
+            {
+                Assert.IsFalse(graphic.raycastTarget, graphic.name + " must not take clicks.");
+                Rect drawn = WorldRect(graphic.rectTransform);
+                Assert.IsTrue(drawn.xMin >= screen.xMin - 0.5f && drawn.xMax <= screen.xMax + 0.5f &&
+                              drawn.yMin >= screen.yMin - 0.5f && drawn.yMax <= screen.yMax + 0.5f,
+                    graphic.name + " must stay inside the screen.");
+            }
+            Assert.IsFalse(panelRect.Overlaps(WorldRect(scorePanel)), "The timer panel must not cover the score panel.");
+            Assert.IsFalse(panelRect.Overlaps(WorldRect(Find<RectTransform>(finishing.transform, "TimeUpFrame"))), "The timer panel must not cover TIME UP.");
+
+            Assert.AreEqual(score.ToString("D6"), Find<TMP_Text>(finishing.transform, "ScoreValue").text);
+            Assert.IsTrue(Find<TMP_Text>(finishing.transform, "TimeUp").gameObject.activeInHierarchy);
+            Assert.IsFalse(battle.gameObject.activeInHierarchy, "The battle HUD (pause button, gauge) must be hidden while finishing.");
+
+            // 다음 화면으로 넘어가면 종료 화면이 남지 않고, Retry 뒤에도 값이 그대로다.
+            _events.EnqueueRequest(new FinishingCompleteRequest(_state.Tick));
+            yield return WaitFor(GameState.OutroDialogue);
+            Assert.IsFalse(finishing.gameObject.activeInHierarchy);
+            _events.EnqueueRequest(new DialogueCompleteRequest(_state.Tick));
+            yield return WaitFor(GameState.Result);
+            _events.EnqueueRequest(new RestartRequest(_state.Tick));
+            yield return WaitFor(GameState.Ready);
+            Assert.AreEqual("00:00", timer.text);
+            Assert.AreEqual("000000", Find<TMP_Text>(finishing.transform, "ScoreValue").text);
+        }
+        finally
+        {
+            Time.timeScale = 1f;
+        }
+    }
+
+    // 화면에서 차지하는 사각형(캔버스 배율이 적용된 좌표).
+    private static Rect WorldRect(RectTransform rect)
+    {
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        return Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+    }
+
     // 액션에 묶인 키보드 키를 안내문에 쓰는 낱말로 바꾼다(leftShift → SHIFT, space → SPACE).
     private static string KeyboardKeyLabel(InputAction action)
     {

@@ -38,6 +38,7 @@
 - Editor 메뉴 `Tools/REBOOT UI/Apply Theme (Ghost Skew)` 또는 `-executeMethod RebootUiThemeBuilder.ApplyBatch`. 같은 경로를 덮어써 GUID를 유지한다.
 - 미리보기: `-executeMethod RebootUiThemeBuilder.CapturePreviews -rebootOut <dir> -rebootBackdrop <png>` (결과는 `Previews/`). 화면별 기본 모습 8장에 이어 연출 도중의 한 순간 4장(`ui_Countdown_Pop` 등)도 찍는다.
 - 연출 조절값을 프리팹에 다시 적기: `-executeMethod RebootUiThemeBuilder.SaveViewSettingsBatch` (Countdown·Battle·Result 프리팹만 저장한다).
+- 종료 화면의 시간 표시(00:00)만 다시 넣기: `-executeMethod RebootUiThemeBuilder.ApplyFinishingTimerBatch` (Finishing 프리팹만 저장한다). 전투 HUD의 TimerPanel을 복사해 오른쪽 위에 두며, `Apply Theme`에도 들어 있다. 이미 있으면 아무것도 바꾸지 않는다.
 - 되돌리기: `git checkout -- Assets/Prefabs/UI Assets/Scripts/Runtime/UI/BattleView.cs Assets/Tests/PlayMode/CombatRoundSceneTests.cs` 후 `Assets/Sprites/UI_Reboot` 삭제.
 - 팀 빌더 `Tools/Game Demo UI/Build All UI Prefabs`를 실행하면 원본 스프라이트로 프리팹을 새로 만들어 이 테마가 사라진다. 그 경우 이 테마 메뉴를 다시 실행하면 된다.
 

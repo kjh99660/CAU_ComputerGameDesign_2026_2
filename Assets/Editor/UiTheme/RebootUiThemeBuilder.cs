@@ -44,6 +44,8 @@ public static class RebootUiThemeBuilder
         ["Battle/PauseButton"] = new Layout(new Vector2(40f, -40f)),
         ["Battle/ScorePanel"] = new Layout(new Vector2(148f, -40f)),
         ["Battle/TimerPanel"] = new Layout(new Vector2(-40f, -40f)),
+        // 종료 화면의 시간 표시는 전투 HUD 프리팹과 같은 기준 위치에 둔다(EnsureFinishingTimer).
+        ["Finishing/TimerPanel"] = new Layout(new Vector2(-40f, -40f)),
         ["Dialogue/DialogueBox"] = new Layout(new Vector2(0f, 32f)),
         ["Dialogue/SkipButton"] = new Layout(new Vector2(-40f, -36f)),
         // 메뉴 패널이 0.8배 축소되어 있고 버튼이 오른쪽으로 치우쳐 패널 밖으로 나갔다. 배율 1, 가운데 정렬로 맞춘다.
@@ -144,6 +146,8 @@ public static class RebootUiThemeBuilder
         {
             if (prefabName == "Dialogue")
                 EnsureDialogueLayout(root);
+            if (prefabName == "Finishing")
+                EnsureFinishingTimer(root);
             TMP_FontAsset legacyFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(LegacyFontPath);
             foreach (Image image in root.GetComponentsInChildren<Image>(true))
             {
@@ -237,6 +241,29 @@ public static class RebootUiThemeBuilder
         catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
     }
 
+    // 종료 화면 프리팹에만 시간 표시를 더한다. 스프라이트·서체·다른 프리팹은 다시 만들지 않는다.
+    // 실행: -executeMethod RebootUiThemeBuilder.ApplyFinishingTimerBatch
+    public static void ApplyFinishingTimerBatch()
+    {
+        try
+        {
+            string path = PrefabRoot + "Finishing.prefab";
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                EnsureFinishingTimer(root);
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+            Debug.Log("[RebootUI] Finishing timer applied.");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
+    }
+
     // 연출 조절값(카운트다운·HUD·결과 View에 새로 생긴 필드)을 프리팹에 적는다. 다른 내용은 바꾸지 않는다.
     // 프리팹에 값이 적혀 있지 않으면 Unity는 그 프리팹을 가져온 시점의 코드 기본값을 쓴다. 그래서 나중에 코드의
     // 기본값만 바꾸면 이미 가져온 컴퓨터에는 반영되지 않아 컴퓨터마다 값이 달라진다. 값은 프리팹에 두고 Inspector에서 조절한다.
@@ -289,6 +316,67 @@ public static class RebootUiThemeBuilder
         so.FindProperty("leftPortrait").objectReferenceValue = left;
         so.FindProperty("rightPortrait").objectReferenceValue = right;
         so.FindProperty("nextIndicator").objectReferenceValue = next;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // 종료 화면에도 시간 표시(00:00)를 남긴다. 설계상 Finishing에는 Timer 0과 Score만 남고 Pause와 Gauge는 사라진다.
+    // 전투 HUD의 TimerPanel을 그대로 복사해 모양이 같다. 위치는 HUD 프리팹의 기준 위치(오른쪽 위에서 40px 안쪽)이고
+    // 종료 화면의 점수 패널과 같은 높이다. 씬이 전투 HUD의 위치를 따로 재정의한 경우 그 값은 따라가지 않는다.
+    // 같은 구조가 이미 있으면 다시 만들지 않고 값만 맞춘다(여러 번 실행해도 프리팹의 오브젝트 ID가 바뀌지 않는다).
+    private static void EnsureFinishingTimer(GameObject root)
+    {
+        Transform panel = root.transform.Find("TimerPanel");
+        bool expected = panel != null && panel.Find("TimerValue") != null && panel.Find("TimerLabel") != null;
+        if (!expected)
+        {
+            // 팀 빌더가 루트 바로 아래에 낱개로 만든 것(TimerPanel, TimerValue)은 HUD와 모양이 달라 치우고 새로 복사한다.
+            foreach (string stale in new[] { "TimerPanel", "TimerLabel", "TimerValue" })
+            {
+                Transform old = root.transform.Find(stale);
+                if (old != null) Object.DestroyImmediate(old.gameObject);
+            }
+            GameObject battle = PrefabUtility.LoadPrefabContents(PrefabRoot + "Battle.prefab");
+            try
+            {
+                Transform source = battle.transform.Find("TimerPanel");
+                if (source == null) throw new InvalidOperationException("Battle.prefab has no TimerPanel to copy.");
+                panel = Object.Instantiate(source.gameObject, root.transform, false).transform;
+                panel.name = "TimerPanel";
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(battle);
+            }
+        }
+
+        // 점수 패널 바로 다음에 그린다. TIME UP 틀과 글자는 그 뒤에 온다.
+        Transform score = root.transform.Find("ScorePanel");
+        if (score != null && panel.GetSiblingIndex() != score.GetSiblingIndex() + 1)
+        {
+            panel.SetAsLastSibling();
+            panel.SetSiblingIndex(score.GetSiblingIndex() + 1);
+        }
+
+        var rect = (RectTransform)panel;
+        rect.anchorMin = Vector2.one;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = Vector2.one;
+        rect.anchoredPosition = LayoutFixes["Battle/TimerPanel"].Position;
+        rect.localScale = Vector3.one;
+        panel.gameObject.SetActive(true);
+
+        TMP_Text value = panel.Find("TimerValue").GetComponent<TMP_Text>();
+        value.text = "00:00";
+        value.color = UiPalette.Alert;
+        value.rectTransform.localScale = Vector3.one;
+        foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+
+        // View가 이름으로 찾지 않아도 되게 직렬화 참조를 연결한다.
+        var view = root.GetComponent<FinishingView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("timerValue").objectReferenceValue = value;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
