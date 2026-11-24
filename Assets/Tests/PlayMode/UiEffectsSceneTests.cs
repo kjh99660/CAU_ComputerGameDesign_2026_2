@@ -1,7 +1,10 @@
 using System.Collections;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -290,6 +293,44 @@ public sealed class UiEffectsSceneTests
         Assert.AreEqual(1f, retry.transform.localScale.x, 1e-4f);
         Assert.AreEqual(0, combat.Stats.Score);
         Assert.AreEqual(1f, Time.timeScale);
+    }
+
+    // Start 화면의 조작 안내가 실제 키와 어긋나지 않는지 본다(전에는 SPACE로 적혀 있었고 회피는 Left Shift였다).
+    [UnityTest]
+    public IEnumerator StartHintNamesTheKeyThatDodgeIsBoundTo()
+    {
+        yield return LoadMainAndWaitReady();
+
+        var start = Object.FindFirstObjectByType<StartView>();
+        Assert.IsNotNull(start, "The start screen must be visible in Ready.");
+        string hint = Regex.Replace(Find<TMP_Text>(start.transform, "ControlHint").text, @"\s+", " ");
+
+        // 회피 컴포넌트는 팀원의 기본 어셈블리에 있어 이름으로 찾는다. 게임이 실제로 듣고 있는 액션을 읽는다.
+        var player = Object.FindFirstObjectByType<PlayerRuntime>();
+        Assert.IsNotNull(player);
+        Component dodge = player.GetComponent("PlayerDodge");
+        Assert.IsNotNull(dodge, "The player must carry its dodge component.");
+        FieldInfo field = dodge.GetType().GetField("_dodge", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(field, "PlayerDodge no longer keeps its resolved action in _dodge; update this test.");
+        var action = field.GetValue(dodge) as InputAction;
+        Assert.IsNotNull(action, "The dodge action must be resolved from the input asset.");
+
+        StringAssert.Contains(KeyboardKeyLabel(action) + " DODGE", hint, "The control hint must name the key that dodge is bound to.");
+    }
+
+    // 액션에 묶인 키보드 키를 안내문에 쓰는 낱말로 바꾼다(leftShift → SHIFT, space → SPACE).
+    private static string KeyboardKeyLabel(InputAction action)
+    {
+        const string keyboard = "<Keyboard>/";
+        foreach (InputBinding binding in action.bindings)
+        {
+            string path = binding.effectivePath;
+            if (string.IsNullOrEmpty(path) || !path.StartsWith(keyboard, System.StringComparison.Ordinal)) continue;
+            string key = path.Substring(keyboard.Length);
+            return key.EndsWith("Shift", System.StringComparison.OrdinalIgnoreCase) ? "SHIFT" : key.ToUpperInvariant();
+        }
+        Assert.Fail("The dodge action has no keyboard binding.");
+        return null;
     }
 
     private IEnumerator LoadMainAndWaitReady()
