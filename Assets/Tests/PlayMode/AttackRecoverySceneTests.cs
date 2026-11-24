@@ -153,6 +153,41 @@ public sealed class AttackRecoverySceneTests
         Assert.Less(frames, 120, "The player runs after the combo.");
     }
 
+    // "Click, click, press and hold" makes the charge attack, and the hold often begins while the second hit has
+    // barely started. A press is remembered for 0.4 s, the second hit's combo window opens 0.61 s in, and a held
+    // button is never pressed again: the player stood there holding the button and nothing came. A press now stays
+    // for as long as its button is held and the window is still ahead.
+    [UnityTest]
+    public IEnumerator AnEarlyThirdPressThatIsHeldStillChargesTheAttack()
+    {
+        yield return ClearEnemies();
+        yield return WaitUntilIdle();
+
+        // One press is still one step: holding the first click does not run on into the second hit.
+        InputSystem.QueueStateEvent(_mouse, new MouseState().WithButton(MouseButton.Left, true));
+        yield return WaitUntilEntering("Attack1");
+        for (int i = 0; i < 100; i++)
+        {
+            Assert.IsFalse(Logical().IsName("Attack2"), "Holding the first click must not chain the combo.");
+            yield return null;
+        }
+        InputSystem.QueueStateEvent(_mouse, new MouseState());
+        yield return WaitUntilIdle();
+
+        yield return Click();
+        yield return WaitUntilEntering("Attack1");
+        yield return Frames(15);
+        yield return Click();
+        yield return WaitUntilEntering("Attack2");
+        yield return Frames(3);   // 0.05 s into the second hit: more than half a second before its window
+        InputSystem.QueueStateEvent(_mouse, new MouseState().WithButton(MouseButton.Left, true));
+        yield return WaitUntilEntering("Charge_Hold");
+        yield return Frames(20);
+        Assert.IsTrue(Logical().IsName("Charge_Hold"), "The charge is held for as long as the button is.");
+        InputSystem.QueueStateEvent(_mouse, new MouseState());
+        yield return WaitUntilEntering("Charge_Release");
+    }
+
     // From the frame the attack starts, W is held; counts the frames until the player is running.
     private IEnumerator MeasureRunAway(string attack, float hitEnds, float latest, List<string> results)
     {

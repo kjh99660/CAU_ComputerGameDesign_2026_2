@@ -264,7 +264,13 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
             // (이동 캔슬 시점을 콤보 구간보다 앞당겨도 W를 누른 채 연타하면 콤보가 이어진다.)
             bool attackPending = _attackBuffer > 0f;
             UpdateMovement(deltaTime, !actionLocked || (cancelOpen && !attackPending));
-            if (_attackBuffer > 0f)
+            // "Click, click, press and hold" makes the charge attack, and the hold often begins while the second
+            // hit has barely started: longer before its combo window than a press is remembered. A held button is
+            // never pressed again, so that press is not forgotten while its button stays down and the window of
+            // the current hit is still ahead. One press is still one step of the combo.
+            bool heldForTheWindow = _attackHeld && !_attackReleased &&
+                                    ComboWindowAhead(logicalState, logicalState.normalizedTime % 1f);
+            if (_attackBuffer > 0f && !heldForTheWindow)
                 _attackBuffer = Mathf.Max(0f, _attackBuffer - deltaTime);
         }
         else
