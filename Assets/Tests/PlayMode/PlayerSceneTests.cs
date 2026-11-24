@@ -43,7 +43,11 @@ public sealed class PlayerSceneTests
             System.Array.Empty<EnemyAgent>(), enemy.Settings, 0.02f, enemyAgent.ActiveTick);
         enemyAnimator.Update(0f);
         Assert.AreEqual(EnemyAgentState.Chase, enemyAgent.State);
-        Assert.IsTrue(enemyAnimator.GetCurrentAnimatorStateInfo(0).IsName("Chase"));
+        // The gait is blended in (walk first, the run once it is up to speed) instead of cutting to it.
+        Assert.IsTrue(enemyAgent.ShowsLocomotion);
+        enemyAnimator.Update(0.5f);
+        AnimatorStateInfo gait = enemyAnimator.GetCurrentAnimatorStateInfo(0);
+        Assert.IsTrue(gait.IsName("Walk") || gait.IsName("Chase"), "A chasing enemy must end up in a gait state.");
 
         Assert.IsTrue(enemyAgent.ApplyHit(Vector3.back, enemy.Settings, enemyAgent.ActiveTick));
         enemyAnimator.Update(0f);
@@ -133,7 +137,13 @@ public sealed class PlayerSceneTests
         Assert.AreEqual(oldTick + 1, enemy.ActiveTick);
         Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"));
         Assert.AreEqual(Vector3.zero, visual.localPosition);
-        Assert.AreEqual(defaultVisualScale, visual.localScale);
+        // Enemies differ slightly in size, so the reused one need not match the size it had before. It must come back
+        // uniform and within that spread, not squashed by the death pose.
+        float spread = runtime.Settings.ScaleVariance;
+        float ratio = visual.localScale.y / defaultVisualScale.y;
+        Assert.That(ratio, Is.InRange((1f - spread) / (1f + spread) - 0.001f, (1f + spread) / (1f - spread) + 0.001f));
+        Assert.AreEqual(visual.localScale.x, visual.localScale.y, 0.0001f);
+        Assert.AreEqual(visual.localScale.y, visual.localScale.z, 0.0001f);
         Assert.AreEqual(defaultRootScale, enemy.transform.localScale);
         Assert.Less(Quaternion.Angle(Quaternion.identity, visual.localRotation), 1.1f);
         Object.Destroy(poolRoot);
