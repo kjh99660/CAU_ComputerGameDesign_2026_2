@@ -12,12 +12,12 @@ public sealed class CombatRoundSceneTests
     [UnityTest]
     public IEnumerator DialogueAdvancesSkipsAndRestartsAfterRetry()
     {
-        var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        yield return TestScenes.Load(TestScenes.Arena);
+        yield return null;
+        var data = Object.FindFirstObjectByType<TextManager>().Sequence;
         Assert.IsNotNull(data);
         Assert.GreaterOrEqual(data.intro.Length, 2);
         Assert.GreaterOrEqual(data.outro.Length, 1);
-        yield return TestScenes.Load(TestScenes.Arena);
-        yield return null;
         var state = Object.FindFirstObjectByType<GameStateManager>();
         var events = Object.FindFirstObjectByType<EventManager>();
         yield return WaitFor(state, GameState.Ready);
