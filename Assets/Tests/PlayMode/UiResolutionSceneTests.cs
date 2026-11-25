@@ -35,7 +35,7 @@ public sealed class UiResolutionSceneTests
     // Elements each screen must show in its state ("A|B": either name), so the checks never pass on an empty screen.
     private static readonly Dictionary<string, string[]> KeyElements = new Dictionary<string, string[]>
     {
-        { "Start", new[] { "Title", "StartButton", "ControlHint" } },
+        { "Start", new[] { "Title", "StartButton", "ControlHint", "ExitButton" } },
         { "Dialogue", new[] { "LeftPortrait", "RightPortrait", "DialogueBox", "SkipButton" } },
         { "Countdown", new[] { "Number", "ReadyText" } },
         { "Battle", new[] { "PauseButton", "ScorePanel", "TimerPanel", "SpecialGaugeFrame|SpecialGaugeFill" } },

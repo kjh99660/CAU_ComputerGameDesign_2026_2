@@ -61,6 +61,8 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
 
     // 일시정지 메뉴의 설정 칸이 쓰는 값(마우스 감도, 음량). CoreBootstrap이 만들어 넘기고 값의 적용도 맡는다.
     public void AttachOptions(GameOptions options) => _layer?.AttachOptions(options);
+    // 시작 화면 EXIT 버튼이 부르는 종료 처리. 기본은 게임 종료(에디터에서는 Play 중지)이고, 테스트가 대역으로 바꾼다.
+    public void SetApplicationExit(IApplicationExit exit) => _layer?.SetApplicationExit(exit);
 
     public void PresentDialogue(DialogueUiModel model) => _layer?.Dialogue.Present(model);
     public void PresentBattle(BattleUiModel model) => _layer?.Battle.Present(model);

@@ -1,12 +1,19 @@
 public sealed class StartPresenter : UiPresenter<StartView>
 {
     private readonly BestScoreTracker _best;
+    private IApplicationExit _exit;
 
-    public StartPresenter(StartView view, IUIRequestDispatcher requests, IBestScoreStore bestScores = null) : base(view, requests)
+    public StartPresenter(StartView view, IUIRequestDispatcher requests, IBestScoreStore bestScores = null,
+        IApplicationExit exit = null) : base(view, requests)
     {
         _best = new BestScoreTracker(bestScores ?? new PlayerPrefsBestScoreStore());
+        _exit = exit ?? new ApplicationExit();
         View.StartClicked += OnStartClicked;
+        View.ExitClicked += OnExitClicked;
     }
+
+    // Tests put a stand-in here so that pressing EXIT does not stop the test run.
+    public void SetApplicationExit(IApplicationExit exit) => _exit = exit ?? new ApplicationExit();
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Ready;
 
@@ -22,11 +29,22 @@ public sealed class StartPresenter : UiPresenter<StartView>
 
     private void OnStartClicked() => Requests.Enqueue(UIRequestType.Start);
 
+    // Leaving the game is not a game state and is not queued as a request. Only from the start screen (the button is
+    // hidden everywhere else); the pause menu's QUIT still only returns here.
+    private void OnExitClicked()
+    {
+        if (CurrentState == GameState.Ready) _exit.Exit();
+    }
+
     // Keyboard confirm (UiLayer): presses the START button itself, so the click sound and the request are the same.
     public void StartFromInput()
     {
         if (CurrentState == GameState.Ready) View.PressStart();
     }
 
-    public override void Dispose() => View.StartClicked -= OnStartClicked;
+    public override void Dispose()
+    {
+        View.StartClicked -= OnStartClicked;
+        View.ExitClicked -= OnExitClicked;
+    }
 }

@@ -209,7 +209,7 @@ Timer가 0이 되면 `TimerReachedZero`를 발행하고 Timer를 0으로 고정�
 
 ### 화면별 요구사항
 
-- Ready: 낮은 불투명도의 검은 Overlay와 중앙 Start 버튼. Space/Enter로도 Start 버튼을 누를 수 있다.
+- Ready: 낮은 불투명도의 검은 Overlay와 중앙 Start 버튼. Space/Enter로도 Start 버튼을 누를 수 있다. 오른쪽 위의 EXIT는 게임을 끈다(에디터에서는 Play를 멈춘다. 확인창 없이 마우스로만 누르고, 상태 요청이 아니다. 2026-11-25 추가). Pause의 Quit은 그대로 Start 화면으로 돌아간다.
 - Battle: 좌상단 Pause와 Score, 우상단 Timer, 하단 중앙 원형 Special Gauge. 마지막 3초는 Countdown과 같은 틱 소리를 낸다.
 - Dialogue: 두 Portrait를 동시에 표시하고 현재 화자는 밝게, 비화자는 어둡게 처리한다. 하단 Dialogue Box를 사용하며 화면 외곽에 Skip을 둔다.
 - Pause: Resume, Retry, Quit. Retry는 확인 모달을 띄운다. Quit는 모달 없이 즉시 `QuitToStartRequest`를 발행한다.

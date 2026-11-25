@@ -226,6 +226,49 @@ public static class RebootHudAdditions
         hint.alignment = TextAlignmentOptions.Center;
         StyleControlHint(hint);
         EnsureStartBestScore(root);
+        EnsureStartExitButton(root);
+    }
+
+    // 게임을 끄는 EXIT 버튼. 대사 화면의 SKIP과 같은 자리(오른쪽 위), 크기, 그림, 글자다. 가운데의 START와 떨어져 있어
+    // 실수로 누르기 어렵고, Space·Enter는 START만 누른다. 누르면 StartPresenter가 게임을 끈다(에디터에서는 Play를 멈춘다).
+    private const string ExitButtonSpritePath = "Assets/Sprites/UI_Reboot/Dialogue_SkipButton.png";
+
+    private static void EnsureStartExitButton(Transform root)
+    {
+        RectTransform rect = EnsureRect(root, "ExitButton", typeof(Image), typeof(Button));
+        Place(rect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -36f), new Vector2(230f, 78f));
+        var image = rect.GetComponent<Image>();
+        image.sprite = LoadSprite(ExitButtonSpritePath);
+        image.type = Image.Type.Simple;
+        image.preserveAspect = false;
+        image.color = Color.white;
+        image.raycastTarget = true;
+        var button = rect.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.6843f, 0.97935f, 0.9573f, 1f);
+        colors.pressedColor = new Color(0.3686f, 0.9587f, 0.9146f, 1f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(0.78431374f, 0.78431374f, 0.78431374f, 0.5019608f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        TMP_Text style = FindText(root, "Label");
+        TMP_Text label = EnsureText(rect, "Label", style, "EXIT", 24f, UiPalette.Muted, TextAlignmentOptions.Center);
+        label.rectTransform.anchorMin = Vector2.zero;
+        label.rectTransform.anchorMax = Vector2.one;
+        label.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        label.rectTransform.offsetMin = Vector2.zero;
+        label.rectTransform.offsetMax = Vector2.zero;
+
+        var view = root.GetComponent<StartView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("exitButton").objectReferenceValue = button;
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // 제목 칸(아래 끝 y=60)과 START 버튼(위 끝 y=-43) 사이에 최고 점수 한 줄. 기록이 없으면 StartView가 숨긴다.

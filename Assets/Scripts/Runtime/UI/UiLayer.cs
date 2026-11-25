@@ -79,6 +79,7 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
 
     // 일시정지 메뉴의 설정 칸(마우스 감도, 음량)이 보여 주고 바꾸는 값. 값의 적용은 CoreBootstrap이 한다.
     public void AttachOptions(GameOptions options) => _pause.AttachOptions(options);
+    public void SetApplicationExit(IApplicationExit exit) => _start.SetApplicationExit(exit);
 
     public void Update(float deltaTime, float unscaledDeltaTime)
     {

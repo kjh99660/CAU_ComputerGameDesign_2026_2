@@ -266,6 +266,15 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
   - 폭, 시간, 색은 `CombatVfxSettings`의 skill 값이다. Pause에서는 멈춘 채 보이고 Retry에서 지워진다.
 - 확인: PlayMode `HudAdditionsSceneTests`(키 자리와 글자, E 키 밝기, 눈금, 흔들림, 안내 문구), `SkillSceneTests`. 배치 캡처로 평지 아레나와 Neon City 화면을 봤다. 사람이 직접 플레이해 본 확인은 없다.
 
+## 시작 화면 EXIT와 창 이름 (2026-11-25)
+
+- 시작 화면 오른쪽 위에 `EXIT` 버튼(`Start/ExitButton`)을 두었다. 대사 화면의 `SKIP`과 같은 자리, 크기(230×78), 그림(`Dialogue_SkipButton.png`), 글자(Chakra Petch 24, Muted)다. 가운데의 `START`와 떨어져 있어 실수로 누르기 어렵다.
+- 누르면 게임이 꺼진다. 에디터에서는 `Application.Quit`이 아무것도 하지 않으므로 Play를 멈춘다(`ApplicationExit`). 게임 상태 전환이 아니어서 요청 큐를 거치지 않는다. 확인창은 없다.
+- Space와 Enter는 그대로 `START`만 누른다. 시작 화면 밖(대사, 전투, 일시정지, 결과)에서는 버튼이 보이지 않아 눌리지 않는다. 일시정지 메뉴의 `QUIT`은 지금처럼 시작 화면으로 돌아간다.
+- `RebootHudAdditions.EnsureStart`가 만든다(`-executeMethod RebootHudAdditions.ApplyBatch`). 여러 번 실행해도 같다.
+- 제품 이름을 템플릿의 `CGD`에서 `REBOOT`로 바꿨다(Player Settings). 창 제목, Mac 앱과 실행 파일 이름, 저장 위치(최고 점수, 설정, 성능 기록)가 따라 바뀐다. 그래서 이전 이름으로 저장된 최고 점수와 설정은 새 이름에서 다시 시작한다.
+- 확인: PlayMode `StartExitSceneTests`(자리와 모양, 클릭하면 종료 한 번, Space/Enter는 START만, 다른 화면에서는 눌리지 않음, QUIT은 시작 화면으로), `UiResolutionSceneTests`(해상도 6종에서 겹침과 Safe Area에 EXIT 포함), EditMode `ProductNameTests`.
+
 ## 함께 발견한 적 시스템 문제(수정하지 않음)
 
 `EnemyPrototype.prefab`의 Rigidbody 설정과 프로젝트 물리 설정이 다음과 같다.

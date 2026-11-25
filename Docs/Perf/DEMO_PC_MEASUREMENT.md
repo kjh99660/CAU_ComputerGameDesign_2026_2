@@ -16,7 +16,7 @@
 - Windows 빌드에는 이 Editor 버전(6000.3.24f1)에 **Windows Build Support (Mono)** 모듈이 있어야 한다(Unity Hub의 `Installs > 6000.3.24f1 > Add modules`). 모듈이 없으면 빌드를 시작하지 않고 그 사실과 설치 방법을 알린 뒤 끝난다(배치에서는 종료 코드 1).
 - 2026-11-24에 확인했을 때 개발용 Mac의 6000.3.24f1에는 이 모듈이 설치되어 있었고, 이 Mac에서 Windows 빌드(`REBOOT.exe`, x86-64)가 만들어졌다. 다른 컴퓨터에서 빌드할 때는 모듈이 있는지 먼저 확인한다.
 - 명령으로 빌드하면 실패할 때 종료 코드 1로 끝나고, 성공하면 로그에 결과 경로와 크기를 적는다.
-- `Builds/` 폴더는 git에 올리지 않는다(`.gitignore`). 시연 PC로는 `Builds/Windows` 폴더를 통째로 복사한다. `REBOOT.exe`만 따로 옮기면 실행되지 않는다. 함께 생기는 `CGD_BurstDebugInformation_DoNotShip` 폴더는 옮기지 않아도 된다.
+- `Builds/` 폴더는 git에 올리지 않는다(`.gitignore`). 시연 PC로는 `Builds/Windows` 폴더를 통째로 복사한다. `REBOOT.exe`만 따로 옮기면 실행되지 않는다. 함께 생기는 `REBOOT_BurstDebugInformation_DoNotShip`(2026-11-25 전 빌드에서는 `CGD_…`) 폴더는 옮기지 않아도 된다.
 - 빌드하면 Unity가 설정 파일 몇 개를 빌드 대상에 맞춰 다시 쓴다. 이 Mac에서 Mac 빌드를 했을 때는 `Assets/Settings/PC_RPAsset.asset`, `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset`, `ProjectSettings/ProjectSettings.asset`, `ProjectSettings/UnityConnectSettings.asset`이 바뀌었다. 빌드 때문에 생긴 변경이므로 커밋하지 말고 되돌린다(`git checkout -- <파일>`).
 
 ## 2. 화면에서 바로 보기: 성능 오버레이
@@ -51,10 +51,10 @@
 
 | OS | 폴더 |
 | --- | --- |
-| Windows | `%USERPROFILE%\AppData\LocalLow\DefaultCompany\CGD\perf\` |
-| Mac | `~/Library/Application Support/DefaultCompany/CGD/perf/` |
+| Windows | `%USERPROFILE%\AppData\LocalLow\DefaultCompany\REBOOT\perf\` |
+| Mac | `~/Library/Application Support/DefaultCompany/REBOOT/perf/` |
 
-폴더 이름의 `DefaultCompany`와 `CGD`는 Player Settings의 회사 이름과 제품 이름이다. 바꾸면 폴더도 바뀐다(빌드할 때 만드는 실행 파일은 그 빌드의 이름을 따라간다).
+폴더 이름의 `DefaultCompany`와 `REBOOT`는 Player Settings의 회사 이름과 제품 이름이다(제품 이름은 2026-11-25 전까지 템플릿 그대로의 `CGD`였다. 그 전 기록은 `CGD` 폴더에 남아 있다). 바꾸면 폴더도 바뀐다(빌드할 때 만드는 실행 파일은 그 빌드의 이름을 따라간다).
 
 | 파일 | 내용 |
 | --- | --- |
