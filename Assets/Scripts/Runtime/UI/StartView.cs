@@ -9,6 +9,8 @@ public sealed class StartView : UIScreenView
     // Leaves the game, at the top right (the place and look of the dialogue's SKIP, away from START). Optional: a
     // prefab without it only lacks the button. Only the mouse presses it; Space and Enter stay on START.
     [SerializeField] private Button exitButton;
+    [SerializeField] private Button languageButton;
+    [SerializeField] private TMP_Text languageLabel;
     // The best score so far, under the title. Optional: a prefab without the row only lacks it. Hidden until there is one.
     [SerializeField] private GameObject bestScoreRow;
     [SerializeField] private TMP_Text bestScoreValue;
@@ -16,12 +18,16 @@ public sealed class StartView : UIScreenView
 
     public event Action StartClicked;
     public event Action ExitClicked;
+    public event Action LanguageClicked;
 
     public override void AutoBind()
     {
         base.AutoBind();
         if (startButton == null) startButton = FindNamed<Button>("StartButton");
         if (exitButton == null) exitButton = FindNamed<Button>("ExitButton");
+        if (languageButton == null) languageButton = FindNamed<Button>("LanguageButton");
+        if (languageLabel == null && languageButton != null)
+            languageLabel = languageButton.GetComponentInChildren<TMP_Text>(true);
         if (bestScoreRow == null)
         {
             RectTransform row = FindNamed<RectTransform>("BestScoreRow");
@@ -35,15 +41,24 @@ public sealed class StartView : UIScreenView
         AutoBind();
         if (startButton != null) startButton.onClick.AddListener(HandleStartClicked);
         if (exitButton != null) exitButton.onClick.AddListener(HandleExitClicked);
+        if (languageButton != null) languageButton.onClick.AddListener(HandleLanguageClicked);
     }
 
     private void OnDisable()
     {
         if (startButton != null) startButton.onClick.RemoveListener(HandleStartClicked);
         if (exitButton != null) exitButton.onClick.RemoveListener(HandleExitClicked);
+        if (languageButton != null) languageButton.onClick.RemoveListener(HandleLanguageClicked);
     }
 
     public void SetStartInteractable(bool interactable) => SetButtonInteractable(startButton, interactable);
+
+    public void RenderLanguage(DialogueLanguage? language)
+    {
+        if (languageButton != null) languageButton.gameObject.SetActive(language.HasValue);
+        if (languageLabel != null)
+            languageLabel.text = language == DialogueLanguage.English ? "LANG: ENG" : "LANG: KOR";
+    }
 
     // 0 = no round has been scored yet: the row stays hidden. The same six digits as the result screen.
     public void RenderBest(int best)
@@ -65,4 +80,5 @@ public sealed class StartView : UIScreenView
     }
 
     private void HandleExitClicked() => ExitClicked?.Invoke();
+    private void HandleLanguageClicked() => LanguageClicked?.Invoke();
 }

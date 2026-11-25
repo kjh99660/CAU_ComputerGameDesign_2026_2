@@ -25,7 +25,7 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     public RetryConfirmationView RetryConfirmationScreen => retryConfirmationView;
     public ResultView ResultScreen => resultView;
 
-    public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager)
+    public UiLayer Configure(IGameRequestQueue requests, GameStateManager stateManager, TextManager textManager = null)
     {
         AutoBind();
         if (!HasAllViews())
@@ -38,8 +38,9 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
             UIScreenView.TurnNavigationOff(selectable);
         _layer?.Dispose();
         if (dialogueData == null) dialogueData = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        if (textManager != null) textManager.Configure(dialogueData);
         _layer = new UiLayer(new UIRequestDispatcher(requests, stateManager), startView, dialogueView,
-            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView, dialogueData);
+            countdownView, battleView, pauseView, retryConfirmationView, finishingView, resultView, dialogueData, textManager);
         // Safe Area 맞춤과 TransitionLayer 페이드. 페이드는 UiLayer가 넘기는 상태 알림과 Reset 시작(StopProducing)을 받는다.
         _transition = UiScreenLayers.Install(this, stateManager);
         _layer.AttachTransition(_transition);

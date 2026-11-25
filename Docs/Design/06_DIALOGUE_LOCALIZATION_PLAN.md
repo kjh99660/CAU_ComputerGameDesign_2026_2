@@ -1,10 +1,18 @@
 # 대사 한·영 지원(i18n) 계획
 
-> 상태: 구현 전 계획. 코드는 아직 바꾸지 않았다.
+> 상태: `TextManager`와 시작 화면의 언어 버튼을 구현했다. 아래 1절부터는 구현 전 비교·설계 기록이다.
 >
 > 기준 확인일: 2026년 11월 24일, 커밋 `0093036`(`ui/screen-effects`) 기준
 >
-> 범위: 도입·마무리 대사와 화자 이름의 영어 지원. UI 라벨의 한국어화는 범위 밖이다(8절).
+> 구현 범위: 도입·마무리(성과별 분기 포함), 전투 무전, 스폰 경고와 화자 이름. 다른 UI 라벨은 그대로 영문이다.
+
+## 현재 사용법
+
+- 시작 화면 오른쪽 위 `EXIT` 아래의 `LANG: KOR` / `LANG: ENG`를 누른다. 처음에는 한국어이고, 선택은 `PlayerPrefs`(`REBOOT.DialogueLanguage`)에 저장한다.
+- Unity에서 `Main` 또는 `Main_NeonCity`를 열고 `Manager > TextManager`를 선택한다. Inspector의 **Korean dialogue**와 **English dialogue**에서 내용을 편집한 뒤 해당 **Save TXT**를 누른다. 다음 Play 시작 때 반영된다.
+- 실제 문구는 `Assets/Resources/DialogueKorean.txt`와 `DialogueEnglish.txt`의 UTF-8 JSON에 있다. 기존 `DialogueSequence.asset`에서 줄 순서, 화자 방향, 무전 시각, 분기 조건을 가져오므로 문구를 수정할 때 배열의 줄 수와 순서를 유지한다. 파일이 잘못되면 경고를 남기고 원래 시퀀스를 사용한다.
+
+## 구현 전 계획 (참고)
 
 다국어 지원(i18n) 기능은 지금 없다. 다만 화면의 UI 글자는 이미 전부 영어라서, 영어판에 필요한 것은 대사와 화자 이름(`노아`)뿐이다.
 

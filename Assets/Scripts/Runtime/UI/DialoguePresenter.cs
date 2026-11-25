@@ -4,15 +4,18 @@
 public sealed class DialoguePresenter : UiPresenter<DialogueView>
 {
     private readonly DialogueSequenceData _data;
+    private readonly TextManager _textManager;
     private readonly DialogueProgress _progress = new DialogueProgress();
     private bool _completionRequested;
     private int _shownCharacters = -1;
     private float _inputLockRemaining;
     private ResultUiModel _roundStats;
 
-    public DialoguePresenter(DialogueView view, IUIRequestDispatcher requests, DialogueSequenceData data = null) : base(view, requests)
+    public DialoguePresenter(DialogueView view, IUIRequestDispatcher requests, DialogueSequenceData data = null,
+        TextManager textManager = null) : base(view, requests)
     {
         _data = data;
+        _textManager = textManager;
         View.SkipClicked += Skip;
         View.ContinueClicked += Advance;
     }
@@ -41,14 +44,15 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         if (notification.Current == GameState.Ready) _roundStats = default;
         if (!IsVisibleIn(notification.Current)) return;
         DialogueLine[] lines = null;
-        if (_data != null)
+        DialogueSequenceData data = _textManager != null ? _textManager.Sequence : _data;
+        if (data != null)
         {
             if (notification.Current == GameState.IntroDialogue)
-                lines = _data.intro;
+                lines = data.intro;
             else
             {
-                ChosenOutro = _data.ChooseOutro(_roundStats.HitCount, _roundStats.KillCount);
-                lines = _data.OutroLines(ChosenOutro);
+                ChosenOutro = data.ChooseOutro(_roundStats.HitCount, _roundStats.KillCount);
+                lines = data.OutroLines(ChosenOutro);
             }
         }
         _progress.Begin(lines);
@@ -108,8 +112,12 @@ public sealed class DialoguePresenter : UiPresenter<DialogueView>
         _shownCharacters = -1;
         if (_progress.LineCount == 0)
         {
-            string placeholder = CurrentState == GameState.IntroDialogue ? "도입 대사를 입력해 주세요." : "종료 대사를 입력해 주세요.";
-            View.Render(new DialogueUiModel("임시 대사", placeholder, true));
+            bool english = _textManager != null && _textManager.Language == DialogueLanguage.English;
+            bool intro = CurrentState == GameState.IntroDialogue;
+            string placeholder = english
+                ? (intro ? "No intro dialogue configured." : "No outro dialogue configured.")
+                : (intro ? "도입 대사를 입력해 주세요." : "종료 대사를 입력해 주세요.");
+            View.Render(new DialogueUiModel(english ? "Placeholder" : "임시 대사", placeholder, true));
             View.SetVisibleCharacters(int.MaxValue);
             RefreshNextIndicator(0f);
             return;

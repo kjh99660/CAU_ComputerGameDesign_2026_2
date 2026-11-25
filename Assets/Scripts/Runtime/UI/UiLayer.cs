@@ -25,13 +25,14 @@ public sealed class UiLayer : IGameLoopSystem, IDisposable
 
     public UiLayer(IUIRequestDispatcher requests, StartView startView, DialogueView dialogueView,
         CountdownView countdownView, BattleView battleView, PauseView pauseView,
-        RetryConfirmationView retryConfirmationView, FinishingView finishingView, ResultView resultView, DialogueSequenceData dialogueData = null)
+        RetryConfirmationView retryConfirmationView, FinishingView finishingView, ResultView resultView,
+        DialogueSequenceData dialogueData = null, TextManager textManager = null)
     {
         _requests = requests ?? throw new ArgumentNullException(nameof(requests));
-        var start = new StartPresenter(startView, requests);
-        Dialogue = new DialoguePresenter(dialogueView, requests, dialogueData);
+        var start = new StartPresenter(startView, requests, textManager: textManager);
+        Dialogue = new DialoguePresenter(dialogueView, requests, dialogueData, textManager);
         var countdown = new CountdownPresenter(countdownView, requests);
-        Battle = new BattlePresenter(battleView, requests, dialogueData);
+        Battle = new BattlePresenter(battleView, requests, dialogueData, textManager);
         var pause = new PausePresenter(pauseView, requests);
         var retry = new RetryConfirmationPresenter(retryConfirmationView, requests);
         _retry = retry;

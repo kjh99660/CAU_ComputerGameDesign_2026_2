@@ -226,17 +226,30 @@ public static class RebootHudAdditions
         hint.alignment = TextAlignmentOptions.Center;
         StyleControlHint(hint);
         EnsureStartBestScore(root);
-        EnsureStartExitButton(root);
+        EnsureStartCornerButtons(root);
     }
 
     // 게임을 끄는 EXIT 버튼. 대사 화면의 SKIP과 같은 자리(오른쪽 위), 크기, 그림, 글자다. 가운데의 START와 떨어져 있어
     // 실수로 누르기 어렵고, Space·Enter는 START만 누른다. 누르면 StartPresenter가 게임을 끈다(에디터에서는 Play를 멈춘다).
     private const string ExitButtonSpritePath = "Assets/Sprites/UI_Reboot/Dialogue_SkipButton.png";
 
-    private static void EnsureStartExitButton(Transform root)
+    private static void EnsureStartCornerButtons(Transform root)
     {
-        RectTransform rect = EnsureRect(root, "ExitButton", typeof(Image), typeof(Button));
-        Place(rect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -36f), new Vector2(230f, 78f));
+        Button exit = EnsureStartCornerButton(root, "ExitButton", "EXIT", -36f, out _);
+        Button language = EnsureStartCornerButton(root, "LanguageButton", "LANG: KOR", -124f, out TMP_Text label);
+        var view = root.GetComponent<StartView>();
+        if (view == null) return;
+        var so = new SerializedObject(view);
+        so.FindProperty("exitButton").objectReferenceValue = exit;
+        so.FindProperty("languageButton").objectReferenceValue = language;
+        so.FindProperty("languageLabel").objectReferenceValue = label;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static Button EnsureStartCornerButton(Transform root, string name, string caption, float y, out TMP_Text label)
+    {
+        RectTransform rect = EnsureRect(root, name, typeof(Image), typeof(Button));
+        Place(rect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, y), new Vector2(230f, 78f));
         var image = rect.GetComponent<Image>();
         image.sprite = LoadSprite(ExitButtonSpritePath);
         image.type = Image.Type.Simple;
@@ -257,19 +270,17 @@ public static class RebootHudAdditions
         button.colors = colors;
         button.navigation = new Navigation { mode = Navigation.Mode.None };
         TMP_Text style = FindText(root, "Label");
-        TMP_Text label = EnsureText(rect, "Label", style, "EXIT", 24f, UiPalette.Muted, TextAlignmentOptions.Center);
+        label = EnsureText(rect, "Label", style, caption, 24f, UiPalette.Muted, TextAlignmentOptions.Center);
         label.rectTransform.anchorMin = Vector2.zero;
         label.rectTransform.anchorMax = Vector2.one;
         label.rectTransform.pivot = new Vector2(0.5f, 0.5f);
         label.rectTransform.offsetMin = Vector2.zero;
         label.rectTransform.offsetMax = Vector2.zero;
 
-        var view = root.GetComponent<StartView>();
-        if (view == null) return;
-        var so = new SerializedObject(view);
-        so.FindProperty("exitButton").objectReferenceValue = button;
-        so.ApplyModifiedPropertiesWithoutUndo();
+        return button;
     }
+
+    public static void ApplyStartCornerButtons() => ApplyToPrefab("Start", root => EnsureStartCornerButtons(root.transform));
 
     // 제목 칸(아래 끝 y=60)과 START 버튼(위 끝 y=-43) 사이에 최고 점수 한 줄. 기록이 없으면 StartView가 숨긴다.
     // 결과 화면의 BEST 줄과 같은 배치다(라벨은 가운데의 왼쪽, 숫자는 오른쪽).

@@ -3,19 +3,28 @@ using System.Text;
 public sealed class BattlePresenter : UiPresenter<BattleView>
 {
     private readonly DialogueSequenceData _data;
+    private readonly TextManager _textManager;
+    private DialogueSequenceData _shownData;
     private readonly BattleRadioSchedule _radio = new BattleRadioSchedule();
 
-    public BattlePresenter(BattleView view, IUIRequestDispatcher requests, DialogueSequenceData data = null) : base(view, requests)
+    public BattlePresenter(BattleView view, IUIRequestDispatcher requests, DialogueSequenceData data = null,
+        TextManager textManager = null) : base(view, requests)
     {
         _data = data;
+        _textManager = textManager;
         View.PauseClicked += OnPauseClicked;
         View.ResetView();
-        _radio.Begin(RadioLines);
-        View.PrepareRadioText(RadioCharacters(RadioLines, WarningLines));
+        PrepareRadio();
     }
 
-    private BattleRadioLine[] RadioLines => _data != null ? _data.battleRadio : null;
-    private DialogueLine[] WarningLines => _data != null ? _data.spawnWarnings : null;
+    private void PrepareRadio()
+    {
+        DialogueSequenceData data = _textManager != null ? _textManager.Sequence : _data;
+        _radio.Begin(data != null ? data.battleRadio : null);
+        if (_shownData == data) return;
+        _shownData = data;
+        View.PrepareRadioText(RadioCharacters(data != null ? data.battleRadio : null, data != null ? data.spawnWarnings : null));
+    }
 
     protected override bool IsVisibleIn(GameState state) => state == GameState.Battle || state == GameState.Paused;
     protected override bool AcceptsInputIn(GameState state) => state == GameState.Battle;
@@ -26,8 +35,8 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
         // 흔들리던 스킬 키는 전투를 벗어나면 제자리로 돌아간다(Pause에서는 HUD 연출이 멈춰 어긋난 채 남는다).
         if (notification.Current != GameState.Battle) View.StopSkillDenied();
         // 새 판(시작 직후, Retry·Quit 뒤의 Ready)마다 무전을 처음부터 다시 센다. Pause와 Resume은 이어서 센다.
-        if (notification.Current == GameState.Ready)
-            _radio.Begin(RadioLines);
+        if (notification.Current == GameState.Ready || notification.Current == GameState.IntroDialogue)
+            PrepareRadio();
     }
 
     public void Present(BattleUiModel model) => View.Render(model);
@@ -61,7 +70,7 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
     public void PresentSpawnWarning(int index)
     {
         if (CurrentState != GameState.Battle) return;
-        DialogueLine[] lines = WarningLines;
+        DialogueLine[] lines = _shownData != null ? _shownData.spawnWarnings : null;
         if (lines == null || index < 0 || index >= lines.Length) return;
         DialogueLine line = lines[index];
         View.ShowRadio(line.speaker, line.text, line.leftSpeaker, true);
