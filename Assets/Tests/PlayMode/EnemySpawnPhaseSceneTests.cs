@@ -251,7 +251,7 @@ public sealed class EnemySpawnPhaseSceneTests
             new EnemySpawnPhase(3f, 45, 0.5f, 1, 12, 3),
         });
         Use(settings);
-        DialogueSequenceData dialogue = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        DialogueSequenceData dialogue = Object.FindFirstObjectByType<TextManager>().Sequence;
         HudRadioSubtitle radio = Object.FindFirstObjectByType<HudRadioSubtitle>(FindObjectsInactive.Include);
         Assert.IsNotNull(radio);
         var fired = new List<Vector2Int>();

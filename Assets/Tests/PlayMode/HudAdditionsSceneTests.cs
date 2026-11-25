@@ -279,12 +279,11 @@ public sealed class HudAdditionsSceneTests
     [UnityTest]
     public IEnumerator RadioLinePlaysAtTenSecondsHoldsInPauseAndClearsOnRetry()
     {
-        var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
-        BattleRadioLine last = Line(data, 10f);
-
         // 11초 판: 10초 줄이 1초쯤 뒤에 뜬다. (50초 무전은 2026-11-25에 50% 생성 경고로 바뀌어 10초 한 줄만 남았다.)
         _settings.roundDuration = 11f;
         yield return Load();
+        var data = Object.FindFirstObjectByType<TextManager>().Sequence;
+        BattleRadioLine last = Line(data, 10f);
         yield return EnterBattle();
         var battle = Object.FindFirstObjectByType<BattleView>();
         var radio = Find<HudRadioSubtitle>(battle.transform, "RadioSubtitle");

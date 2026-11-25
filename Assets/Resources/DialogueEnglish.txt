@@ -4,39 +4,39 @@
   "intro": [
     "I'm in the hub. Emergency reboot started.",
     "The exit's still locked.",
-    "ARCA is tracking you. The reboot will unlock the exit in 100 seconds.",
-    "What about their robots?",
-    "They're after your module. It's the last copy of the records ARCA erased.",
-    "I'll keep the records safe. Finish the reboot."
+    "It's locked because ARCA is tracking you. It'll open when the hub reboots in 100 seconds.",
+    "What about the robots?",
+    "They're after your module. It's the last copy of the operation records ARCA erased.",
+    "I'll protect the module. Hurry and finish the reboot."
   ],
   "outro": [
-    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "Reboot complete. The robots in this sector have lost your trail, and their attack orders are cleared.",
     "The robots stopped. Can I get out now?",
-    "The exit is open. Get to an outside network and we can release the records.",
-    "This time ARCA won't erase anything. Not even what I did for them."
+    "The exit is open. Get somewhere with outside network access and we can show the world those records.",
+    "I won't let ARCA erase anything this time."
   ],
   "outroManyHits": [
-    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "Reboot complete. The robots in this sector have lost your trail, and their attack orders are cleared.",
     "The robots stopped.",
     "I checked the combat log. You took a lot of hits.",
     "The records are intact. That's all that matters.",
-    "The exit is open. Get to an outside network and we can release the records.",
-    "This time ARCA won't erase anything. Not even what I did for them."
+    "The exit is open. Get somewhere with outside network access and we can show the world those records.",
+    "I won't let ARCA erase anything this time."
   ],
   "outroPrecise": [
-    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "Reboot complete. The robots in this sector have lost your trail, and their attack orders are cleared.",
     "The robots stopped.",
     "I checked the combat log. You took them down with precision.",
     "I was just as precise when I worked for ARCA. The targets were different.",
-    "The exit is open. Get to an outside network and we can release the records.",
-    "This time ARCA won't erase anything. Not even what I did for them."
+    "The exit is open. Get somewhere with outside network access and we can show the world those records.",
+    "I won't let ARCA erase anything this time."
   ],
   "battleRadio": [
     "Ten seconds left. Hang in there."
   ],
   "spawnWarnings": [
-    "Multiple robot signals just showed up. A group is headed your way.",
-    "You're halfway there. The robots are coming in twice as fast.",
-    "Massive signal spike. Every robot in this sector is coming for you!"
+    "Multiple robot signals just showed up. Expect a group to rush you.",
+    "You're halfway there. The robots will start coming in twice as fast.",
+    "Massive signal spike. Every robot in this sector is about to swarm you!"
   ]
 }

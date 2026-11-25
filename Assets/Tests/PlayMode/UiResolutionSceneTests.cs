@@ -363,7 +363,7 @@ public sealed class UiResolutionSceneTests
     // Every line of both dialogues fits its box at every size (dialogue text is the longest text in the UI).
     private void CheckEveryDialogueLine()
     {
-        var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
+        var data = Object.FindFirstObjectByType<TextManager>().Sequence;
         Assert.IsNotNull(data);
         Transform view = _ui.transform.Find("Dialogue");
         var dialogue = view.GetComponent<DialogueView>();
