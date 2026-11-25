@@ -525,27 +525,13 @@ public sealed class HudAdditionsSceneTests
     }
 
     // 성과에 반응하는 마무리: 마무리 대화는 이번 판의 통계로 고르고, Retry 뒤에는 이전 판의 통계를 쓰지 않는다.
-    // 게임 에셋의 변형 배열은 비어 있으므로 이 테스트에서만 시험용 변형을 넣었다가 되돌린다.
     [UnityTest]
     public IEnumerator OutroFollowsThisRoundsStatsAndARetryNeverUsesThePreviousRound()
     {
-        var data = Resources.Load<DialogueSequenceData>("DialogueSequence");
-        DialogueLine[] oldManyHits = data.outroManyHits, oldPrecise = data.outroPrecise;
-        DialogueLine[] baseOutro = data.outro;
-        Assert.GreaterOrEqual(baseOutro.Length, 3);
-        var manyHits = new[]
-        {
-            baseOutro[0],
-            new DialogueLine { speaker = "노아", text = "전투 로그 확인. 너 많이 맞았어.", leftSpeaker = true },
-            new DialogueLine { speaker = "K-7", text = "기록은 무사해. 그거면 됐어.", leftSpeaker = false },
-            baseOutro[baseOutro.Length - 2],
-            baseOutro[baseOutro.Length - 1]
-        };
         try
         {
-            data.outroManyHits = manyHits;
-            data.outroPrecise = new DialogueLine[0];
             yield return Load();
+            DialogueSequenceData data = Object.FindFirstObjectByType<TextManager>().Sequence;
             yield return EnterBattle();
             UiLayer layer = Layer();
             for (int i = 0; i < 15; i++)
@@ -553,7 +539,7 @@ public sealed class HudAdditionsSceneTests
             Assert.GreaterOrEqual(_combat.Stats.HitCount, 15);
             yield return EndRoundToOutro();
             Assert.AreEqual(OutroVariant.ManyHits, layer.Dialogue.ChosenOutro, "15 hits picks the many-hits outro.");
-            yield return ReadDialogue(manyHits);
+            yield return ReadDialogue(data.outroManyHits);
             yield return WaitFor(GameState.Result);
 
             // Result의 Retry: 새 판은 피격 0이다. 이전 판의 15회로 고르면 안 된다.
@@ -563,13 +549,11 @@ public sealed class HudAdditionsSceneTests
             Assert.AreEqual(0, _combat.Stats.HitCount);
             yield return EndRoundToOutro();
             Assert.AreEqual(OutroVariant.Base, layer.Dialogue.ChosenOutro, "A retry chooses from its own round only.");
-            yield return ReadDialogue(baseOutro);
+            yield return ReadDialogue(data.outro);
             yield return WaitFor(GameState.Result);
         }
         finally
         {
-            data.outroManyHits = oldManyHits;
-            data.outroPrecise = oldPrecise;
             Time.timeScale = 1f;
         }
     }

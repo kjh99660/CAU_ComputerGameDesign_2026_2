@@ -1,15 +1,19 @@
 public sealed class StartPresenter : UiPresenter<StartView>
 {
     private readonly BestScoreTracker _best;
+    private readonly TextManager _textManager;
     private IApplicationExit _exit;
 
     public StartPresenter(StartView view, IUIRequestDispatcher requests, IBestScoreStore bestScores = null,
-        IApplicationExit exit = null) : base(view, requests)
+        IApplicationExit exit = null, TextManager textManager = null) : base(view, requests)
     {
         _best = new BestScoreTracker(bestScores ?? new PlayerPrefsBestScoreStore());
         _exit = exit ?? new ApplicationExit();
+        _textManager = textManager;
         View.StartClicked += OnStartClicked;
         View.ExitClicked += OnExitClicked;
+        View.LanguageClicked += OnLanguageClicked;
+        View.RenderLanguage(_textManager != null ? _textManager.Language : null);
     }
 
     // Tests put a stand-in here so that pressing EXIT does not stop the test run.
@@ -29,6 +33,13 @@ public sealed class StartPresenter : UiPresenter<StartView>
 
     private void OnStartClicked() => Requests.Enqueue(UIRequestType.Start);
 
+    private void OnLanguageClicked()
+    {
+        if (CurrentState != GameState.Ready || _textManager == null) return;
+        _textManager.ToggleLanguage();
+        View.RenderLanguage(_textManager.Language);
+    }
+
     // Leaving the game is not a game state and is not queued as a request. Only from the start screen (the button is
     // hidden everywhere else); the pause menu's QUIT still only returns here.
     private void OnExitClicked()
@@ -46,5 +57,6 @@ public sealed class StartPresenter : UiPresenter<StartView>
     {
         View.StartClicked -= OnStartClicked;
         View.ExitClicked -= OnExitClicked;
+        View.LanguageClicked -= OnLanguageClicked;
     }
 }

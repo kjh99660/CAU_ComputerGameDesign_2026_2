@@ -60,7 +60,8 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         roundResetCoordinator.RegisterParticipant(enemyRuntime);
         _player = new PlayerLayer(playerRuntime);
         _enemy = enemyRuntime.CreateLayer();
-        _ui = uiRoot.Configure(eventManager, gameStateManager);
+        TextManager textManager = transform.parent != null ? transform.parent.GetComponentInChildren<TextManager>() : null;
+        _ui = uiRoot.Configure(eventManager, gameStateManager, textManager);
         if (_ui == null)
         {
             Debug.LogError("CoreBootstrap could not configure the UI layer.", this);

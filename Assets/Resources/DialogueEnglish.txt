@@ -1,0 +1,42 @@
+{
+  "noa": "Noa",
+  "k7": "K-7",
+  "intro": [
+    "I'm in the hub. Emergency reboot started.",
+    "The exit's still locked.",
+    "ARCA is tracking you. The reboot will unlock the exit in 100 seconds.",
+    "What about their robots?",
+    "They're after your module. It's the last copy of the records ARCA erased.",
+    "I'll keep the records safe. Finish the reboot."
+  ],
+  "outro": [
+    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "The robots stopped. Can I get out now?",
+    "The exit is open. Get to an outside network and we can release the records.",
+    "This time ARCA won't erase anything. Not even what I did for them."
+  ],
+  "outroManyHits": [
+    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "The robots stopped.",
+    "I checked the combat log. You took a lot of hits.",
+    "The records are intact. That's all that matters.",
+    "The exit is open. Get to an outside network and we can release the records.",
+    "This time ARCA won't erase anything. Not even what I did for them."
+  ],
+  "outroPrecise": [
+    "Reboot complete. I wiped the tracking data and attack orders for this sector.",
+    "The robots stopped.",
+    "I checked the combat log. You took them down with precision.",
+    "I was just as precise when I worked for ARCA. The targets were different.",
+    "The exit is open. Get to an outside network and we can release the records.",
+    "This time ARCA won't erase anything. Not even what I did for them."
+  ],
+  "battleRadio": [
+    "Ten seconds left. Hang in there."
+  ],
+  "spawnWarnings": [
+    "Multiple robot signals just showed up. A group is headed your way.",
+    "You're halfway there. The robots are coming in twice as fast.",
+    "Massive signal spike. Every robot in this sector is coming for you!"
+  ]
+}
