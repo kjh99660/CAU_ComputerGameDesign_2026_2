@@ -112,7 +112,7 @@ public sealed class EnemyAbRoundRunner : MonoBehaviour
         if (_activeProbe == null) return;
         _activeProbe.MeasureTime = false;
         _activeProbe.ShadowVerify = false;
-        _activeProbe.SetMode(EnemyCandidateMode.SpatialGrid);
+        _activeProbe.RestoreDefaultMode();
         _activeProbe.SetExperimentMaximumEnemies(0);
         _activeProbe = null;
     }

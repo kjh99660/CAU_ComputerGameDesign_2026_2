@@ -145,7 +145,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         if (_attackTick != _state.Tick ||
             (_state.CurrentState != GameState.Battle && _state.CurrentState != GameState.Finishing)) return;
 
-        int count = _current.shape == AttackHitData.HitShape.Sector ? QuerySector() : QueryBox();
+        int count;
+        Collider[] results = _current.shape == AttackHitData.HitShape.Sector ? QuerySector(out count) : QueryBox(out count);
         int enemyCount = 0, newHits = 0;
 
         float knockback = _current.knockbackMultiplier * (_current.chargeScalesKnockback ? _scale : 1f);
@@ -156,7 +157,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         {
             for (int i = 0; i < count; i++)
             {
-                if (!_buffer[i].TryGetComponent(out EnemyAgent enemy)) continue;
+                if (!results[i].TryGetComponent(out EnemyAgent enemy)) continue;
                 enemyCount++;
                 if (!_hitThisSwing.Add(enemy)) continue;           // 이번 공격에서 이미 맞음
                 Vector3 dir = enemy.transform.position - transform.position;
@@ -185,29 +186,27 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         }
     }
 
-    // 상자 안의 적 콜라이더를 _buffer에 모은다.
-    private int QueryBox()
+    private Collider[] QueryBox(out int count)
     {
         _current.GetScaledBox(_scale, out Vector3 localCenter, out Vector3 size);
         Vector3 center = transform.TransformPoint(localCenter);
-        return Physics.OverlapBoxNonAlloc(center, size * 0.5f, _buffer, transform.rotation, enemyMask);
+        return AttackOverlapQuery.Box(center, size * 0.5f, _buffer, transform.rotation, enemyMask, out count);
     }
 
-    // 부채꼴 안의 적 콜라이더를 _buffer 앞쪽에 모은다.
     // 1) 반지름 구로 후보를 모으고  2) 높이 범위  3) 각도 범위로 거른다.
-    private int QuerySector()
+    private Collider[] QuerySector(out int kept)
     {
         _current.GetSector(_scale, out float radius, out float startAngle, out float endAngle);
         Vector3 origin = transform.position + Vector3.up * _current.center.y;
         float halfHeight = _current.size.y * 0.5f;
-        int count = Physics.OverlapSphereNonAlloc(origin, radius, _buffer, enemyMask);
+        Collider[] results = AttackOverlapQuery.Sphere(origin, radius, _buffer, enemyMask, out int count);
         _dbgSphere = count; _dbgHeight = 0;
 
         Vector3 forward = Flat(transform.forward);
-        int kept = 0;
+        kept = 0;
         for (int i = 0; i < count; i++)
         {
-            Collider col = _buffer[i];
+            Collider col = results[i];
 
             // 높이: 적 콜라이더가 [origin.y - halfHeight, origin.y + halfHeight] 구간과 겹쳐야 함
             Bounds b = col.bounds;
@@ -222,10 +221,10 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
                 if (!InAngleRange(a, startAngle, endAngle)) continue;
             }
 
-            _buffer[kept++] = col;
+            results[kept++] = col;
         }
         _dbgAngle = kept;
-        return kept;
+        return results;
     }
 
     // a(-180~180)가 [start, end] 범위 안인지. start가 -180보다 작은 경우(뒤쪽으로 넘어감)도 처리.
