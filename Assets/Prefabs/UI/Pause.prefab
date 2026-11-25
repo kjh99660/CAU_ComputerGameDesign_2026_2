@@ -2148,10 +2148,10 @@ MonoBehaviour:
 
     DODGE
 
-    SKILL DASH
+    SPECIAL AT 100%
 
-    SPECIAL
-    AT 100%
+    SKILL
+    AT 50%
 
     RESUME'
   m_isRightToLeft: 0

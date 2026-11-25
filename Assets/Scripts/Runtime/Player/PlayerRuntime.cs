@@ -25,7 +25,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     [SerializeField] private string moveActionName = "Move";
     [SerializeField] private string lookActionName = "Look";
     [SerializeField] private string attackActionName = "Attack";
-    [SerializeField] private string specialActionName = "Interact"; // Provisional existing binding: E.
+    [SerializeField] private string specialActionName = "Interact"; // The special (ultimate). Bound to Q since 2026-11-25; the skill (Skill1) took E.
 
     [Header("Movement")]
     [SerializeField, Min(0f)] private float moveSpeed = 10f;
@@ -117,6 +117,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
     private EnemyRuntime _combatEnemies;
     private CombatSettings _combatSettings;
     private CombatRoundRuntime _combatRound;
+    private int _skillGaugeTick = -1;   // the tick the skill last spent its gauge in (-1: nothing to give back)
     private bool _attackStartedInBattle;
     private bool _hasAttackHitSource;
     private GameState _gameState = GameState.Initializing;
@@ -152,6 +153,29 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         ResolveActions();
         DisableInput();
     }
+
+    // The skill (E) lives with the animation adapters (PlayerSkill) and reaches the round's gauge through these two.
+    // TryUseSkillGauge is called when the key is pressed: false when the gauge is short (the HUD shows the refusal).
+    // RefundSkillGauge gives that use back when the skill was called off before its dash began. The refund carries
+    // the tick of the use, so a use of the round before is never given back to a new round. Without a combat round
+    // (a scene that has none) the skill is free.
+    public bool TryUseSkillGauge()
+    {
+        if (!_battleActive || _stopRequested) return false;
+        if (_combatRound == null) return true;
+        if (!_combatRound.TryUseSkill(_tick)) return false;
+        _skillGaugeTick = _tick;
+        return true;
+    }
+
+    public void RefundSkillGauge()
+    {
+        if (_combatRound != null && _skillGaugeTick >= 0) _combatRound.RefundSkill(_skillGaugeTick);
+        _skillGaugeTick = -1;
+    }
+
+    // The skill's dash has begun: its use can no longer be given back.
+    public void CommitSkillGauge() => _skillGaugeTick = -1;
 
     public void ConfigureSpawnPoint(Transform value) => spawnPoint = value;
 
@@ -520,6 +544,7 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         _tick = tick;
         _stopRequested = false;
         _battleActive = false;
+        _skillGaugeTick = -1;
         _attackStartedInBattle = false;
         _gameState = GameState.Ready;
         DisableInput();

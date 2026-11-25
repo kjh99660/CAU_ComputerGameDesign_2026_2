@@ -126,7 +126,7 @@ public sealed class EnemyLifeSceneTests
         Assert.AreEqual("REBOOT/Ground Indicator", reach.sharedMaterial.shader.name, "The charge reach uses the neon marking.");
         var ring = Object.FindFirstObjectByType<SpecialFeedback>();
         Assert.IsTrue(ring.UsesNeon, "The special's ring uses the neon marking.");
-        for (int i = 0; i < 13; i++) _combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && _combat.Stats.Gauge < _combat.Settings.maximumGauge; i++) _combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.IsTrue(_combat.TryUseSpecial(_state.Tick, _player.transform.position));
         Assert.IsTrue(ring.IsShowing);
     }

@@ -244,6 +244,28 @@ Chakra Petch 정적 에셋에는 영문·숫자·기호만 들어 있다. 영문
 - EditMode `GameOptionsTests`(단계, 범위, 저장값 복원), PlayMode `UxPolishSceneTests`(메뉴 구성, 확인창이 메뉴를 가림, 감도가 실제 카메라 회전에 반영, 음량, 저장, 키보드 확인, 마지막 3초 틱).
 - 해상도별 겹침 검사(`UiResolutionSceneTests`)에 두 칸이 포함된다.
 
+## 스킬·궁극기 키와 게이지 표시 (2026-11-25)
+
+스킬이 궁극기(특수 공격)와 같은 게이지를 쓰게 되면서 전투 HUD가 스킬 몫을 보여 준다. 같은 날 키를 맞바꿔 Q가 궁극기, E가 스킬이다. 규칙은 `Docs/Design/04_SCORE_GAUGE_IMPLEMENTATION_PLAN.md` 3절에 있다. 색과 크기는 모두 임시값이다.
+
+| 요소 | 동작 |
+| --- | --- |
+| 키 표시의 자리 | 게이지 왼쪽이 Q(`SpecialKeyBadge`, SPECIAL), 오른쪽이 E(`SkillKeyBadge`, SKILL). 키보드에 놓인 순서와 같다 |
+| 게이지 고리의 눈금(`SpecialGaugeSkillMark`) | 고리가 차는 방향으로 스킬 몫만큼 돈 자리에 놓인다. 절반이면 육각 고리의 맨 아래 꼭짓점이다. 게이지가 닿기 전에는 흰색, 닿으면 강조색 |
+| E 키 | 게이지가 스킬 몫보다 적으면 흐리게, 그 이상이면 보통 밝기. 가득 차도 맥동하지 않는다 |
+| Q 키 | 게이지가 가득 찬 동안에만 강조색으로 켜지고 맥동한다 |
+| 모자란 E 입력 | E 키가 0.25초 동안 좌우로 흔들린다(`HudKeyBadge.Deny`). 전투를 벗어나면 제자리로 돌아간다 |
+| 시작 화면·일시정지 메뉴의 조작 안내 | `Q  SPECIAL AT 100%`, `E  SKILL AT 50%` |
+
+- 값의 흐름: `CombatRoundRuntime.Present` → `UIRoot.PresentSkillCost` → `BattleView.RenderSkillCost`. 모자란 입력은 `CombatRoundRuntime.TryUseSkill` → `UIRoot.PresentSkillDenied`.
+- 눈금은 코드로 만든 육각 게이지 틀에만 놓인다. 프리팹에 게이지를 따로 놓으면 눈금은 생기지 않는다.
+- 스킬의 화면 연출은 UI가 아니라 `SkillFeedback`(`Assets/Scripts/Runtime/Combat/`)이 그린다.
+  - 준비 중: 돌진할 길이 바닥에 폭 3m로 깔린다. 플레이어 쪽에서 끝까지 차오르며 청록에서 분홍으로 바뀌고, 그 위로 빛줄기가 앞으로 흐른다. 바닥 표시 재질(`REBOOT/Ground Indicator`)을 쓴다.
+  - 돌진: 지나간 길에 1.2m마다 플레이어의 홀로그램 잔상이 남는다. 발에서부터 켜지고, 가로 줄무늬로 갈라지며 사라진다(`REBOOT/Skill Ghost`, `Assets/Scripts/Rendering/RebootSkillGhost.shader`). 자세는 돌진 직전의 모습을 한 번 구워 쓴다.
+  - 도착: 시작 지점에서 도착 지점까지 칼자국이 남는다. 도착한 자리의 원형 고리와 회오리 이펙트는 없앴다.
+  - 폭, 시간, 색은 `CombatVfxSettings`의 skill 값이다. Pause에서는 멈춘 채 보이고 Retry에서 지워진다.
+- 확인: PlayMode `HudAdditionsSceneTests`(키 자리와 글자, E 키 밝기, 눈금, 흔들림, 안내 문구), `SkillSceneTests`. 배치 캡처로 평지 아레나와 Neon City 화면을 봤다. 사람이 직접 플레이해 본 확인은 없다.
+
 ## 함께 발견한 적 시스템 문제(수정하지 않음)
 
 `EnemyPrototype.prefab`의 Rigidbody 설정과 프로젝트 물리 설정이 다음과 같다.

@@ -132,7 +132,7 @@ public sealed class CombatFeedbackSceneTests
         Assert.AreEqual(rest, camera.fieldOfView, 0.0001f, "After the pulse the field of view is back at rest.");
 
         // The special pulses harder, freezes with Pause and is undone by Retry.
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.IsTrue(combat.TryUseSpecial(_state.Tick, player.transform.position));
         yield return null;
         yield return null;
@@ -164,7 +164,7 @@ public sealed class CombatFeedbackSceneTests
         int expected = 1 + settings.specialRadialCount;
         Assert.AreEqual(0, vfx.ActiveSpecialEffects);
 
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.IsTrue(combat.TryUseSpecial(_state.Tick, player.transform.position));
         Assert.AreEqual(expected, vfx.ActiveSpecialEffects, "One burst on the player and a ring of copies around it.");
         int instances = vfx.PooledSpecialEffects;
@@ -180,7 +180,7 @@ public sealed class CombatFeedbackSceneTests
 
         // A second special reuses the same instances instead of creating new ones.
         yield return EnterBattle();
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.IsTrue(combat.TryUseSpecial(_state.Tick, player.transform.position));
         Assert.AreEqual(expected, vfx.ActiveSpecialEffects);
         Assert.AreEqual(instances, vfx.PooledSpecialEffects, "Effects are pooled.");

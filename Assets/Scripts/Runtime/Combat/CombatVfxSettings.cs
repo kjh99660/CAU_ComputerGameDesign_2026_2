@@ -91,6 +91,24 @@ public sealed class CombatVfxSettings : ScriptableObject
     [Header("Ground indicators")]
     public Material groundIndicatorMaterial;
 
+    // The skill (E, the dash along a line), drawn by SkillFeedback. The lane on the floor while it winds up and the cut
+    // its dash leaves in the air use the material above; the hologram copies left along the dash use skillGhostShader.
+    [Header("Skill (E) markings - provisional")]
+    [Tooltip("Width of the lane for a skill that does not cut along its dash. A skill that does shows the real width of its blow.")]
+    [Min(0.01f)] public float skillAimWidth = 1f;
+    [Tooltip("Streaks of light rushing along the lane (0 = none).")]
+    [Range(0, 48)] public int skillAimStreaks = 22;
+    [Min(0.01f)] public float skillStreakWidth = 0.8f;
+    [Min(0.05f)] public float skillStreakSeconds = 0.4f;
+    [Min(0f)] public float skillStreakHeight = 1f;
+    [Tooltip("REBOOT/Skill Ghost. Without it the dash leaves no copies.")]
+    public Shader skillGhostShader;
+    [Tooltip("A copy of the player every this many metres of the dash (the first stands where the dash starts).")]
+    [Min(0.2f)] public float skillGhostSpacing = 1.2f;
+    [Min(0.05f)] public float skillGhostSeconds = 0.55f;
+    [ColorUsage(false, true)] public Color skillGhostColor = new Color(0.25f, 1.7f, 2f, 1f);
+    [ColorUsage(false, true)] public Color skillGhostEdgeColor = new Color(1.6f, 2.2f, 2.4f, 1f);
+
     // A hit on the player in the same language: its white outline flashes this colour, then blinks for as long as the
     // player cannot be hit again (CombatSettings.invulnerabilitySeconds).
     [Header("Player hurt - provisional")]

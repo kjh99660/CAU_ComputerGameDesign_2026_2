@@ -177,7 +177,7 @@ public sealed class CombatRoundSceneTests
         Physics.SyncTransforms();
         var enemies = Object.FindFirstObjectByType<EnemyRuntime>();
         enemies.UpdateAI(0f, state.Tick); // Update the grid after positioning the test enemy.
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(state.Tick);
         Assert.AreEqual(100f, combat.Stats.Gauge);
         int previousKills = combat.Stats.KillCount;
         Assert.IsTrue(combat.TryUseSpecial(state.Tick, player.transform.position));
@@ -288,9 +288,11 @@ public sealed class CombatRoundSceneTests
         Assert.Greater(scoreText.color.g, scoreText.color.r);
         var fill = Find<Image>(battle.transform, "SpecialGaugeFill");
         Assert.IsNotNull(fill.sprite);
-        Assert.AreEqual(0.08f, fill.fillAmount, 0.0001f);
+        // One kill: the game's hit and kill gauge (2 + 3 since 2026-11-25) out of the full gauge.
+        float oneKill = (combat.Settings.hitGauge + combat.Settings.killGauge) / combat.Settings.maximumGauge;
+        Assert.AreEqual(oneKill, fill.fillAmount, 0.0001f);
         var percent = Find<TMP_Text>(battle.transform, "SpecialGaugePercent");
-        Assert.AreEqual("8%", percent.text);
+        Assert.AreEqual(Mathf.FloorToInt(oneKill * 100f + 0.0001f) + "%", percent.text);
         battle.RenderGauge(1f);
         Assert.AreEqual("100%", percent.text);
         // 가득 찬 게이지는 팔레트의 강조색(청록)으로 바뀐다.

@@ -823,7 +823,7 @@ MonoBehaviour:
   m_text: 'WASD  MOVE     MOUSE  CAMERA     LMB  ATTACK     SHIFT  DODGE
 
     HOLD
-    3RD LMB  CHARGE     Q  SKILL DASH     E  SPECIAL AT 100%     ESC  PAUSE'
+    3RD LMB  CHARGE     Q  SPECIAL AT 100%     E  SKILL AT 50%     ESC  PAUSE'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 1561bff22a8164559a0ea0b5b7cba6c7, type: 2}
   m_sharedMaterial: {fileID: 2100000, guid: 4ce0c4158fa3a41f8bcbb6967b9a0973, type: 2}

@@ -7,7 +7,9 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
     [SerializeField] private AttackHitData gizmoPreview;    // Scene 뷰에서 미리 볼 공격
     [SerializeField] private bool debugLog = false;         // 켜면 판정 과정을 콘솔에 출력 (원인 확인용)
 
-    private readonly Collider[] _buffer = new Collider[64];
+    // 한 번의 검사에서 받을 수 있는 적 콜라이더 수. 일반 상한(100명)과 아직 치워지지 않은 쓰러진 적까지 들어가야
+    // 넓은 판정(스킬의 반지름 8m)이 무리 한가운데에서 잘리지 않는다. 성능 실험의 300명까지 받는다.
+    private readonly Collider[] _buffer = new Collider[320];
     private readonly HashSet<EnemyAgent> _hitThisSwing = new();
     private AttackHitData _current;
     private float _scale = 1f;              // 이번 공격의 범위 배율 (차지 공격이면 차지 시간에 따라 커짐)
@@ -15,6 +17,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
     private GameStateManager _state;
     private PlayerChargeTracker _charge;
     private CombatVfxRuntime _vfx;
+    private CombatRoundRuntime _combat;     // 스킬 타격의 게이지 획득 배율을 적용하는 쪽 (메인 씬에만 있음)
+    private bool _skillHit;                 // 이번 판정이 스킬의 타격인지
     private int _attackTick = -1;
     private Animator _animator;
     private int _hitStateHash;              // 이번 판정이 시작된 Animator 상태 (안전장치용)
@@ -31,19 +35,34 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         _state = FindFirstObjectByType<GameStateManager>();
         _charge = GetComponent<PlayerChargeTracker>();   // 없으면 차지 배율 없이 1배
         _vfx = FindFirstObjectByType<CombatVfxRuntime>();
+        _combat = FindFirstObjectByType<CombatRoundRuntime>();
         _animator = GetComponent<Animator>();
     }
 
+    // 켜져 있는 동안 클립에 박힌 HitStart·HitEnd 이벤트를 받지 않는다. 스킬 본동작이 공격 클립(차지 베기)을 빌려 쓰면서
+    // 판정은 스킬이 직접 내기 때문이다. PlayerSkill이 스킬을 시작할 때 켜고 끝날 때 끈다.
+    public bool AnimationEventsMuted { get; set; }
+
     // ── 애니메이션 이벤트 ──
-    public void HitStart(AttackHitData data) => BeginHit(data, true);
+    public void HitStart(AttackHitData data)
+    {
+        if (!AnimationEventsMuted) BeginHit(data, true);
+    }
+
+    public void HitEnd()
+    {
+        if (!AnimationEventsMuted) EndHit();
+    }
 
     // 코드에서 판정을 시작할 때 사용 (예: 스킬). playVfx=false면 기본 베기 이펙트(CombatVfxRuntime)를 재생하지 않음.
-    public void BeginHit(AttackHitData data, bool playVfx)
+    // skillHit=true면 이 판정으로 맞힌 타격은 스킬의 타격으로 기록된다 (게이지를 CombatSettings의 배율만큼만 채움).
+    public void BeginHit(AttackHitData data, bool playVfx, bool skillHit = false)
     {
         if (_state == null || (_state.CurrentState != GameState.Battle &&
             _state.CurrentState != GameState.Finishing)) return;
         _attackTick = _state.Tick;
         _current = data;
+        _skillHit = skillHit;
         _hitStateHash = CurrentAttackStateHash();
         _scale = (data != null && _charge != null) ? data.GetChargeScale(_charge.ChargeTime) : 1f;
         _hitThisSwing.Clear();
@@ -72,7 +91,8 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         CheckHits();                 // 시작 프레임에도 바로 검사
     }
 
-    public void HitEnd()
+    // 코드에서 판정을 끝낼 때 사용 (스킬, 안전장치). 애니메이션 이벤트는 위의 HitEnd로 들어온다.
+    public void EndHit()
     {
         if (debugLog && _current != null)
             Debug.Log($"[Hitbox] HitEnd {_current.name} | 검사 프레임={_dbgFrames} 맞음={_dbgHits} 거절(TryApplyHit false)={_dbgRejected}", this);
@@ -89,7 +109,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         {
             if (debugLog)
                 Debug.Log($"[Hitbox] 안전장치: 공격 상태를 벗어나 {_current.name} 판정 자동 종료", this);
-            HitEnd();
+            EndHit();
             return;
         }
 
@@ -129,17 +149,27 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
         int enemyCount = 0, newHits = 0;
 
         float knockback = _current.knockbackMultiplier * (_current.chargeScalesKnockback ? _scale : 1f);
-        for (int i = 0; i < count; i++)
+        // 스킬의 타격은 이 구간 안에서 기록되어야 게이지 획득 배율이 적용된다 (끝나면 반드시 닫는다).
+        bool skillScope = _skillHit && _combat != null;
+        if (skillScope) _combat.BeginSkillHits();
+        try
         {
-            if (!_buffer[i].TryGetComponent(out EnemyAgent enemy)) continue;
-            enemyCount++;
-            if (!_hitThisSwing.Add(enemy)) continue;           // 이번 공격에서 이미 맞음
-            Vector3 dir = enemy.transform.position - transform.position;
-            bool ok = _enemies.TryApplyHit(enemy, dir, knockback, _state.Tick);
-            if (ok) { newHits++; _dbgHits++; }
-            else _dbgRejected++;
-            if (debugLog && !ok)
-                Debug.Log($"[Hitbox]   거절: {enemy.name} state={enemy.State} enemyTick={enemy.ActiveTick} stateTick={_state.Tick}", enemy);
+            for (int i = 0; i < count; i++)
+            {
+                if (!_buffer[i].TryGetComponent(out EnemyAgent enemy)) continue;
+                enemyCount++;
+                if (!_hitThisSwing.Add(enemy)) continue;           // 이번 공격에서 이미 맞음
+                Vector3 dir = enemy.transform.position - transform.position;
+                bool ok = _enemies.TryApplyHit(enemy, dir, knockback, _state.Tick);
+                if (ok) { newHits++; _dbgHits++; }
+                else _dbgRejected++;
+                if (debugLog && !ok)
+                    Debug.Log($"[Hitbox]   거절: {enemy.name} state={enemy.State} enemyTick={enemy.ActiveTick} stateTick={_state.Tick}", enemy);
+            }
+        }
+        finally
+        {
+            if (skillScope) _combat.EndSkillHits();
         }
 
         if (debugLog)
@@ -215,7 +245,7 @@ public class PlayerAttackHitbox : MonoBehaviour, IPlayerAttackHitSource
 
     // ── 팀원 구조가 보내 주는 알림 (PlayerRuntime이 자동으로 찾아서 호출) ──
     public void ApplyState(GameState state) { }    // Pause 중에는 Animator가 멈추니 따로 할 일 없음
-    public void ResetPresentation() { _current = null; _attackTick = -1; _hitStateHash = 0; _scale = 1f; _hitThisSwing.Clear(); }
+    public void ResetPresentation() { _current = null; _skillHit = false; AnimationEventsMuted = false; _attackTick = -1; _hitStateHash = 0; _scale = 1f; _hitThisSwing.Clear(); }
 
     private void OnDrawGizmosSelected()
     {

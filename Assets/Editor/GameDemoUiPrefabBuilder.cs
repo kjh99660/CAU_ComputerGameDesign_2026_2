@@ -110,7 +110,7 @@ public static class GameDemoUiPrefabBuilder
         CreateImage(root, "ControlHintPanel", "Start/Start_ControlHintPanel.png", BottomCenter,
             new Vector2(0, 58), new Vector2(760, 128));
         // 회피는 Left Shift다(Player.prefab의 PlayerDodge가 Sprint 액션을 쓴다). 키를 바꾸면 이 문구도 같이 바꾼다.
-        // 문구와 두 줄 배치는 RebootHudAdditions.EnsureStart가 정한다(차지, Q 스킬, E 특수 공격, ESC까지).
+        // 문구와 두 줄 배치는 RebootHudAdditions.EnsureStart가 정한다(차지, Q 궁극기, E 스킬, ESC까지).
         CreateText(root, "ControlHint", RebootHudAdditions.ControlHintText, BottomCenter,
             new Vector2(0, 82), new Vector2(690, 48), 21, Muted, FontStyles.Bold);
         RebootHudAdditions.EnsureStart(root);

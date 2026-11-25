@@ -14,8 +14,15 @@ public sealed class CombatSettings : ScriptableObject
     [Min(0f)] public float invulnerabilitySeconds = 0.8f;
     [Header("Special and combo - provisional")]
     [Range(0f, 1f)] public float specialCostFraction = 1f;
-    [Min(0.1f)] public float specialRadius = 6f;
+    [Min(0.1f)] public float specialRadius = 8f;
     [Min(0f)] public float specialKnockbackMultiplier = 2f;
+    // The skill (E, the dash along a line) shares the special's gauge. It needs and spends skillCostFraction of the
+    // full gauge for one use (0 = free). A blow of the skill charges the gauge by skillGaugeGainFraction of the usual
+    // hitGauge and killGauge: 0, like the special's own kills (specialKillsRestoreGauge), so that neither pays for
+    // itself; only normal attacks and being hit fill the gauge.
+    [Header("Skill (E) gauge - provisional")]
+    [Range(0f, 1f)] public float skillCostFraction = 0.5f;
+    [Range(0f, 1f)] public float skillGaugeGainFraction = 0f;
     [Header("Special feedback - provisional")]
     [Min(0.05f)] public float specialEffectDuration = 0.55f;
     [Min(0.01f)] public float specialEffectWidth = 0.16f;

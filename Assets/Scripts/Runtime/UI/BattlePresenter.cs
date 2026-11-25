@@ -23,6 +23,8 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
     protected override void OnStateApplied(GameStateChangedEvent notification)
     {
         View.SetPauseInteractable(notification.Current == GameState.Battle);
+        // 흔들리던 스킬 키는 전투를 벗어나면 제자리로 돌아간다(Pause에서는 HUD 연출이 멈춰 어긋난 채 남는다).
+        if (notification.Current != GameState.Battle) View.StopSkillDenied();
         // 새 판(시작 직후, Retry·Quit 뒤의 Ready)마다 무전을 처음부터 다시 센다. Pause와 Resume은 이어서 센다.
         if (notification.Current == GameState.Ready)
             _radio.Begin(RadioLines);
@@ -35,6 +37,13 @@ public sealed class BattlePresenter : UiPresenter<BattleView>
     public void PresentPlayerHit() => View.PlayPlayerHitFeedback();
     public void PresentCombo(ComboUiModel model) => View.RenderCombo(model);
     public void PresentSkillCooldown(float remainingNormalized) => View.RenderSkillCooldown(remainingNormalized);
+    public void PresentSkillCost(float normalized) => View.RenderSkillCost(normalized);
+
+    // 게이지가 모자란 스킬 입력. 전투 중에만 보인다(다른 상태에서는 스킬 입력 자체가 없다).
+    public void PresentSkillDenied()
+    {
+        if (CurrentState == GameState.Battle) View.PlaySkillDenied();
+    }
 
     // 전투 시계. Battle에서만 무전 시각을 확인하므로 Ready·Countdown·Pause·Finishing에는 무전이 뜨지 않는다.
     public void PresentTimer(float remaining)

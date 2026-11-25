@@ -16,6 +16,7 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
     private static readonly int DodgeForward = Animator.StringToHash("Dodge_F");
     private static readonly int DodgeBackward = Animator.StringToHash("Dodge_B");
     private static readonly int SkillDashState = Animator.StringToHash("Skill1_Dash");
+    private static readonly int SkillMainState = Animator.StringToHash("Skill1_Main");
 
     private readonly SfxCueSettings[] _cues = new SfxCueSettings[SfxCues.Count];
     private readonly int[] _lastClip = new int[SfxCues.Count];
@@ -124,6 +125,8 @@ public sealed class SfxRuntime : MonoBehaviour, IRoundResettable
         _playerState = state;
         if (state == DodgeForward || state == DodgeBackward) Play(SfxCue.Dodge, default);
         else if (state == SkillDashState) Play(SfxCue.SkillDash, default);
+        // The skill's blow at the end of its dash: the hitbox plays no slash effect for it, so no swing was heard.
+        else if (state == SkillMainState) Play(SfxCue.SwingHeavy, default);
     }
 
     private int PlayerState()

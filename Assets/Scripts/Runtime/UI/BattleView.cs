@@ -33,7 +33,7 @@ public sealed class BattleView : UIScreenView
     // 게이지가 가득 찬 동안의 맥동. 속도가 0이거나 크기가 1이면 쓰지 않는다.
     [SerializeField, Min(0f)] private float gaugePulseHz = 1.4f;
     [SerializeField, Min(1f)] private float gaugePulseScale = 1.08f;
-    // 콤보 표시, 전투 중 무전 자막, 게이지 옆 키 표시(E 특수 공격, Q 스킬). 프리팹의 같은 이름 요소를 쓴다.
+    // 콤보 표시, 전투 중 무전 자막, 게이지 옆 키 표시(Q 궁극기, E 스킬). 프리팹의 같은 이름 요소를 쓴다.
     [Header("HUD additions")]
     [SerializeField] private HudComboCounter comboCounter;
     [SerializeField] private HudRadioSubtitle radioSubtitle;
@@ -67,6 +67,17 @@ public sealed class BattleView : UIScreenView
     private Sprite _gaugeRingSprite;
     private Texture2D _gaugeRingTexture;
     private int _shownPercent = -1;
+    // 스킬(E)이 쓰는 게이지 몫. 0이면 게이지를 쓰지 않는 스킬이다(눈금 없음, E는 대기 시간만 본다).
+    private RectTransform _gaugeFrame;
+    private Image _skillMark;
+    private float _skillCost;
+    private float _skillCooldown;
+    private float _gaugeNormalized;
+
+    public const string SkillMarkName = "SpecialGaugeSkillMark";
+    // 육각 고리의 가운데 선까지 거리(틀 170px 기준, 변의 수직 방향)와 눈금 크기.
+    private const float GaugeRingApothem = 49.5f / 128f * 170f;
+    private static readonly Vector2 SkillMarkSize = new Vector2(4f, 22f);
 
     public event Action PauseClicked;
     private float _lastRemainingSeconds = 0f;
@@ -118,10 +129,70 @@ public sealed class BattleView : UIScreenView
             _radioFont.TryAddCharacters(characters, out string _);
     }
 
-    // 스킬(Q) 재사용 대기(0 = 준비됨). 지금 스킬에는 대기 시간이 없어 Q는 늘 준비된 모습이다.
+    // 스킬(E) 재사용 대기(0 = 준비됨). 지금 스킬에는 대기 시간이 없다. E의 밝기는 대기와 게이지를 함께 본다.
     public void RenderSkillCooldown(float remainingNormalized)
     {
-        if (skillKeyBadge != null) skillKeyBadge.SetCooldown(remainingNormalized);
+        _skillCooldown = UiMotion.Clamp01(remainingNormalized);
+        if (skillKeyBadge != null) skillKeyBadge.SetCooldown(_skillCooldown);
+        UpdateSkillBadge();
+    }
+
+    // 스킬(E)이 쓰는 게이지 몫(0~1). 게이지 고리의 그 자리에 눈금을 놓고, 게이지가 거기까지 차면 E가 밝아진다.
+    public void RenderSkillCost(float normalized)
+    {
+        normalized = Mathf.Clamp01(normalized);
+        if (Mathf.Approximately(normalized, _skillCost)) return;
+        _skillCost = normalized;
+        PlaceSkillMark();
+        UpdateSkillBadge();
+    }
+
+    // 게이지가 모자란데 E를 눌렀다.
+    public void PlaySkillDenied()
+    {
+        if (skillKeyBadge != null) skillKeyBadge.Deny();
+    }
+
+    public void StopSkillDenied()
+    {
+        if (skillKeyBadge != null) skillKeyBadge.ClearDeny();
+    }
+
+    // 스킬 키: 대기 중이거나 게이지가 모자라면 흐리게, 아니면 보통 밝기. 눈금은 게이지가 닿으면 강조색이 된다.
+    private void UpdateSkillBadge()
+    {
+        bool enough = _gaugeNormalized >= _skillCost - 0.0001f;
+        if (skillKeyBadge != null)
+            skillKeyBadge.SetState(_skillCooldown <= 0f && enough ? HudKeyBadge.State.Ready : HudKeyBadge.State.Dim);
+        if (_skillMark != null)
+            _skillMark.color = enough ? UiPalette.Accent : UiPalette.Ink;
+    }
+
+    // 눈금: 고리가 위에서 시계 방향으로 차므로 같은 방향으로 skillCost만큼 돈 자리. 육각 고리라 꼭짓점 쪽은 더 멀다.
+    private void PlaceSkillMark()
+    {
+        if (_gaugeFrame == null) return;
+        bool show = _skillCost > 0.001f && _skillCost < 0.999f;
+        if (_skillMark == null)
+        {
+            if (!show) return;
+            var markObject = new GameObject(SkillMarkName, typeof(RectTransform), typeof(Image));
+            var markRect = (RectTransform)markObject.transform;
+            markRect.SetParent(_gaugeFrame, false);
+            markRect.anchorMin = markRect.anchorMax = markRect.pivot = new Vector2(0.5f, 0.5f);
+            markRect.sizeDelta = SkillMarkSize;
+            _skillMark = markObject.GetComponent<Image>();
+            _skillMark.raycastTarget = false;
+        }
+        if (_skillMark.gameObject.activeSelf != show) _skillMark.gameObject.SetActive(show);
+        if (!show) return;
+        float degrees = _skillCost * 360f;
+        float fromNormal = Mathf.Abs(Mathf.Repeat(degrees, 60f) - 30f) * Mathf.Deg2Rad;
+        float distance = GaugeRingApothem / Mathf.Cos(fromNormal);
+        float radians = degrees * Mathf.Deg2Rad;
+        RectTransform rect = _skillMark.rectTransform;
+        rect.anchoredPosition = new Vector2(Mathf.Sin(radians), Mathf.Cos(radians)) * distance;
+        rect.localRotation = Quaternion.Euler(0f, 0f, -degrees);
     }
 
     private void EnsureRadioFont()
@@ -156,10 +227,11 @@ public sealed class BattleView : UIScreenView
     {
         ClearFeedback();
         Render(new BattleUiModel(0, 100f, 0f));
-        // 이전 판의 콤보와 무전이 남지 않는다. Q는 준비된 모습으로 돌아간다(E는 위 게이지 0으로 흐려진다).
+        // 이전 판의 콤보와 무전이 남지 않는다. E는 대기 없이 게이지만 보는 모습으로 돌아간다(Q는 위 게이지 0으로 흐려진다).
         if (comboCounter != null) comboCounter.Clear();
         if (radioSubtitle != null) radioSubtitle.Clear();
-        if (skillKeyBadge != null) skillKeyBadge.SetCooldown(0f);
+        if (skillKeyBadge != null) skillKeyBadge.ClearDeny();
+        RenderSkillCooldown(0f);
     }
 
     public void PlayScoreFeedback(int delta)
@@ -352,8 +424,11 @@ public sealed class BattleView : UIScreenView
             _gaugePulsePhase = 0f;
             if (_gaugePulseTarget != null) _gaugePulseTarget.localScale = _gaugeBaseScale;
         }
-        // 특수 공격 키(E)는 게이지가 가득 찬 동안에만 켜진다.
+        // 궁극기 키(Q)는 게이지가 가득 찬 동안에만 켜진다.
         if (specialKeyBadge != null) specialKeyBadge.SetState(full ? HudKeyBadge.State.Lit : HudKeyBadge.State.Dim);
+        // 스킬 키(E)는 게이지가 스킬 몫만큼 찼을 때 밝아진다.
+        _gaugeNormalized = normalized;
+        UpdateSkillBadge();
     }
 
     // 맥동할 대상을 한 번만 정한다(코드로 만든 게이지는 틀 전체, 프리팹에 놓인 게이지는 채움 이미지).
@@ -395,6 +470,7 @@ public sealed class BattleView : UIScreenView
         frameRect.pivot = new Vector2(0.5f, 0.5f);
         frameRect.anchoredPosition = new Vector2(0f, 35f + 85f);
         frameRect.sizeDelta = new Vector2(170f, 170f);
+        _gaugeFrame = frameRect;
         BindGaugePulseTarget(frameRect);
         Image frame = frameObject.GetComponent<Image>();
         frame.sprite = _gaugeRingSprite;
@@ -434,6 +510,7 @@ public sealed class BattleView : UIScreenView
         _gaugePercent.outlineWidth = 0.2f;
         _gaugePercent.raycastTarget = false;
         _shownPercent = -1;
+        PlaceSkillMark();
         RenderGauge(0f);
     }
 

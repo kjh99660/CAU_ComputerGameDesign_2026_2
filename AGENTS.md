@@ -173,7 +173,8 @@ Skip 버튼은 별도 우회 전이를 만들지 않고 현재 Dialogue를 완�
 - 피격 무적 기본값은 0.8초이며 설정 가능해야 한다.
 - Enemy는 파란 로봇이 유효 타격 한 번, 빨간 로봇이 두 번에 죽는다(2026-11-25 변경). 체력 바와 Damage Number를 만들지 않는다. 한 번 맞고 버틴 빨간 로봇은 밀려나며 움찔하고 불빛이 깜빡이는 것으로 구분한다.
 - Player 피격 시 HP 대신 현재 Score의 10%를 감소시킨다(2026-11-24에 1%로 낮췄다가 2026-11-25 사용자 요청으로 10%로 되돌림, 값은 `CombatSettings.playerHitPenalty`). 반올림 정책은 한 곳에서 정의하고 테스트한다.
-- 공격 적중 또는 피격으로 Special Gauge가 증가한다. 정확한 증가량과 Skill 소모량은 설정 데이터로 둔다.
+- 공격 적중 또는 피격으로 Special Gauge가 증가한다. 정확한 증가량과 Skill 소모량은 설정 데이터로 둔다. (2026-11-25 게임 설정 자산 값: 적중 2, 처치 3, 피격 8. 사용자 요청으로 적중 3 → 2, 처치 5 → 3.)
+- 궁극기(특수 공격, Q)는 Special Gauge가 가득 찼을 때만 쓰고 전부 쓴다. 주변 반지름 8m를 종류와 관계없이 부순다. 스킬(E)은 게이지의 절반이 있어야 쓸 수 있고 절반을 쓴다. 9m를 적을 뚫고 곧게 돌진하고(준비 0.21초, 돌진 중에만 무적), 지나간 길(폭 3m)만 일반 타격으로 한 번 벤다. 스킬이나 궁극기로 맞히거나 잡으면 게이지가 차지 않는다(2026-11-25 사용자 결정. 값은 `CombatSettings`의 special·skill 값과 `Assets/Data/Skill/Skill1.asset`, 키는 `Assets/InputSystem_Actions.inputactions`).
 - Score 증가량, Kill 보너스, Combo 배율은 확정값이 없으면 하드코딩하지 말고 설정 가능하게 둔다.
 - 타격 피드백은 Animation, VFX, SFX, Hit Stop, Camera 반응, Score/Gauge UI Animation으로 제공한다.
 - Aim Assist, Lock-on, Lock-on Indicator는 구현하지 않는다.

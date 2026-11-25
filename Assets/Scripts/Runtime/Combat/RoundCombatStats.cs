@@ -16,6 +16,7 @@ public sealed class RoundCombatStats
     public int HitCount { get; private set; }
     public int MaxCombo { get; private set; }
     public int SpecialUseCount { get; private set; }
+    public int SkillUseCount { get; private set; }
     public event Action Changed;
 
     public RoundCombatStats(CombatSettings settings)
@@ -62,7 +63,7 @@ public sealed class RoundCombatStats
     public void Reset(int tick)
     {
         Tick = tick;
-        Score = KillCount = HitCount = MaxCombo = SpecialUseCount = _combo = 0;
+        Score = KillCount = HitCount = MaxCombo = SpecialUseCount = SkillUseCount = _combo = 0;
         _lastKillTime = float.NegativeInfinity;
         Gauge = 0f;
         _invulnerableUntil = float.NegativeInfinity;
@@ -77,7 +78,10 @@ public sealed class RoundCombatStats
     // CombatSettings.comboCountsSpecialKills decides whether such a kill is a combo kill like any other (the default: it
     // extends the chain the special has just restarted, counts toward MaxCombo and gets the combo bonus) or stays out of
     // the combo (base score, the chain and MaxCombo are left as they are).
-    public bool RecordEnemyKill(int tick, bool chargeGauge = true, float gameTime = 0f, bool specialKill = false)
+    // gaugeScale: the share of the usual gauge gain this blow gives (1 for a normal attack; the skill's blows pass
+    // CombatSettings.skillGaugeGainFraction). Score and combo do not depend on it.
+    public bool RecordEnemyKill(int tick, bool chargeGauge = true, float gameTime = 0f, bool specialKill = false,
+        float gaugeScale = 1f)
     {
         if (!_accepting || tick != Tick) return false;
         int baseScore = Mathf.Max(0, _settings.hitScore) + Mathf.Max(0, _settings.killScore);
@@ -91,7 +95,7 @@ public sealed class RoundCombatStats
             MaxCombo = Mathf.Max(MaxCombo, _combo);
         }
         if (chargeGauge)
-            Gauge = Mathf.Clamp(Gauge + Mathf.Max(0f, _settings.hitGauge) + Mathf.Max(0f, _settings.killGauge), 0f, Mathf.Max(0.01f, _settings.maximumGauge));
+            ChargeGauge((Mathf.Max(0f, _settings.hitGauge) + Mathf.Max(0f, _settings.killGauge)) * Mathf.Max(0f, gaugeScale));
         KillCount++;
         Changed?.Invoke();
         return true;
@@ -100,7 +104,7 @@ public sealed class RoundCombatStats
     // A hit the enemy survives (a tough enemy's first hit): the hit's own score and gauge, and one more step of the
     // combo, which counts landed hits (every hit was a kill before tough enemies existed). No kill is counted. The
     // combo bonus applies to the hit score by the same rounding rule as a kill.
-    public bool RecordEnemyHit(int tick, bool chargeGauge = true, float gameTime = 0f)
+    public bool RecordEnemyHit(int tick, bool chargeGauge = true, float gameTime = 0f, float gaugeScale = 1f)
     {
         if (!_accepting || tick != Tick) return false;
         _combo = gameTime - _lastKillTime <= ComboWindowSeconds ? _combo + 1 : 1;
@@ -108,10 +112,13 @@ public sealed class RoundCombatStats
         Score += ComboKillScore(Mathf.Max(0, _settings.hitScore), _combo, _settings.comboScoreStep, _settings.comboScoreMaxBonus);
         MaxCombo = Mathf.Max(MaxCombo, _combo);
         if (chargeGauge)
-            Gauge = Mathf.Clamp(Gauge + Mathf.Max(0f, _settings.hitGauge), 0f, Mathf.Max(0.01f, _settings.maximumGauge));
+            ChargeGauge(Mathf.Max(0f, _settings.hitGauge) * Mathf.Max(0f, gaugeScale));
         Changed?.Invoke();
         return true;
     }
+
+    private void ChargeGauge(float amount) =>
+        Gauge = Mathf.Clamp(Gauge + amount, 0f, Mathf.Max(0.01f, _settings.maximumGauge));
 
     // Provisional policy: floor the penalty amount to an integer.
     public bool RecordPlayerHit(int tick, float gameTime)
@@ -135,6 +142,36 @@ public sealed class RoundCombatStats
         SpecialUseCount++;
         _combo = 0;
         _lastKillTime = float.NegativeInfinity;
+        Changed?.Invoke();
+        return true;
+    }
+
+    // Gauge one use of the skill (E) needs and spends: CombatSettings.skillCostFraction of the full gauge.
+    public float SkillCost => Mathf.Max(0.01f, _settings.maximumGauge) * Mathf.Clamp01(_settings.skillCostFraction);
+
+    // The gauge is enough for the skill right now.
+    public bool CanUseSkill(int tick) => _accepting && tick == Tick && Gauge >= SkillCost;
+
+    // Spends the skill's share of the gauge (when its key is pressed). Unlike the special, the skill's blows are
+    // normal hits: the running combo goes on and its kills count like any other.
+    public bool TryUseSkill(int tick)
+    {
+        if (!CanUseSkill(tick)) return false;
+        Gauge = Mathf.Max(0f, Gauge - SkillCost);
+        SkillUseCount++;
+        Changed?.Invoke();
+        return true;
+    }
+
+    // Gives one use back: the skill was called off before it did anything (its wind-up was interrupted). Only a use
+    // of this round can be given back, and never more than the gauge holds. This is not a combat result, so it does
+    // not wait for the round to be taking results (a wind-up can be called off in the frame the game is paused);
+    // CombatRoundRuntime decides how long a round still gives back.
+    public bool RefundSkill(int tick)
+    {
+        if (tick != Tick || SkillUseCount <= 0) return false;
+        ChargeGauge(SkillCost);
+        SkillUseCount--;
         Changed?.Invoke();
         return true;
     }

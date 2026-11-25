@@ -81,8 +81,12 @@ public sealed class UIRoot : MonoBehaviour, IRoundInitializable, IRoundResettabl
     public void PresentOutroStats(ResultUiModel model) => _layer?.Dialogue.PresentRoundStats(model);
     // 생성 이벤트 때 노아의 경고(DialogueSequenceData.spawnWarnings의 번호). 전투 HUD의 무전 자리에 경고 모양으로 뜬다.
     public void PresentSpawnWarning(int warningIndex) => _layer?.Battle.PresentSpawnWarning(warningIndex);
-    // 스킬(Q) 재사용 대기 표시용 자리. 지금 스킬은 대기 시간이 없어 아무도 부르지 않는다(0 = 준비됨, 1 = 막 사용함).
+    // 스킬(E) 재사용 대기 표시용 자리. 지금 스킬은 대기 시간이 없어 아무도 부르지 않는다(0 = 준비됨, 1 = 막 사용함).
     public void PresentSkillCooldown(float remainingNormalized) => _layer?.Battle.PresentSkillCooldown(remainingNormalized);
+    // 스킬(E)이 쓰는 게이지 몫(0~1). 게이지가 이만큼 차면 E 키가 밝아지고, 게이지 고리의 그 자리에 눈금이 놓인다.
+    public void PresentSkillCost(float normalized) => _layer?.Battle.PresentSkillCost(normalized);
+    // 게이지가 모자란데 E를 눌렀다: E 키가 잠깐 흔들린다.
+    public void PresentSkillDenied() => _layer?.Battle.PresentSkillDenied();
 
     // RoundResetCoordinator가 Reset을 시작할 때 부른다: 입력을 막고, 다음 Ready까지 화면을 검게 덮는다.
     public void StopProducing()

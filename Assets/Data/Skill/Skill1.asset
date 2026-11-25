@@ -15,20 +15,24 @@ MonoBehaviour:
   skillId: 1
   inputActionName: Skill1
   cooldown: 0
-  windupTime: 0.5
-  dashDistance: 8
-  dashDuration: 0.2
+  windupTime: 0.21
+  dashDistance: 9
+  dashDuration: 0.15
   hideDuringDash: 1
-  dashPassThroughEnemies: 0
+  dashPassThroughEnemies: 1
   enemyLayers:
     serializedVersion: 2
     m_Bits: 256
-  invulnerableDuringDash: 0
+  invulnerableDuringDash: 1
   vanishVfx: {fileID: 0}
   appearVfx: {fileID: 0}
   hitData: {fileID: 11400000, guid: b25b78d58b5a3664c9221d4ca0e448f5, type: 2}
   hitTime: 0.1
   hitDuration: 0.05
-  vfxPrefab: {fileID: 5545173171955001552, guid: 748bc19f05044d04e96f8bd309edd4ca, type: 3}
+  hitAlongDash: 1
+  dashHitWidth: 3
+  dashHitHeight: 2
+  dashHitPadding: 0.5
+  vfxPrefab: {fileID: 0}
   vfxOffset: {x: 0, y: 0, z: 0}
-  cancelTime: 0.8
+  cancelTime: 0.45

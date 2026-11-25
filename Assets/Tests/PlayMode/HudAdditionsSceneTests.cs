@@ -233,8 +233,11 @@ public sealed class HudAdditionsSceneTests
         var player = Object.FindFirstObjectByType<PlayerRuntime>();
         int baseScore = _settings.hitScore + _settings.killScore;
 
-        Kill(13);   // fills the gauge
-        Assert.AreEqual("13", combo.CountShown);
+        // The kills that fill the gauge (20 with the game's 2 + 3 a kill) make one long combo.
+        int toFill = KillsToFill();
+        Kill(toFill);
+        Assert.AreEqual(_settings.maximumGauge, _combat.Stats.Gauge);
+        Assert.AreEqual(toFill.ToString(), combo.CountShown);
         PlaceEnemiesAround(player.transform.position, 3);
         int kills = _combat.Stats.KillCount, score = _combat.Stats.Score;
         Assert.IsTrue(_combat.TryUseSpecial(_state.Tick, player.transform.position));
@@ -243,7 +246,7 @@ public sealed class HudAdditionsSceneTests
         int expected = 0;
         for (int n = 1; n <= special; n++) expected += RoundCombatStats.ComboKillScore(baseScore, n, 0.25f, 1f);
         Assert.AreEqual(expected, _combat.Stats.Score - score, "Each special kill scores with the multiplier of the combo it makes.");
-        Assert.AreEqual(special, _combat.Stats.ComboAt(_combat.CombatTime), "The special ends the 13 combo and its kills start a new one.");
+        Assert.AreEqual(special, _combat.Stats.ComboAt(_combat.CombatTime), "The special ends the long combo and its kills start a new one.");
         Assert.IsTrue(combo.IsShowing);
         Assert.IsFalse(combo.IsFading);
         Assert.AreEqual(special.ToString(), combo.CountShown, "The counter shows the special's own combo at once.");
@@ -257,7 +260,7 @@ public sealed class HudAdditionsSceneTests
         yield return WaitFor(GameState.Ready);
         yield return EnterBattle();
         HoldCrowdHits();
-        Kill(13);
+        Kill(toFill);
         Assert.IsTrue(combo.IsShowing);
         PlaceEnemiesAround(player.transform.position, 3);
         kills = _combat.Stats.KillCount;
@@ -267,7 +270,7 @@ public sealed class HudAdditionsSceneTests
         Assert.GreaterOrEqual(special, 3);
         Assert.AreEqual(special * baseScore, _combat.Stats.Score - score, "Left out of the combo, each special kill scores the base value.");
         Assert.AreEqual(0, _combat.Stats.ComboAt(_combat.CombatTime), "The special's kills start no combo.");
-        Assert.AreEqual(13, _combat.Stats.MaxCombo, "Max Combo keeps the combo from before the special.");
+        Assert.AreEqual(toFill, _combat.Stats.MaxCombo, "Max Combo keeps the combo from before the special.");
         Assert.IsTrue(combo.IsFading, "Using the special ends the combo and the counter fades.");
         yield return Frames(24);
         Assert.IsFalse(combo.IsShowing);
@@ -348,23 +351,46 @@ public sealed class HudAdditionsSceneTests
     }
 
     [UnityTest]
-    public IEnumerator SpecialKeyLightsWhileTheGaugeIsFullAndSkillKeyStaysReady()
+    public IEnumerator SpecialKeyLightsWhileTheGaugeIsFullAndSkillKeyFollowsItsShareOfTheGauge()
     {
         yield return Load();
         yield return EnterBattle();
         var battle = Object.FindFirstObjectByType<BattleView>();
         var special = Find<HudKeyBadge>(battle.transform, "SpecialKeyBadge");
         var skill = Find<HudKeyBadge>(battle.transform, "SkillKeyBadge");
-        Assert.AreEqual("E", Find<TMP_Text>(special.transform, "Key").text);
-        Assert.AreEqual("Q", Find<TMP_Text>(skill.transform, "Key").text);
-        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current, "E is dim while the gauge is not full.");
+        Assert.AreEqual("Q", Find<TMP_Text>(special.transform, "Key").text, "The special (ultimate) is on Q.");
+        Assert.AreEqual("E", Find<TMP_Text>(skill.transform, "Key").text, "The skill is on E.");
+        Assert.Less(((RectTransform)special.transform).anchoredPosition.x, 0f, "Q stands left of the gauge, as on the keyboard.");
+        Assert.Greater(((RectTransform)skill.transform).anchoredPosition.x, 0f);
+        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current, "The special's key is dim while the gauge is not full.");
         Assert.Less(special.Alpha, 1f);
-        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current, "The skill has no cooldown, so Q is always ready.");
-        Assert.AreEqual(1f, skill.Alpha);
+        Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current, "The skill's key is dim until the gauge holds the skill's share (half).");
+        Assert.Less(skill.Alpha, 1f);
+        // 게이지 고리의 스킬 몫 자리(절반 = 고리의 맨 아래)에 눈금이 있다.
+        var mark = Find<RectTransform>(battle.transform, BattleView.SkillMarkName);
+        Assert.IsNotNull(mark);
+        Assert.IsTrue(mark.gameObject.activeInHierarchy);
+        Assert.AreEqual(0f, mark.anchoredPosition.x, 0.5f);
+        Assert.Less(mark.anchoredPosition.y, -60f);
+        AssertColor(UiPalette.Ink, mark.GetComponent<Image>().color);
 
-        for (int i = 0; i < 13; i++) _combat.Stats.RecordEnemyKill(_state.Tick, true, _combat.CombatTime);
+        // 스킬 몫 바로 아래까지 채운다. 처치 한 번에 차는 양은 게임 설정 값을 따른다(2026-11-25부터 2 + 3).
+        float perKill = _settings.hitGauge + _settings.killGauge;
+        int underShare = Mathf.CeilToInt(_combat.Stats.SkillCost / perKill) - 1;
+        for (int i = 0; i < underShare; i++) _combat.Stats.RecordEnemyKill(_state.Tick, true, _combat.CombatTime);
+        Assert.Less(_combat.Stats.Gauge, _combat.Stats.SkillCost);
+        Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current, "Just under the share the skill needs.");
+        _combat.Stats.RecordEnemyKill(_state.Tick, true, _combat.CombatTime);
+        Assert.GreaterOrEqual(_combat.Stats.Gauge, _combat.Stats.SkillCost);
+        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current, "The skill's key is bright once half the gauge is there.");
+        Assert.AreEqual(1f, skill.Alpha);
+        AssertColor(UiPalette.Accent, mark.GetComponent<Image>().color);
+        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current, "The special still waits for the whole gauge.");
+
+        FillGauge();
         Assert.AreEqual(100f, _combat.Stats.Gauge);
-        Assert.AreEqual(HudKeyBadge.State.Lit, special.Current, "E lights up when the gauge is full.");
+        Assert.AreEqual(HudKeyBadge.State.Lit, special.Current, "The special's key lights up when the gauge is full.");
+        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current, "The skill's key stays bright, not pulsing: the lit key is the special's.");
         Assert.AreEqual(1f, special.Alpha);
         AssertColor(UiPalette.Accent, special.KeyColor);
         float maxScale = 1f;
@@ -386,10 +412,16 @@ public sealed class HudAdditionsSceneTests
 
         var player = Object.FindFirstObjectByType<PlayerRuntime>();
         Assert.IsTrue(_combat.TryUseSpecial(_state.Tick, player.transform.position));
-        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current, "Using the special dims E again.");
+        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current, "Using the special dims its key again.");
         Assert.AreEqual(1f, special.PulseScale, 1e-4f);
+        Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current, "The special spent the whole gauge, the skill's share too.");
 
-        // 재사용 대기 표시는 나중을 위한 자리다. 넘긴 비율만큼 Q를 덮고, 0이면 다시 준비된 모습이다.
+        // 가득 찬 채로 Retry해도 궁극기 키가 켜진 채 남지 않는다.
+        FillGauge();
+        Assert.AreEqual(HudKeyBadge.State.Lit, special.Current);
+        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current);
+
+        // 재사용 대기 표시는 나중을 위한 자리다. 넘긴 비율만큼 스킬 키를 덮고, 0이면 다시 게이지만 보는 모습이다.
         var cooldown = Find<RectTransform>(skill.transform, "CooldownFill");
         battle.RenderSkillCooldown(0.5f);
         Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current);
@@ -399,8 +431,29 @@ public sealed class HudAdditionsSceneTests
         Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current);
         Assert.IsFalse(cooldown.gameObject.activeSelf);
 
-        // 가득 찬 채로 Retry해도 E가 켜진 채 남지 않는다.
-        for (int i = 0; i < 13; i++) _combat.Stats.RecordEnemyKill(_state.Tick, true, _combat.CombatTime);
+        // 스킬을 쓰면 게이지 절반이 빠지고(궁극기 키는 꺼진다), 남은 절반으로 스킬 키는 한 번 더 밝다. 모자랄 때 누르면 스킬 키가 흔들린다.
+        Assert.IsTrue(_combat.TryUseSkill(_state.Tick));
+        Assert.AreEqual(50f, _combat.Stats.Gauge);
+        Assert.AreEqual(HudKeyBadge.State.Dim, special.Current);
+        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current);
+        Assert.IsTrue(_combat.TryUseSkill(_state.Tick));
+        Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current);
+        Assert.IsFalse(skill.IsDenying);
+        Assert.IsFalse(_combat.TryUseSkill(_state.Tick));
+        Assert.IsTrue(skill.IsDenying, "A press without the gauge shakes the skill's key.");
+        Vector2 rest = ((RectTransform)skill.transform).anchoredPosition;
+        // 흔들림은 0.25초다. 프레임은 1/60초로 고정되어 있으므로(captureFramerate) 실제 시간이 아니라 프레임으로 기다린다.
+        bool moved = false;
+        for (int i = 0; i < 30; i++)
+        {
+            yield return null;
+            moved |= Mathf.Abs(((RectTransform)skill.transform).anchoredPosition.x - rest.x) > 0.5f;
+        }
+        Assert.IsTrue(moved, "The key really moves.");
+        Assert.IsFalse(skill.IsDenying, "The shake ends.");
+        Assert.AreEqual(rest.y, ((RectTransform)skill.transform).anchoredPosition.y, 1e-3f);
+        Assert.AreEqual(150f, ((RectTransform)skill.transform).anchoredPosition.x, 1e-3f, "And the key is back in its place.");
+        FillGauge();
         Assert.AreEqual(HudKeyBadge.State.Lit, special.Current);
         _events.EnqueueRequest(new PauseRequest(_state.Tick));
         yield return WaitFor(GameState.Paused);
@@ -408,7 +461,8 @@ public sealed class HudAdditionsSceneTests
         yield return WaitFor(GameState.Ready);
         Assert.AreEqual(HudKeyBadge.State.Dim, special.Current);
         Assert.AreEqual(1f, special.PulseScale, 1e-4f);
-        Assert.AreEqual(HudKeyBadge.State.Ready, skill.Current);
+        Assert.AreEqual(HudKeyBadge.State.Dim, skill.Current, "The new round starts with an empty gauge.");
+        Assert.AreEqual(0, _combat.Stats.SkillUseCount);
     }
 
     [UnityTest]
@@ -550,7 +604,7 @@ public sealed class HudAdditionsSceneTests
         StringAssert.Contains(attack + " ATTACK", hint);
         StringAssert.Contains("HOLD 3RD " + attack + " CHARGE", hint, "Holding the third attack press charges.");
         StringAssert.Contains(dodgeKey + " DODGE", hint);
-        StringAssert.Contains(skillKey + " SKILL DASH", hint);
+        StringAssert.Contains(skillKey + " SKILL AT 50%", hint, "The skill needs half the gauge.");
         StringAssert.Contains(special + " SPECIAL AT 100%", hint, "The special needs a full gauge.");
         StringAssert.Contains("ESC PAUSE", hint);
 
@@ -693,6 +747,18 @@ public sealed class HudAdditionsSceneTests
     private void HoldCrowdHits(bool hold = true) =>
         typeof(RoundCombatStats).GetField("_invulnerableUntil", Private)
             .SetValue(_combat.Stats, hold ? float.PositiveInfinity : float.NegativeInfinity);
+
+    // 빈 게이지를 가득 채우는 처치 수(게임 설정 값을 따른다).
+    private int KillsToFill() =>
+        Mathf.CeilToInt(_settings.maximumGauge / Mathf.Max(0.01f, _settings.hitGauge + _settings.killGauge));
+
+    // 게이지가 가득 찰 때까지 처치를 기록한다(처치 한 번에 차는 양과 상관없이).
+    private void FillGauge()
+    {
+        for (int i = 0; i < 200 && _combat.Stats.Gauge < _combat.Settings.maximumGauge; i++)
+            Assert.IsTrue(_combat.Stats.RecordEnemyKill(_state.Tick, true, _combat.CombatTime));
+        Assert.AreEqual(_combat.Settings.maximumGauge, _combat.Stats.Gauge);
+    }
 
     // 이번 판의 시계로 처치를 기록한다(CombatRoundRuntime이 적중을 받을 때와 같은 시각).
     private void Kill(int count)

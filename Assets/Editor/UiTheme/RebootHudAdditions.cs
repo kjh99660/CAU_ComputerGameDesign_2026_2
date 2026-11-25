@@ -23,10 +23,12 @@ public static class RebootHudAdditions
 
     // 실제 입력 설정(InputSystem_Actions, PlayerRuntime, PlayerSkill, UiLayer)과 같은 키다. 키를 바꾸면 이 문구도 바꾼다.
     // 이동 WASD, 카메라 마우스, 공격 왼쪽 버튼(Attack1 → Attack2 → 세 번째 입력을 누르고 있으면 차지), 회피 Left Shift(Sprint),
-    // 스킬 돌진 Q(Skill1), 특수 공격 E(Interact, 게이지 100%일 때), 일시정지 ESC.
+    // 궁극기(특수 공격) Q(Interact, 게이지 100%일 때), 직선 스킬 E(Skill1, 게이지 50%일 때), 일시정지 ESC.
+    // 2026-11-25에 두 키를 맞바꿨다(전에는 Q가 스킬, E가 특수 공격).
+    // 50%와 100%는 CombatSettings의 skillCostFraction과 specialCostFraction이다. 그 값을 바꾸면 이 문구도 바꾼다.
     public const string ControlHintText =
         "WASD  MOVE     MOUSE  CAMERA     LMB  ATTACK     SHIFT  DODGE\n" +
-        "HOLD 3RD LMB  CHARGE     Q  SKILL DASH     E  SPECIAL AT 100%     ESC  PAUSE";
+        "HOLD 3RD LMB  CHARGE     Q  SPECIAL AT 100%     E  SKILL AT 50%     ESC  PAUSE";
 
     private static readonly Color PanelFill = new(0.039f, 0.047f, 0.063f, 0.66f);
 
@@ -82,8 +84,9 @@ public static class RebootHudAdditions
         HudComboCounter combo = EnsureComboCounter(root, style);
         HudRadioSubtitle radio = EnsureRadioSubtitle(root, style);
         // 원형 게이지(BattleView가 실행 중에 화면 아래 가운데, 아래에서 35px 띄운 170px로 만든다)의 양옆.
-        HudKeyBadge skill = EnsureKeyBadge(root, "SkillKeyBadge", "Q", "SKILL", new Vector2(-150f, 120f), style, true);
-        HudKeyBadge special = EnsureKeyBadge(root, "SpecialKeyBadge", "E", "SPECIAL", new Vector2(150f, 120f), style, false);
+        // 왼쪽이 Q(궁극기), 오른쪽이 E(스킬): 키보드에서 놓인 순서와 같다.
+        HudKeyBadge skill = EnsureKeyBadge(root, "SkillKeyBadge", "E", "SKILL", new Vector2(150f, 120f), style, true);
+        HudKeyBadge special = EnsureKeyBadge(root, "SpecialKeyBadge", "Q", "SPECIAL", new Vector2(-150f, 120f), style, false);
 
         var view = root.GetComponent<BattleView>();
         if (view == null) return;
@@ -262,7 +265,7 @@ public static class RebootHudAdditions
 
     // 일시정지 메뉴의 조작 안내. 시작 화면의 안내(ControlHintText)와 같은 키다. 키를 바꾸면 둘 다 바꾼다.
     public const string PauseControlKeys = "WASD\nMOUSE\nLMB\nHOLD 3RD LMB\nSHIFT\nQ\nE\nESC";
-    public const string PauseControlActions = "MOVE\nCAMERA\nATTACK\nCHARGE\nDODGE\nSKILL DASH\nSPECIAL AT 100%\nRESUME";
+    public const string PauseControlActions = "MOVE\nCAMERA\nATTACK\nCHARGE\nDODGE\nSPECIAL AT 100%\nSKILL AT 50%\nRESUME";
 
     // 일시정지 메뉴 양옆의 두 칸. 가운데 메뉴(MenuPanel 520px)와 겹치지 않게 ±500px에 두고, 위쪽 끝을 RESUME 버튼에 맞춘다.
     // - 왼쪽 OptionsPanel: 플레이어 설정 두 줄(마우스 감도, 음량). 한 번 누르면 한 단계(GameOptions). PauseView가 버튼과

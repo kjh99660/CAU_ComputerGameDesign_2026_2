@@ -71,7 +71,7 @@ public sealed class SfxSceneTests
         Assert.AreEqual(hurts + 1, _sfx.PlayCount(SfxCue.PlayerHurt), "A hit the round refused makes no sound.");
 
         int full = _sfx.PlayCount(SfxCue.GaugeFull);
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.AreEqual(full + 1, _sfx.PlayCount(SfxCue.GaugeFull), "The gauge chimes once when it fills.");
         int special = _sfx.PlayCount(SfxCue.Special);
         subs = _sfx.PlayCount(SfxCue.HitSub);

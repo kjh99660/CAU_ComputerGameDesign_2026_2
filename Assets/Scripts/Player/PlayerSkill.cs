@@ -7,6 +7,11 @@ using UnityEngine.InputSystem;
 //  → ③ 본동작: 투명화 해제 + 모션 + VFX + 원형 판정 1회 → cancelTime 이후 이동/공격 캔슬 가능
 // 단계 전환은 코드가 SkillNext 트리거로 진행한다. (시간은 SkillData 기준, 클립 길이와 무관)
 // 중간에 회피 등으로 스킬 상태를 벗어나면 즉시 정리(투명화 해제, 이동 정지, 트리거 정리)한다.
+// 게이지(SkillData.usesGauge): 키를 누를 때 PlayerRuntime을 통해 게이지를 쓰고(모자라면 시작하지 않음),
+//   돌진이 시작되기 전에 끊기면 돌려받는다. 스킬 타격은 게이지를 CombatSettings의 배율만큼만 채운다.
+// 판정(SkillData.hitAlongDash): 켜면 캐릭터 주변이 아니라 돌진이 실제로 지나간 길만 상자로 판정한다.
+// 본동작이 공격 클립(차지 베기)을 빌려 쓰므로, 스킬이 진행되는 동안 히트박스는 클립의 HitStart·HitEnd 이벤트를 받지 않는다.
+// 연출(SkillFeedback, 없으면 생략): 준비 중 바닥 안내(돌진할 길) → 돌진 경로의 칼자국과 홀로그램 잔상.
 // Animator 요구사항: 파라미터 Trigger "Skill", Int "SkillId", Trigger "SkillNext"
 //                    상태 "Skill{n}_Windup" → "Skill{n}_Dash" → "Skill{n}_Main" (모두 Tag = Action)
 [RequireComponent(typeof(CharacterController))]
@@ -23,7 +28,7 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     [SerializeField] private string actionMapName = "Player";
     [SerializeField] private string moveActionName = "Move";
     [SerializeField] private Transform cameraTransform;       // 비우면 Main Camera 사용
-    [SerializeField] private Key fallbackKey = Key.Q;          // 팀원 구조가 없는 씬(CharacterTest)에서 첫 번째 스킬 키
+    [SerializeField] private Key fallbackKey = Key.E;          // 팀원 구조가 없는 씬(CharacterTest)에서 첫 번째 스킬 키
     [SerializeField] private bool debugLog = false;
 
     private enum Phase { None, Windup, Dash, Main }
@@ -44,6 +49,10 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     private CharacterController _controller;
     private SwordEventRelay _sword;
     private PlayerAttackHitbox _hitbox;
+    private PlayerRuntime _runtime;    // 라운드 쪽 창구 (게이지). 팀원 구조가 없는 씬에서는 꺼져 있거나 없음
+    private SkillFeedback _feedback;   // 바닥 안내, 칼자국, 잔상 (메인 씬에만 있음)
+    private AttackHitData _pathHit;    // hitAlongDash용: 지나간 길에 맞춰 매번 다시 채우는 상자
+    private bool _gaugeRefundable;     // 이번 스킬이 게이지를 썼고 아직 돌진 전이라 끊기면 돌려받을 수 있음
     private InputActionMap _map;
     private InputAction _move;
     private bool _useKeyboard;
@@ -116,13 +125,15 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     {
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
-        _useKeyboard = !(TryGetComponent(out PlayerRuntime runtime) && runtime.enabled);
+        _useKeyboard = !(TryGetComponent(out _runtime) && _runtime.enabled);
+        _feedback = FindFirstObjectByType<SkillFeedback>();
     }
 
     private void OnDestroy()
     {
         foreach (Runtime rt in _skills)
             if (rt.vfx != null) Destroy(rt.vfx);
+        if (_pathHit != null) Destroy(_pathHit);
     }
 
     // ── PlayerRuntime이 매 프레임 물어보는 값 ──
@@ -158,14 +169,18 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
             }
         }
 
-        if (_allowed && HasParams())
+        if (_allowed && HasParams() && CanStartNewSkill())
         {
             for (int i = 0; i < _skills.Count; i++)
             {
                 Runtime rt = _skills[i];
                 if (rt.cooldown <= 0f && Pressed(rt, i))
                 {
+                    // 게이지가 모자라면 시작하지 않는다 (HUD가 알려 준다).
+                    bool gauge = UsesGauge(rt);
+                    if (gauge && !_runtime.TryUseSkillGauge()) break;
                     StartSkill(rt);
+                    _gaugeRefundable = gauge;
                     break;
                 }
             }
@@ -174,13 +189,28 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         if (_active != null) Advance(dt);
     }
 
+    // 새 스킬은 진행 중인 스킬이 없거나, 본동작의 판정이 끝난 뒤에만 받는다.
+    //  - 준비·돌진·판정 전에 받으면 게이지를 한 번 더 쓰고 앞 스킬의 타격을 버리게 된다.
+    //  - 스킬 상태에서 다른 동작으로 빠져나가는 전환 중에 받으면 같은 프레임에 끊겨 방향만 바뀐다.
+    private bool CanStartNewSkill()
+    {
+        if (_active == null) return true;
+        if (_phase != Phase.Main || !_hitEnded) return false;
+        return !(_animator.IsInTransition(0) &&
+                 IsAnySkillState(_animator.GetCurrentAnimatorStateInfo(0)) &&
+                 !IsAnySkillState(_animator.GetNextAnimatorStateInfo(0)));
+    }
+
     private void StartSkill(Runtime rt)
     {
         if (_active != null) Abort("다른 스킬 시작");
 
         _active = rt;
         rt.cooldown = Mathf.Max(0f, rt.data.cooldown);
-        _dashDir = TryGetInputDirection(out Vector3 dir) ? dir : FlatForward();
+        // 방향: 이동 입력 → (설정에 따라) 카메라가 보는 쪽 → 캐릭터가 보던 쪽
+        _dashDir = TryGetInputDirection(out Vector3 dir) ? dir
+                 : rt.data.aimWithCameraWhenIdle && TryGetCameraForward(out Vector3 look) ? look
+                 : FlatForward();
         transform.rotation = Quaternion.LookRotation(_dashDir);   // 돌진 방향으로 즉시 회전
 
         _animator.ResetTrigger(AttackHash);
@@ -189,8 +219,12 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         _animator.SetInteger(SkillIdHash, rt.data.skillId);
         _animator.SetTrigger(SkillHash);
         if (_sword != null) _sword.Sheathe();
+        if (_hitbox != null) _hitbox.AnimationEventsMuted = true;   // 본동작 클립의 판정 이벤트 대신 스킬이 판정한다
 
         EnterPhase(Phase.Windup);
+        if (_feedback != null && rt.data.dashDistance > 0f)
+            _feedback.ShowAim(transform.position, _dashDir, rt.data.dashDistance + (rt.data.hitAlongDash ? rt.data.dashHitPadding : 0f),
+                rt.data.hitAlongDash ? rt.data.dashHitWidth : 0f, rt.data.windupTime);
         if (debugLog) Debug.Log($"[Skill] {rt.data.name} 시작", this);
     }
 
@@ -246,13 +280,14 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
                 if (!_hitStarted && _phaseTime >= _active.data.hitTime)
                 {
                     _hitStarted = true;
-                    if (_hitbox != null && _active.data.hitData != null)
-                        _hitbox.BeginHit(_active.data.hitData, false);
+                    AttackHitData hit = _active.data.hitAlongDash ? BuildPathHit(_active.data) : _active.data.hitData;
+                    if (_hitbox != null && hit != null)
+                        _hitbox.BeginHit(hit, false, true);   // 스킬 타격: 게이지 획득 배율 적용
                 }
                 if (_hitStarted && !_hitEnded && _phaseTime >= _active.data.hitTime + _active.data.hitDuration)
                 {
                     _hitEnded = true;
-                    if (_hitbox != null) _hitbox.HitEnd();
+                    if (_hitbox != null) _hitbox.EndHit();
                 }
                 break;
         }
@@ -286,8 +321,12 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     private void BeginDash()
     {
         SkillData d = _active.data;
+        // 여기서부터는 끊겨도 게이지를 돌려받지 않는다
+        if (_gaugeRefundable && _runtime != null) _runtime.CommitSkillGauge();
+        _gaugeRefundable = false;
         _dashStartPos = transform.position;
         SpawnOneShot(d.vanishVfx);
+        if (_feedback != null) _feedback.CapturePose(transform);   // 잔상에 쓸 자세: 숨기기 전의 모습
         if (d.hideDuringDash) Hide();
         if (d.dashPassThroughEnemies && !_excluding)
         {
@@ -304,6 +343,7 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         float remaining = Mathf.Max(0f, d.dashDuration - (_phaseTime - dt));
         float step = Mathf.Min(dt, remaining);
         _controller.Move(_dashDir * (d.dashDistance / d.dashDuration * step));   // 적·벽에 막히면 그 자리에서 멈춤
+        if (_feedback != null) _feedback.TrailTo(transform.position);            // 지나간 자리에 잔상
     }
 
     private void EndDash()
@@ -317,6 +357,7 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         RestoreLayers();
         Show();
         if (_active != null) SpawnOneShot(_active.data.appearVfx);
+        if (_feedback != null) _feedback.PlayDash(_dashStartPos, transform.position);
     }
 
     // ── 종료 / 중단 ──
@@ -324,10 +365,13 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     private void Finish()
     {
         if (debugLog && _active != null) Debug.Log($"[Skill] {_active.data.name} 종료", this);
+        // 본동작(차지 베기 클립)이 칼을 뽑는다. 클립의 칼 넣기 이벤트 전에 이동 등으로 캔슬됐으면 여기서 넣는다.
+        if (_sword != null) _sword.Sheathe();
         Cleanup();
     }
 
-    private void Abort(string reason)
+    // refundGauge: 돌진 전에 끊긴 스킬의 게이지를 돌려받는다. 라운드 리셋으로 끊길 때는 돌려받지 않는다.
+    private void Abort(string reason, bool refundGauge = true)
     {
         if (debugLog && _active != null) Debug.Log($"[Skill] {_active.data.name} 중단: {reason}", this);
         if (HasParams())
@@ -335,13 +379,17 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
             _animator.ResetTrigger(SkillHash);
             _animator.ResetTrigger(SkillNextHash);
         }
+        if (refundGauge && _gaugeRefundable && _runtime != null) _runtime.RefundSkillGauge();
         Cleanup();
     }
 
     private void Cleanup()
     {
-        if (_phase == Phase.Main && _hitStarted && !_hitEnded && _hitbox != null) _hitbox.HitEnd();
+        if (_phase == Phase.Main && _hitStarted && !_hitEnded && _hitbox != null) _hitbox.EndHit();
+        if (_hitbox != null) _hitbox.AnimationEventsMuted = false;
         _hitStarted = _hitEnded = false;
+        _gaugeRefundable = false;
+        if (_feedback != null) _feedback.HideAim();
         RestoreLayers();
         Show();
         _active = null;
@@ -503,6 +551,43 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
         return f.sqrMagnitude > 0.0001f ? f.normalized : Vector3.forward;
     }
 
+    private bool TryGetCameraForward(out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        if (cameraTransform == null) return false;
+        Vector3 forward = cameraTransform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) return false;
+        direction = forward.normalized;
+        return true;
+    }
+
+    // 게이지를 쓰는 스킬인지. 팀원 구조가 없는 씬(CharacterTest)에서는 게이지 없이 쓴다.
+    private bool UsesGauge(Runtime rt) => rt.data.usesGauge && !_useKeyboard && _runtime != null;
+
+    // 돌진이 실제로 지나간 길(시작 지점~지금 위치)을 덮는 상자. 벽에 막혀 짧게 갔으면 그만큼만 잡는다.
+    // 히트박스가 캐릭터 기준 좌표로 계산하므로 중심을 캐릭터 기준으로 바꿔 넣는다 (캐릭터는 돌진 방향을 보고 있다).
+    private AttackHitData BuildPathHit(SkillData d)
+    {
+        if (_pathHit == null)
+        {
+            _pathHit = ScriptableObject.CreateInstance<AttackHitData>();
+            _pathHit.name = "SkillPathHit";
+            _pathHit.shape = AttackHitData.HitShape.Box;
+        }
+        Vector3 from = _dashStartPos, to = transform.position;
+        Vector3 along = to - from;
+        float rise = Mathf.Abs(along.y);
+        along.y = 0f;
+        float height = Mathf.Max(0.1f, d.dashHitHeight);
+        Vector3 middle = (from + to) * 0.5f + Vector3.up * (height * 0.5f);
+        _pathHit.center = transform.InverseTransformPoint(middle);
+        _pathHit.size = new Vector3(Mathf.Max(0.1f, d.dashHitWidth), height + rise,
+            along.magnitude + 2f * Mathf.Max(0f, d.dashHitPadding));
+        _pathHit.knockbackMultiplier = d.hitData != null ? d.hitData.knockbackMultiplier : 1f;
+        return _pathHit;
+    }
+
     private bool TryGetInputDirection(out Vector3 direction)
     {
         direction = Vector3.zero;
@@ -561,7 +646,7 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
 
     public void ResetPresentation()
     {
-        if (_active != null) Abort("라운드 리셋");
+        if (_active != null) Abort("라운드 리셋", false);
         foreach (Runtime rt in _skills)
         {
             rt.cooldown = 0f;
@@ -579,5 +664,7 @@ public class PlayerSkill : MonoBehaviour, IPlayerCancelGate, IPlayerInvulnerabil
     {
         RestoreLayers();
         Show();
+        if (_hitbox != null) _hitbox.AnimationEventsMuted = false;
+        if (_feedback != null) _feedback.HideAim();
     }
 }

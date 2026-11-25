@@ -138,7 +138,7 @@ public sealed class UiEffectsSceneTests
 
         // 게이지가 가득 차면 틀이 맥동하고, Pause에서는 멈춘다.
         Assert.AreEqual(1f, gauge.localScale.x, 1e-4f);
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         Assert.AreEqual(100f, combat.Stats.Gauge);
         float maxScale = 1f;
         float until = Time.realtimeSinceStartup + 1.2f;
@@ -164,7 +164,7 @@ public sealed class UiEffectsSceneTests
         Assert.AreEqual(1f, gauge.localScale.x, 1e-4f);
 
         // 가득 찬 채로 Retry해도 맥동이 남지 않는다.
-        for (int i = 0; i < 13; i++) combat.Stats.RecordEnemyKill(_state.Tick);
+        for (int i = 0; i < 200 && combat.Stats.Gauge < combat.Settings.maximumGauge; i++) combat.Stats.RecordEnemyKill(_state.Tick);
         yield return new WaitForSecondsRealtime(0.2f);
         _events.EnqueueRequest(new PauseRequest(_state.Tick));
         yield return WaitFor(GameState.Paused);

@@ -24,6 +24,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private bool _hitStopsEnabled = true;
     private int _presentedCombo;
     private bool _recordingSpecialKills;
+    private bool _recordingSkillHits;
     private const float MaxHitStopSeconds = 0.3f;
     private const float MinHitStopTimeScale = 0.02f;
 
@@ -94,7 +95,7 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         yield break;
     }
 
-    public void StopProducing() { _stats.SetAccepting(false); _clockActive = false; EndHitStop(); }
+    public void StopProducing() { _stats.SetAccepting(false); _clockActive = false; _recordingSkillHits = false; EndHitStop(); }
 
     public IEnumerator ResetRound(int tick)
     {
@@ -132,9 +133,11 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private void RecordEnemyHit(int tick, bool chargeGauge, bool destroyed)
     {
         int previous = _stats.Score;
+        // A blow of the skill charges the gauge by a share of the usual amount (BeginSkillHits .. EndSkillHits).
+        float gaugeScale = _recordingSkillHits ? Mathf.Clamp01(_settings.skillGaugeGainFraction) : 1f;
         bool recorded = destroyed
-            ? _stats.RecordEnemyKill(tick, chargeGauge, _combatTime, _recordingSpecialKills)
-            : _stats.RecordEnemyHit(tick, chargeGauge, _combatTime);
+            ? _stats.RecordEnemyKill(tick, chargeGauge, _combatTime, _recordingSpecialKills, gaugeScale)
+            : _stats.RecordEnemyHit(tick, chargeGauge, _combatTime, gaugeScale);
         if (recorded && _state == GameState.Battle)
             _ui.PresentScoreChange(_stats.Score - previous);
     }
@@ -165,6 +168,30 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
         SpecialActivated?.Invoke(center, _settings.specialRadius, tick);
         return true;
     }
+
+    // The skill (E) shares the special's gauge (CombatSettings.skillCostFraction of the full gauge for one use).
+    // TryUseSkill is called when the key is pressed, only in Battle: it spends the skill's share, and when the gauge
+    // is short it spends nothing and the HUD says so. RefundSkill gives that share back when the skill was called off
+    // before it did anything (a wind-up interrupted by a dodge), until the round's score window has closed; a use
+    // of an earlier round is never given back.
+    public bool TryUseSkill(int tick)
+    {
+        if (_state != GameState.Battle || _timerEnded || tick != _stats.Tick) return false;
+        if (_stats.TryUseSkill(tick)) return true;
+        _ui.PresentSkillDenied();
+        return false;
+    }
+
+    // Paused counts too: a dodge pressed in the frame the game is paused calls the wind-up off while paused.
+    public bool RefundSkill(int tick) =>
+        (_state == GameState.Battle || _state == GameState.Paused ||
+         (_state == GameState.Finishing && !_finishingEnded)) && _stats.RefundSkill(tick);
+
+    // The skill's blows are landed by the player's hitbox, one overlap check at a time. Every hit accepted between the
+    // two calls is the skill's own and charges the gauge by CombatSettings.skillGaugeGainFraction of the usual gain.
+    public void BeginSkillHits() => _recordingSkillHits = true;
+    public void EndSkillHits() => _recordingSkillHits = false;
+
     public void Advance(float deltaTime, float unscaledDeltaTime)
     {
         // Hit stops must not lengthen the round: while one holds, the round clock runs on real time.
@@ -223,6 +250,8 @@ public sealed class CombatRoundRuntime : MonoBehaviour, IRoundInitializable, IRo
     private void Present()
     {
         _ui.PresentBattleScore(_stats.Score);
+        // The share of the gauge the skill needs comes first: the gauge is drawn against it (the skill's key lights up).
+        _ui.PresentSkillCost(Mathf.Clamp01(_settings.skillCostFraction));
         _ui.PresentBattleGauge(_stats.Gauge / Mathf.Max(0.01f, _settings.maximumGauge));
         _ui.PresentBattleTimer(_remaining);
         _ui.PresentFinishing(new FinishingUiModel(_stats.Score));

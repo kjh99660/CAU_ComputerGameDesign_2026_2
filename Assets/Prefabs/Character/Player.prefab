@@ -4600,7 +4600,7 @@ MonoBehaviour:
   actionMapName: Player
   moveActionName: Move
   cameraTransform: {fileID: 0}
-  fallbackKey: 31
+  fallbackKey: 19
   debugLog: 0
 --- !u!1 &7409351387047053508
 GameObject:

@@ -22,6 +22,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
     private GameRequestProcessor _requestProcessor;
     private CombatRoundRuntime _combat;
     private SpecialFeedback _specialFeedback;
+    private SkillFeedback _skillFeedback;
     private CombatVfxRuntime _combatVfx;
     private CombatCameraFeedback _cameraFeedback;
     private CombatImpactFeedback _impactFeedback;
@@ -72,6 +73,11 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         var vfxSettings = Resources.Load<CombatVfxSettings>("CombatVfxSettings");
         _specialFeedback = gameObject.AddComponent<SpecialFeedback>();
         _specialFeedback.Configure(_combat, vfxSettings != null ? vfxSettings.groundIndicatorMaterial : null);
+        // 스킬(E, 직선 돌진)의 바닥 안내 길, 돌진 칼자국, 홀로그램 잔상. 플레이어의 스킬 실행기가 찾아서 부른다.
+        // 잔상은 플레이어의 메시를 읽어 그리므로, 테두리 같은 보조 요소가 플레이어에 붙기 전에 연결한다.
+        _skillFeedback = gameObject.AddComponent<SkillFeedback>();
+        _skillFeedback.Configure(vfxSettings != null ? vfxSettings.groundIndicatorMaterial : null, vfxSettings, playerRuntime.transform);
+        roundResetCoordinator.RegisterParticipant(_skillFeedback);
         _combatVfx = gameObject.AddComponent<CombatVfxRuntime>();
         _combatVfx.Configure(enemyRuntime, vfxSettings, _combat);
         roundResetCoordinator.RegisterParticipant(_combatVfx);
@@ -184,6 +190,7 @@ public sealed class CoreBootstrap : MonoBehaviour, IGameStateChangeHandler
         _ui.OnGameStateChanged(notification);
         _combat?.ApplyState(notification);
         _specialFeedback?.ApplyState(notification);
+        _skillFeedback?.ApplyState(notification);
         _combatVfx?.ApplyState(notification);
         _cameraFeedback?.ApplyState(notification);
         _impactFeedback?.ApplyState(notification);
