@@ -95,8 +95,15 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
     {
         if (prefab == null) return;
         Effect effect = null;
-        for (int i = 0; i < pool.Count; i++)
-            if (!pool[i].Active) { effect = pool[i]; break; }
+        if (OptimizationManager.CombatVfxPooling)
+        {
+            for (int i = 0; i < pool.Count; i++)
+                if (!pool[i].Active) { effect = pool[i]; break; }
+        }
+        else
+        {
+            DiscardInactive(pool);
+        }
         if (effect == null)
         {
             if (pool.Count >= Mathf.Max(1, _settings.maximumInstancesPerEffect)) return;
@@ -170,6 +177,7 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
                 if (particle.IsAlive(false)) { alive = true; break; }
             if (!alive || effect.Age >= _settings.maximumLifetime) Release(effect);
         }
+        if (!OptimizationManager.CombatVfxPooling) DiscardInactive(pool);
     }
 
     private bool HasActive()
@@ -199,9 +207,22 @@ public sealed class CombatVfxRuntime : MonoBehaviour, IRoundResettable
     private void Clear()
     {
         foreach (List<Effect> pool in Pools)
+        {
             foreach (Effect effect in pool)
                 if (effect.Active) Release(effect);
+            if (!OptimizationManager.CombatVfxPooling) DiscardInactive(pool);
+        }
         enabled = false;
+    }
+
+    private void DiscardInactive(List<Effect> pool)
+    {
+        for (int i = pool.Count - 1; i >= 0; i--)
+        {
+            if (pool[i].Active) continue;
+            Destroy(pool[i].Root);
+            pool.RemoveAt(i);
+        }
     }
 
     public void StopProducing() { _stopped = true; Clear(); }

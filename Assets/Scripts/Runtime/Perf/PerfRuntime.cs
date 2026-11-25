@@ -269,7 +269,7 @@ public sealed class PerfRuntime : MonoBehaviour, IRoundResettable
         EnemyPerfProbe probe = Probe;
         if (probe != null)
         {
-            probe.SetMode(EnemyCandidateMode.SpatialGrid);
+            probe.RestoreDefaultMode();
             probe.SetExperimentMaximumEnemies(0);
         }
         if (_benchmarkActive)

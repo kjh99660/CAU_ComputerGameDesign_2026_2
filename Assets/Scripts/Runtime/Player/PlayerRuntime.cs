@@ -654,13 +654,14 @@ public sealed class PlayerRuntime : MonoBehaviour, IPlayerRuntime, IRoundInitial
         if (normalized < _combatSettings.attackActiveStart || normalized > _combatSettings.attackActiveEnd)
             return;
         Vector3 center = transform.position + transform.forward * _combatSettings.attackForwardOffset + Vector3.up * _combatSettings.attackHeight;
-        int count = Physics.OverlapSphereNonAlloc(center, Mathf.Max(0.05f, _combatSettings.attackRadius), _attackResults, ~0, QueryTriggerInteraction.Collide);
+        Collider[] results = AttackOverlapQuery.Sphere(center, Mathf.Max(0.05f, _combatSettings.attackRadius),
+            _attackResults, ~0, out int count, QueryTriggerInteraction.Collide);
         for (int i = 0; i < count; i++)
         {
-            Collider candidate = _attackResults[i];
+            Collider candidate = results[i];
             if (candidate != null && candidate.TryGetComponent(out EnemyAgent enemy))
                 _combatEnemies.TryApplyHit(enemy, transform.forward, 1f, _tick);
-            _attackResults[i] = null;
+            results[i] = null;
         }
     }
 

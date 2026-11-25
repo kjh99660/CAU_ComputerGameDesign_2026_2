@@ -376,7 +376,7 @@ public sealed class EnemyRuntime : MonoBehaviour, IRoundInitializable, IRoundRes
         _poolRoot.SetParent(transform, false);
         _registry = new EnemyRegistry();
         _grid = new EnemySpatialGrid(settings.SpatialCellSize);
-        _probe = new EnemyPerfProbe(_registry, _grid);
+        _probe = new EnemyPerfProbe(_registry, _grid, useSceneDefault: true);
         _pool = new EnemyPool(enemyPrefab, this, _poolRoot);
         // Spawn checks look for level geometry only: not other enemies, not the player, not ray-ignored helpers.
         _spawnObstacleMask = ~((1 << enemyPrefab.gameObject.layer) | (1 << target.gameObject.layer) | (1 << 2));

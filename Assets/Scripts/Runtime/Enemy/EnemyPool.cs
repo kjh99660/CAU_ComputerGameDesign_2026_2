@@ -22,6 +22,8 @@ public sealed class EnemyPool
 
     public EnemyAgent Get()
     {
+        if (!OptimizationManager.EnemyPooling)
+            DiscardAvailable();
         EnemyAgent enemy = _available.Count > 0 ? _available.Pop() : Create();
         enemy.Initialize(_owner);
         return enemy;
@@ -32,6 +34,8 @@ public sealed class EnemyPool
     // them all in one frame.
     public bool Prewarm(int total, int budget)
     {
+        if (!OptimizationManager.EnemyPooling || !OptimizationManager.EnemyPrewarming)
+            return true;
         for (int i = 0; i < budget && CreatedCount < total; i++)
         {
             EnemyAgent enemy = Create();
@@ -53,6 +57,24 @@ public sealed class EnemyPool
         if (enemy == null)
             return;
         enemy.DeactivateForPool(_root);
-        _available.Push(enemy);
+        if (OptimizationManager.EnemyPooling)
+            _available.Push(enemy);
+        else
+        {
+            DestroyEnemy(enemy);
+            DiscardAvailable();
+        }
+    }
+
+    private void DiscardAvailable()
+    {
+        while (_available.Count > 0)
+            DestroyEnemy(_available.Pop());
+    }
+
+    private void DestroyEnemy(EnemyAgent enemy)
+    {
+        CreatedCount--;
+        UnityEngine.Object.Destroy(enemy.gameObject);
     }
 }

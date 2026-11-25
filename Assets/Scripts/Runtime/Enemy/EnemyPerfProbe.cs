@@ -49,13 +49,28 @@ public sealed class EnemyPerfProbe
     // 검증을 켠 동안에만 채운다: 격자에 마지막으로 기록할 때의 Transform 위치.
     private Dictionary<EnemyAgent, Vector3> _trackedPositions;
 
-    public EnemyPerfProbe(EnemyRegistry registry, EnemySpatialGrid grid)
+    private readonly bool _useSceneDefault;
+    private EnemyCandidateMode _mode = EnemyCandidateMode.SpatialGrid;
+    private EnemyCandidateMode? _modeOverride;
+
+    public EnemyPerfProbe(EnemyRegistry registry, EnemySpatialGrid grid, bool useSceneDefault = false)
     {
         _registry = registry ?? throw new System.ArgumentNullException(nameof(registry));
         _grid = grid ?? throw new System.ArgumentNullException(nameof(grid));
+        _useSceneDefault = useSceneDefault;
     }
 
-    public EnemyCandidateMode Mode { get; private set; } = EnemyCandidateMode.SpatialGrid;
+    public EnemyCandidateMode Mode
+    {
+        get
+        {
+            ApplyMode(_modeOverride ?? DefaultMode);
+            return _mode;
+        }
+    }
+
+    private EnemyCandidateMode DefaultMode => !_useSceneDefault || OptimizationManager.SpatialPartitioning
+        ? EnemyCandidateMode.SpatialGrid : EnemyCandidateMode.BruteForce;
 
     // 켜면 AI 갱신과 특수 공격 판정에 걸린 시간을 Stopwatch로 잰다(프레임당 시각 읽기 두 번).
     // A/B 측정기(EnemyAbRoundRunner)가 켜는 값이라 "측정 판"의 표시로도 읽힌다.
@@ -96,9 +111,21 @@ public sealed class EnemyPerfProbe
     // 방식을 바꾼다. 격자로 돌아올 때는 지금 위치로 격자를 다시 만든다.
     public void SetMode(EnemyCandidateMode mode)
     {
-        if (Mode == mode)
+        _modeOverride = mode;
+        ApplyMode(mode);
+    }
+
+    public void RestoreDefaultMode()
+    {
+        _modeOverride = null;
+        ApplyMode(DefaultMode);
+    }
+
+    private void ApplyMode(EnemyCandidateMode mode)
+    {
+        if (_mode == mode)
             return;
-        Mode = mode;
+        _mode = mode;
         _grid.Clear();
         if (mode != EnemyCandidateMode.SpatialGrid)
             return;
